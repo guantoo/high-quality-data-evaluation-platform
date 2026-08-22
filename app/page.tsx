@@ -839,22 +839,31 @@ function InventoryPage({
             <button className="reuse-primary" onClick={openDialog}><UiIcon icon={Plus} />新建数据连接</button>
           </div>
         </div>
-        <div className="source-cards">
-          {filtered.map((item, index) => (
-            <button
-              key={item.name}
-              className={`source-item ${selectedSource === item.name ? "active" : ""}`}
-              onClick={() => setSelectedSource(item.name)}
-            >
-              <span className={`source-symbol s${index % 4}`}>{item.type.slice(0, 2)}</span>
-              <div>
-                <strong>{item.name}</strong>
-                <p>{item.type} · {item.summary}</p>
-                <small>最近同步：{item.updated}</small>
-              </div>
-              <Status>连接正常</Status>
-            </button>
-          ))}
+        <div className="source-cards" aria-label="数据源选择">
+          {filtered.map((item) => {
+            const SourceIcon = item.type.includes("MySQL")
+              ? Database
+              : item.type.includes("本地")
+                ? FolderKanban
+                : item.type.includes("SFTP")
+                  ? Upload
+                  : Workflow;
+            return (
+              <button
+                key={item.name}
+                className={`source-item ${selectedSource === item.name ? "active" : ""}`}
+                onClick={() => setSelectedSource(item.name)}
+              >
+                <span className="source-symbol"><UiIcon icon={SourceIcon} size={16} /></span>
+                <div>
+                  <strong>{item.name}</strong>
+                  <p>{item.type} · {item.summary}</p>
+                  <small>最近同步：{item.updated}</small>
+                </div>
+                <Status>连接正常</Status>
+              </button>
+            );
+          })}
         </div>
         {selected && (
           <div className="source-detail-strip">
