@@ -1016,11 +1016,13 @@ function GovernancePage({
   projects,
   openDialog,
   copyProject,
+  enterWorkspace,
   notify,
 }: {
   projects: ProjectRow[];
   openDialog: () => void;
   copyProject: (project: ProjectRow) => void;
+  enterWorkspace: (project: ProjectRow) => void;
   notify: Notify;
 }) {
   const [section, setSection] = useState("开发项目管理");
@@ -1061,12 +1063,16 @@ function GovernancePage({
               <tbody>
                 {filtered.map((row) => (
                   <tr key={row.name}>
-                    <td><div className="project-name"><span>◉</span><strong>{row.name}</strong></div></td>
+                    <td>
+                      <button className="project-name project-entry" onClick={() => enterWorkspace(row)}>
+                        <span>◉</span><strong>{row.name}</strong>
+                      </button>
+                    </td>
                     <td>普通项目</td><td>{row.overview}</td><td>高质量数据评估演示</td><td>{row.created}</td>
                     <td>高质量数据评估演示</td><td>{row.updated}</td>
                     <td><button className="tag-add" onClick={() => notify(`${row.name} 已添加重点标记`)}>＋</button></td>
                     <td>
-                      <button className="reuse-link" onClick={() => notify(`已进入 ${row.name} 的 ETL 工作间`)}>ETL</button>{" "}
+                      <button className="reuse-link" onClick={() => enterWorkspace(row)}>ETL</button>{" "}
                       <button className="reuse-link" onClick={() => copyProject(row)}>复制</button>{" "}
                       <button className="reuse-link" onClick={() => notify(`已打开 ${row.name} 的重命名编辑框`)}>重命名</button>
                     </td>
@@ -1089,6 +1095,195 @@ function GovernancePage({
           <button disabled>‹</button><button className="active">1</button><button disabled>›</button>
         </footer>
       </article>
+    </section>
+  );
+}
+
+type WorkbenchNode = {
+  id: string;
+  label: string;
+  kind: "dataset" | "recipe" | "output";
+  meta: string;
+  position: { left: number; top: number };
+};
+
+const workbenchNodes: WorkbenchNode[] = [
+  { id: "raw-image", label: "篮球原始图像", kind: "dataset", meta: "12,680 文件", position: { left: 44, top: 58 } },
+  { id: "image-clean", label: "图像格式清洗", kind: "recipe", meta: "标准化 Recipe", position: { left: 238, top: 58 } },
+  { id: "image-label", label: "篮球标注数据", kind: "dataset", meta: "11,924 样本", position: { left: 430, top: 58 } },
+  { id: "documents", label: "金融年报文档", kind: "dataset", meta: "1,286 文件", position: { left: 44, top: 238 } },
+  { id: "document-parse", label: "文档解析", kind: "recipe", meta: "OCR + 版面分析", position: { left: 238, top: 238 } },
+  { id: "sft", label: "SFT 问答数据集", kind: "dataset", meta: "38,420 条", position: { left: 430, top: 238 } },
+  { id: "align", label: "多模态对齐", kind: "recipe", meta: "质量治理 Recipe", position: { left: 620, top: 142 } },
+  { id: "quality", label: "质量规则过滤", kind: "recipe", meta: "13 条规则", position: { left: 808, top: 142 } },
+  { id: "training", label: "高质量训练集", kind: "output", meta: "50,344 条", position: { left: 996, top: 142 } },
+];
+
+const workbenchEdges = [
+  { id: "e1", left: 170, top: 93, width: 68, rotate: 0 },
+  { id: "e2", left: 364, top: 93, width: 66, rotate: 0 },
+  { id: "e3", left: 170, top: 273, width: 68, rotate: 0 },
+  { id: "e4", left: 364, top: 273, width: 66, rotate: 0 },
+  { id: "e5", left: 555, top: 96, width: 105, rotate: 46 },
+  { id: "e6", left: 555, top: 270, width: 105, rotate: -46 },
+  { id: "e7", left: 744, top: 177, width: 64, rotate: 0 },
+  { id: "e8", left: 932, top: 177, width: 64, rotate: 0 },
+];
+
+function GovernanceWorkbench({
+  project,
+  onBack,
+  notify,
+}: {
+  project: ProjectRow;
+  onBack: () => void;
+  notify: Notify;
+}) {
+  const [resourceType, setResourceType] = useState<"数据集" | "Recipe">("数据集");
+  const [resourceSearch, setResourceSearch] = useState("");
+  const [selectedNodeId, setSelectedNodeId] = useState("quality");
+  const [inspectorTab, setInspectorTab] = useState<"配置" | "质量" | "血缘">("配置");
+  const [zoom, setZoom] = useState(90);
+  const [running, setRunning] = useState(false);
+  const [runProgress, setRunProgress] = useState(0);
+  const [logOpen, setLogOpen] = useState(true);
+  const [saved, setSaved] = useState(true);
+  const selectedNode = workbenchNodes.find((node) => node.id === selectedNodeId) || workbenchNodes[0];
+  const resources = workbenchNodes.filter((node) => resourceType === "数据集" ? node.kind !== "recipe" : node.kind === "recipe");
+  const filteredResources = resources.filter((node) => node.label.includes(resourceSearch));
+
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => {
+      setRunProgress((current) => {
+        const next = Math.min(100, current + 8);
+        if (next === 100) {
+          window.clearInterval(timer);
+          setRunning(false);
+          notify(`${project.name} 的治理流程运行完成`);
+        }
+        return next;
+      });
+    }, 420);
+    return () => window.clearInterval(timer);
+  }, [running, notify, project.name]);
+
+  function runFlow() {
+    setRunProgress(4);
+    setRunning(true);
+    setLogOpen(true);
+    notify("治理流程已启动，正在执行 4 个 Recipe");
+  }
+
+  return (
+    <section className="governance-workbench">
+      <header className="workbench-project-head">
+        <div className="workbench-breadcrumb">
+          <button onClick={onBack}>‹ 治理项目管理</button><span>/</span>
+          <div><strong>{project.name}</strong><small>{project.overview}</small></div>
+          <i className={saved ? "saved" : ""}>{saved ? "✓ 已保存" : "● 有未保存修改"}</i>
+        </div>
+        <div className="workbench-actions">
+          <button title="撤销" onClick={() => notify("已撤销上一步画布操作")}>↶</button>
+          <button title="重做" onClick={() => notify("已重做画布操作")}>↷</button>
+          <button className="workbench-save" onClick={() => { setSaved(true); notify("项目流程已保存"); }}>保存</button>
+          <button onClick={() => notify("已打开定时任务配置")}>▣ 定时任务</button>
+          <button className="workbench-run" disabled={running} onClick={runFlow}>{running ? `运行中 ${runProgress}%` : "▶ 运行全部"}</button>
+        </div>
+      </header>
+
+      <nav className="workbench-view-tabs">
+        <div>
+          {["数据流程", "数据集", "Recipes", "分析", "仪表板"].map((item, index) => (
+            <button key={item} className={index === 0 ? "active" : ""} onClick={() => index === 0 ? undefined : notify(`${item}视图已准备，可从当前流程资源进入`)}>{item}</button>
+          ))}
+        </div>
+        <div className="canvas-view-actions">
+          <button onClick={() => { setZoom(90); notify("已自动整理流程画布"); }}>◇ 自动布局</button>
+          <button onClick={() => setZoom((value) => Math.max(60, value - 10))}>−</button><span>{zoom}%</span><button onClick={() => setZoom((value) => Math.min(130, value + 10))}>＋</button>
+        </div>
+      </nav>
+
+      <div className={`workbench-body ${logOpen ? "with-log" : ""}`}>
+        <aside className="flow-resource-panel">
+          <header><strong>项目资源</strong><button onClick={() => notify("资源导入面板已打开")}>＋</button></header>
+          <div className="resource-tabs">
+            {(["数据集", "Recipe"] as const).map((item) => <button key={item} className={resourceType === item ? "active" : ""} onClick={() => setResourceType(item)}>{item}<b>{item === "数据集" ? 5 : 4}</b></button>)}
+          </div>
+          <label className="resource-search">⌕<input value={resourceSearch} onChange={(event) => setResourceSearch(event.target.value)} placeholder={`搜索${resourceType}`} /></label>
+          <div className="resource-list">
+            {filteredResources.map((node) => (
+              <button key={node.id} className={selectedNodeId === node.id ? "active" : ""} onClick={() => setSelectedNodeId(node.id)}>
+                <span className={node.kind}>{node.kind === "recipe" ? "◇" : node.kind === "output" ? "✓" : "▤"}</span>
+                <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>›</i>
+              </button>
+            ))}
+            {filteredResources.length === 0 && <p className="resource-empty">没有匹配的资源</p>}
+          </div>
+          <footer><span>◉ 4 个节点已成功运行</span><button onClick={() => notify("已刷新项目资源")}>⟳</button></footer>
+        </aside>
+
+        <main className="flow-canvas-shell">
+          <header className="flow-canvas-head">
+            <div><span className="live-dot" /><strong>主流程</strong><small>最近保存：刚刚</small></div>
+            <div><button onClick={() => notify("流程筛选器已展开")}>⌁ 筛选</button><button onClick={() => notify("流程已导出为 PNG")}>⇩ 导出</button><button onClick={() => notify("已定位全部流程节点")}>⌖ 定位</button></div>
+          </header>
+          <div className="flow-canvas-viewport">
+            <div className="flow-canvas" style={{ transform: `scale(${zoom / 100})` }}>
+              <div className="flow-lane-label lane-input">原始数据</div><div className="flow-lane-label lane-process">治理处理</div><div className="flow-lane-label lane-output">高质量数据</div>
+              {workbenchEdges.map((edge) => <i key={edge.id} className="flow-edge" style={{ left: edge.left, top: edge.top, width: edge.width, transform: `rotate(${edge.rotate}deg)` }}><b /></i>)}
+              {workbenchNodes.map((node) => (
+                <button
+                  key={node.id}
+                  className={`flow-node ${node.kind} ${selectedNodeId === node.id ? "active" : ""}`}
+                  style={{ left: node.position.left, top: node.position.top }}
+                  onClick={() => setSelectedNodeId(node.id)}
+                  onDoubleClick={() => notify(`已打开 ${node.label} 详情`)}
+                >
+                  <span>{node.kind === "recipe" ? "◇" : node.kind === "output" ? "✓" : "▤"}</span>
+                  <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>{node.kind === "output" ? "就绪" : "正常"}</i>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="canvas-minimap"><i /><i /><i /><i /><span /></div>
+        </main>
+
+        <aside className="node-inspector">
+          <header><div><span className={selectedNode.kind}>{selectedNode.kind === "recipe" ? "◇" : selectedNode.kind === "output" ? "✓" : "▤"}</span><div><strong>{selectedNode.label}</strong><small>{selectedNode.meta}</small></div></div><button onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}>•••</button></header>
+          <div className="inspector-tabs">{(["配置", "质量", "血缘"] as const).map((tab) => <button className={inspectorTab === tab ? "active" : ""} key={tab} onClick={() => setInspectorTab(tab)}>{tab}</button>)}</div>
+          {inspectorTab === "配置" && <div className="inspector-content">
+            <h4>节点配置</h4>
+            <label>节点名称<input value={selectedNode.label} onChange={() => { setSaved(false); notify("演示环境中节点名称保持不变"); }} /></label>
+            <label>节点类型<select defaultValue={selectedNode.kind === "recipe" ? "治理 Recipe" : "数据集"}><option>数据集</option><option>治理 Recipe</option><option>输出数据集</option></select></label>
+            <div className="config-pair"><span><small>存储格式</small><strong>{selectedNode.kind === "dataset" ? "Parquet" : "Pipeline"}</strong></span><span><small>运行引擎</small><strong>高质量引擎</strong></span></div>
+            <label>执行策略<select defaultValue="增量执行"><option>增量执行</option><option>全量执行</option><option>按需执行</option></select></label>
+            <div className="node-tags"><small>标签</small><span>生产数据</span><span>质量治理</span><button onClick={() => notify("已打开标签选择器")}>＋</button></div>
+          </div>}
+          {inspectorTab === "质量" && <div className="inspector-content quality-inspector">
+            <h4>最近质量结果</h4>
+            {[['完整度', '98.7%', 98.7], ['准确率', '96.4%', 96.4], ['重复率', '0.7%', 99.3], ['格式合规', '99.2%', 99.2]].map((metric) => <div key={String(metric[0])}><span><strong>{metric[0]}</strong><b>{metric[1]}</b></span><i><b style={{ width: `${metric[2]}%` }} /></i></div>)}
+            <button className="inspector-secondary" onClick={() => notify(`${selectedNode.label} 的质量报告已打开`)}>查看完整质量报告</button>
+          </div>}
+          {inspectorTab === "血缘" && <div className="inspector-content lineage-inspector">
+            <h4>上下游血缘</h4><small>当前节点参与 3 条数据链路</small>
+            <div><i>↑</i><span><small>上游输入</small><strong>篮球标注数据</strong></span></div>
+            <div className="current"><i>●</i><span><small>当前节点</small><strong>{selectedNode.label}</strong></span></div>
+            <div><i>↓</i><span><small>下游输出</small><strong>高质量训练集</strong></span></div>
+          </div>}
+          <footer><button onClick={() => notify(`已校验 ${selectedNode.label} 的配置`)}>校验配置</button><button className="primary" onClick={() => { setRunProgress(12); setRunning(true); setLogOpen(true); }}>▶ 运行当前节点</button></footer>
+        </aside>
+
+        <section className={`workbench-run-log ${logOpen ? "open" : ""}`}>
+          <header><div><strong>运行记录</strong><span className={running ? "running" : ""}>{running ? `运行中 · ${runProgress}%` : "最近运行成功 · 08-22 16:42"}</span></div><div><button onClick={() => notify("运行记录已刷新")}>⟳</button><button onClick={() => setLogOpen(!logOpen)}>{logOpen ? "⌄" : "⌃"}</button></div></header>
+          {logOpen && <div className="run-log-body">
+            <div className="run-progress"><i><b style={{ width: `${running ? runProgress : 100}%` }} /></i><span>{running ? `${runProgress}%` : "100%"}</span></div>
+            <div className="run-log-rows">
+              {[['图像格式清洗', '成功', '00:18', '处理 12,680 个文件'], ['文档解析', '成功', '01:42', '解析 1,286 份文档'], ['多模态对齐', running ? '运行中' : '成功', running ? '--' : '02:16', '生成 50,344 条样本'], ['质量规则过滤', running ? '等待中' : '成功', running ? '--' : '00:34', '通过率 96.8%']].map((row) => <button key={row[0]} onClick={() => notify(`${row[0]}：${row[3]}`)}><span className={row[1] === '成功' ? 'success' : row[1] === '运行中' ? 'progress' : 'waiting'}>{row[1] === '成功' ? '✓' : row[1] === '运行中' ? '◌' : '·'}</span><strong>{row[0]}</strong><small>{row[3]}</small><b>{row[2]}</b></button>)}
+            </div>
+          </div>}
+        </section>
+      </div>
     </section>
   );
 }
@@ -1517,6 +1712,7 @@ export default function Home() {
   const [compact, setCompact] = useState(false);
   const [filters, setFilters] = useState<FilterValues>({ dataType: "全部", status: "全部", date: "" });
   const [projects, setProjects] = useState(initialProjects);
+  const [workspaceProject, setWorkspaceProject] = useState<ProjectRow | null>(null);
   const [sources, setSources] = useState(initialSources);
   const [reviewTasks, setReviewTasks] = useState(initialReviewTasks);
   const [jobs, setJobs] = useState(initialJobs);
@@ -1544,14 +1740,16 @@ export default function Home() {
 
   function openModule(id: ModuleId, label?: string) {
     const moduleItem = modules.find((item) => item.id === id)!;
+    if (id === "governance" && (!label || label === "治理项目管理")) setWorkspaceProject(null);
     setActive(id);
     setMenuOpen(null);
     setTopPanel(null);
-    setTabs((current) =>
-      current.some((tab) => tab.id === id)
-        ? current
-        : [...current, { id, label: label || moduleItem.children[0] || moduleItem.label }],
-    );
+    setTabs((current) => {
+      const nextLabel = label || moduleItem.children[0] || moduleItem.label;
+      return current.some((tab) => tab.id === id)
+        ? current.map((tab) => tab.id === id ? { ...tab, label: nextLabel } : tab)
+        : [...current, { id, label: nextLabel }];
+    });
   }
 
   function closeTab(id: ModuleId) {
@@ -1721,11 +1919,26 @@ export default function Home() {
         <ProjectToolbar project={project} setProject={setProject} notify={notify} onFilterApplied={setFilters} />
         {active === "home" && <HomeDashboard filters={filters} notify={notify} />}
         {active === "inventory" && <InventoryPage sources={sources} openDialog={() => openCreate("connection")} notify={notify} />}
-        {active === "governance" && (
+        {active === "governance" && workspaceProject && (
+          <GovernanceWorkbench
+            project={workspaceProject}
+            notify={notify}
+            onBack={() => {
+              setWorkspaceProject(null);
+              setTabs((current) => current.map((tab) => tab.id === "governance" ? { ...tab, label: "治理项目管理" } : tab));
+            }}
+          />
+        )}
+        {active === "governance" && !workspaceProject && (
           <GovernancePage
             projects={projects}
             openDialog={() => openCreate("project")}
             notify={notify}
+            enterWorkspace={(row) => {
+              setWorkspaceProject(row);
+              setTabs((current) => current.map((tab) => tab.id === "governance" ? { ...tab, label: "高质量数据治理工作间" } : tab));
+              notify(`已进入 ${row.name} 的高质量数据治理工作间`);
+            }}
             copyProject={(row) => {
               const copy = { ...row, name: `${row.name}-副本`, created: "2026-08-23", updated: "2026-08-23" };
               setProjects((current) => [copy, ...current]);
