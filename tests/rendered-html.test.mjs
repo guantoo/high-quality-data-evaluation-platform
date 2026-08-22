@@ -51,6 +51,9 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /^"use client";/);
   assert.match(page, /from "lucide-react"/);
   assert.match(page, /function UiIcon/);
+  assert.match(page, /function animateButtonPress/);
+  assert.match(page, /120 \+ Math\.floor\(Math\.random\(\) \* 71\)/);
+  assert.match(page, /prefers-reduced-motion: reduce/);
   assert.match(page, /function ProjectToolbar/);
   assert.match(page, /function DataExploration/);
   assert.match(page, /function LocalDataManager/);

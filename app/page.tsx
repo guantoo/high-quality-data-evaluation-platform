@@ -1823,6 +1823,42 @@ export default function Home() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, []);
 
+  useEffect(() => {
+    const activeFeedback = new WeakMap<HTMLButtonElement, Animation>();
+
+    function animateButtonPress(event: PointerEvent) {
+      if (event.button !== 0 || !(event.target instanceof Element)) return;
+      const button = event.target.closest("button");
+      if (!(button instanceof HTMLButtonElement) || button.disabled) return;
+
+      activeFeedback.get(button)?.cancel();
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const duration = reducedMotion
+        ? 80 + Math.floor(Math.random() * 31)
+        : 120 + Math.floor(Math.random() * 71);
+      const baseTransform = window.getComputedStyle(button).transform;
+      const restingTransform = baseTransform === "none" ? "scale(1)" : baseTransform;
+      const keyframes: Keyframe[] = reducedMotion
+        ? [{ opacity: 1 }, { opacity: 0.72, offset: 0.34 }, { opacity: 1 }]
+        : [
+            { transform: restingTransform },
+            { transform: `${restingTransform} scale(0.975)`, offset: 0.34 },
+            { transform: restingTransform },
+          ];
+      const feedback = button.animate(keyframes, {
+        duration,
+        easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+      });
+      activeFeedback.set(button, feedback);
+      feedback.onfinish = () => {
+        if (activeFeedback.get(button) === feedback) activeFeedback.delete(button);
+      };
+    }
+
+    document.addEventListener("pointerdown", animateButtonPress, true);
+    return () => document.removeEventListener("pointerdown", animateButtonPress, true);
+  }, []);
+
   function openModule(id: ModuleId, label?: string) {
     const moduleItem = modules.find((item) => item.id === id)!;
     if (id === "governance") {
