@@ -3963,8 +3963,241 @@ button:active:not(:disabled) {
   .source-item:hover,
   .market-algorithm-card:hover,
   .flow-node:hover {
-    transform: translateY(-1px);
+    transform: none;
   }
+}
+
+/* Dense enterprise typography and flat visual treatment */
+body {
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font-weight: 500;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+strong,
+b {
+  font-weight: 600;
+}
+
+p,
+small {
+  font-weight: 400;
+}
+
+.icon-rail {
+  background: #073a7d;
+  box-shadow: 1px 0 0 rgba(3, 29, 65, 0.28);
+}
+
+.rail-logo { font-weight: 700; }
+.icon-rail nav button small { font-weight: 500; }
+
+.rail-flyout {
+  animation: none;
+  border-radius: 0 0 2px 0;
+  box-shadow: 4px 6px 14px rgba(35, 56, 82, 0.13);
+}
+
+.rail-flyout header,
+.rail-flyout > button,
+.reuse-breadcrumb,
+.reuse-topbar nav,
+.open-tabs button,
+.project-select select {
+  font-weight: 500;
+}
+
+.reuse-breadcrumb strong,
+.reuse-topbar nav strong,
+.rail-flyout header strong,
+.rail-flyout > button.active {
+  font-weight: 600;
+}
+
+.project-select > span,
+.source-symbol,
+.dataset-illustration,
+.file-type,
+.local-file-icon,
+.local-dropzone > span,
+.profile-card > span,
+.reuse-assistant-button,
+.login-submit {
+  background-image: none;
+}
+
+.project-select > span { background-color: #2476d5; }
+.dataset-illustration,
+.file-type { background: #2e7dce; border-radius: 2px; }
+.local-dropzone > span { background: #347fc9; }
+.profile-card > span { background-color: #2e78c7; }
+.reuse-assistant-button {
+  background: #1667bd;
+  box-shadow: 0 3px 9px rgba(16, 78, 154, 0.23);
+}
+.login-submit { background: #247bd7; }
+
+.white-panel,
+.source-item,
+.domain-card,
+.local-file-card,
+.market-algorithm-card,
+.algorithm-kpis > div,
+.market-page-head,
+.market-stat-strip,
+.market-toolbar,
+.market-layout {
+  box-shadow: none;
+}
+
+.white-panel { border-color: #dbe3ec; }
+.source-item,
+.domain-card,
+.local-file-card,
+.market-algorithm-card { border-color: #dce4ec; }
+
+.source-item:hover,
+.source-item.active,
+.market-algorithm-card:hover,
+.market-algorithm-card.selected,
+.flow-node:hover,
+.flow-node.active {
+  transform: none;
+  box-shadow: none;
+}
+
+.source-item.active,
+.market-algorithm-card.selected {
+  border-color: #6ba3de;
+  box-shadow: inset 3px 0 0 #2d7ff9;
+}
+
+.flow-node,
+.flow-node:hover,
+.flow-node.active {
+  box-shadow: none;
+}
+
+.flow-node.active { border-width: 2px; }
+
+.assessment-item {
+  background: #fff;
+  border-color: #dfe6ee;
+}
+
+.model-banner {
+  background: #0a438b;
+  border-color: #073a78;
+  box-shadow: none;
+}
+
+.evaluation-overview {
+  background: #fff;
+}
+
+.reuse-progress span,
+.quality-inspector > div > i > b {
+  background: #2d7fd8;
+}
+
+.reuse-panel-head h2,
+.algorithm-page-head h2,
+.market-page-head h2,
+.inventory-head h2,
+.assessment-scope > header h2,
+.evaluation-overview h2 {
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.reuse-table { font-weight: 500; }
+.reuse-table th { font-weight: 600; }
+.reuse-table td { font-weight: 500; }
+.reuse-table td strong { font-weight: 600; }
+.reuse-link,
+.reuse-status { font-weight: 500; }
+
+.reuse-primary,
+.reuse-secondary {
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.reuse-primary { background: #287dde; }
+.reuse-primary:hover { background: #1769c8; }
+
+.file-panel-title > span,
+.file-row p em,
+.summary-context span,
+.evaluation-overview h2 span,
+.workbench-breadcrumb > i,
+.resource-tabs b,
+.market-toolbar > div button b,
+.market-stat-strip > p b,
+.market-tags > span,
+.market-tags > b,
+.algorithm-version,
+.node-tags > span {
+  border-radius: 2px;
+}
+
+.secure-tag { border-radius: 2px; }
+
+.source-item,
+.domain-card,
+.local-file-card,
+.market-algorithm-card,
+.algorithm-kpis > div,
+.scope-summary,
+.profile-stats,
+.metric-focus,
+.source-detail-strip,
+.market-version {
+  border-radius: 2px;
+}
+
+.top-popover,
+.reuse-assistant,
+.reuse-dialog,
+.algorithm-create-dialog,
+.algorithm-detail-drawer {
+  border-radius: 2px;
+}
+
+.top-popover {
+  animation: none;
+  box-shadow: 0 6px 18px rgba(25, 48, 79, 0.18);
+}
+
+.reuse-assistant { animation: none; box-shadow: 0 6px 18px rgba(25, 47, 78, 0.16); }
+.dialog-backdrop { backdrop-filter: none; }
+.reuse-dialog { box-shadow: 0 12px 32px rgba(13, 33, 60, 0.24); }
+.algorithm-create-dialog { box-shadow: 0 12px 32px rgba(19, 42, 68, 0.2); }
+
+.market-results { background: #f5f7fa; }
+.market-algorithm-card > p,
+.market-detail-panel section > p,
+.algorithm-page-head p,
+.market-page-head p,
+.reuse-panel-head p {
+  color: #718094;
+}
+
+button:active:not(:disabled) {
+  transform: none;
+  filter: brightness(0.97);
 }
 
 @media (max-width: 1280px) {
