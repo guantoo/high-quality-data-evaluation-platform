@@ -27,6 +27,7 @@ import {
   Grid2X2,
   House,
   LayoutDashboard,
+  Link2,
   LocateFixed,
   LogOut,
   Menu,
@@ -45,6 +46,8 @@ import {
   SlidersHorizontal,
   Sparkles,
   Star,
+  Trash2,
+  TriangleAlert,
   Undo2,
   Upload,
   UserRound,
@@ -1393,6 +1396,20 @@ type WorkbenchNode = {
   position: { left: number; top: number };
 };
 
+type WorkbenchEdge = {
+  id: string;
+  from: string;
+  to: string;
+};
+
+type WorkbenchRunStatus = "未运行" | "等待中" | "运行中" | "成功" | "失败";
+
+type WorkbenchNodeRunState = {
+  status: WorkbenchRunStatus;
+  duration: string;
+  detail: string;
+};
+
 type WorkbenchNodeProfile = {
   typeLabel: string;
   format: string;
@@ -1548,16 +1565,48 @@ function getWorkbenchNodeIcon(kind: WorkbenchNode["kind"]): LucideIcon {
   return Database;
 }
 
-const workbenchEdges = [
-  { id: "e1", left: 170, top: 93, width: 68, rotate: 0 },
-  { id: "e2", left: 364, top: 93, width: 66, rotate: 0 },
-  { id: "e3", left: 170, top: 273, width: 68, rotate: 0 },
-  { id: "e4", left: 364, top: 273, width: 66, rotate: 0 },
-  { id: "e5", left: 555, top: 96, width: 105, rotate: 46 },
-  { id: "e6", left: 555, top: 270, width: 105, rotate: -46 },
-  { id: "e7", left: 744, top: 177, width: 64, rotate: 0 },
-  { id: "e8", left: 932, top: 177, width: 64, rotate: 0 },
+const workbenchEdges: WorkbenchEdge[] = [
+  { id: "e1", from: "raw-image", to: "image-clean" },
+  { id: "e2", from: "image-clean", to: "image-label" },
+  { id: "e3", from: "documents", to: "document-parse" },
+  { id: "e4", from: "document-parse", to: "sft" },
+  { id: "e5", from: "image-label", to: "align" },
+  { id: "e6", from: "sft", to: "align" },
+  { id: "e7", from: "align", to: "quality" },
+  { id: "e8", from: "quality", to: "training" },
 ];
+
+function createWorkbenchProfile(node: WorkbenchNode): WorkbenchNodeProfile {
+  const labels = {
+    dataset: ["数据集节点", "JSONL / Parquet", "数据集管理引擎"],
+    recipe: ["治理 Recipe", "标准化流水线", "数据治理引擎"],
+    annotation: ["人工标注任务", "COCO JSON", "协同标注引擎"],
+    output: ["发布数据集", "Parquet + JSONL", "数据集交付引擎"],
+  }[node.kind];
+  return {
+    typeLabel: labels[0],
+    format: labels[1],
+    engine: labels[2],
+    fields: [{ label: "执行策略", value: "按上游变更触发", options: ["按上游变更触发", "手动触发", "定时触发"] }],
+    tags: [node.kind === "dataset" ? "数据资产" : node.kind === "output" ? "交付" : "治理流程"],
+    quality: [{ label: "配置完整度", value: "100%", score: 100 }, { label: "运行成功率", value: "--", score: 0 }],
+    upstream: [],
+    downstream: [],
+  };
+}
+
+function getWorkbenchEdgeStyle(edge: WorkbenchEdge, nodes: WorkbenchNode[]) {
+  const from = nodes.find((node) => node.id === edge.from);
+  const to = nodes.find((node) => node.id === edge.to);
+  if (!from || !to) return null;
+  const left = from.position.left + 126;
+  const top = from.position.top + 35;
+  const targetLeft = to.position.left;
+  const targetTop = to.position.top + 35;
+  const deltaX = targetLeft - left;
+  const deltaY = targetTop - top;
+  return { left, top, width: Math.hypot(deltaX, deltaY), rotate: Math.atan2(deltaY, deltaX) * 180 / Math.PI };
+}
 
 function GovernanceWorkbench({
   project,
@@ -1568,15 +1617,32 @@ function GovernanceWorkbench({
   onBack: () => void;
   notify: Notify;
 }) {
+  const [nodes, setNodes] = useState<WorkbenchNode[]>(workbenchNodes);
+  const [edges, setEdges] = useState<WorkbenchEdge[]>(workbenchEdges);
   const [resourceType, setResourceType] = useState<"数据集" | "Recipe">("数据集");
   const [resourceSearch, setResourceSearch] = useState("");
   const [selectedNodeId, setSelectedNodeId] = useState("image-label");
   const [inspectorTab, setInspectorTab] = useState<"配置" | "质量" | "血缘">("配置");
   const [zoom, setZoom] = useState(90);
   const [running, setRunning] = useState(false);
-  const [runProgress, setRunProgress] = useState(0);
+  const [runProgress, setRunProgress] = useState(100);
+  const [runMode, setRunMode] = useState<"flow" | "node" | null>(null);
+  const [activeRunNodeId, setActiveRunNodeId] = useState<string | null>(null);
+  const [failedNodeId, setFailedNodeId] = useState<string | null>(null);
+  const [currentRunWillFail, setCurrentRunWillFail] = useState(false);
+  const [hasSimulatedFailure, setHasSimulatedFailure] = useState(false);
+  const [runStates, setRunStates] = useState<Record<string, WorkbenchNodeRunState>>(() => Object.fromEntries(workbenchNodes.map((node) => [node.id, {
+    status: node.kind === "annotation" ? "运行中" : node.kind === "dataset" ? "未运行" : "成功",
+    duration: node.kind === "recipe" ? "00:34" : "--",
+    detail: node.meta,
+  }])));
   const [logOpen, setLogOpen] = useState(true);
   const [saved, setSaved] = useState(true);
+  const [nodeDialogOpen, setNodeDialogOpen] = useState(false);
+  const [nodeDraftKind, setNodeDraftKind] = useState<WorkbenchNode["kind"]>("recipe");
+  const [nodeDraftName, setNodeDraftName] = useState("");
+  const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorkbenchNode | null>(null);
   const [annotationType, setAnnotationType] = useState("目标检测 + 关键点");
   const [annotationTeam, setAnnotationTeam] = useState("视觉标注一组");
   const [annotationLabels, setAnnotationLabels] = useState(["篮球", "运动员", "篮筐", "裁判", "三分线"]);
@@ -1585,17 +1651,22 @@ function GovernanceWorkbench({
   const [doubleReview, setDoubleReview] = useState(true);
   const [samplingRate, setSamplingRate] = useState(10);
   const [annotationProgress, setAnnotationProgress] = useState(94);
-  const selectedNode = workbenchNodes.find((node) => node.id === selectedNodeId) || workbenchNodes[0];
-  const selectedProfile = workbenchNodeProfiles[selectedNode.id];
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) || nodes[0] || workbenchNodes[0];
+  const selectedProfile = workbenchNodeProfiles[selectedNode.id] ?? createWorkbenchProfile(selectedNode);
   const isAnnotationNode = selectedNode.kind === "annotation";
-  const resources = workbenchNodes.filter((node) => resourceType === "数据集"
+  const resources = nodes.filter((node) => resourceType === "数据集"
     ? node.kind === "dataset" || node.kind === "output"
     : node.kind === "recipe" || node.kind === "annotation");
   const filteredResources = resources.filter((node) => node.label.includes(resourceSearch));
   const resourceCount = {
-    数据集: workbenchNodes.filter((node) => node.kind === "dataset" || node.kind === "output").length,
-    Recipe: workbenchNodes.filter((node) => node.kind === "recipe" || node.kind === "annotation").length,
+    数据集: nodes.filter((node) => node.kind === "dataset" || node.kind === "output").length,
+    Recipe: nodes.filter((node) => node.kind === "recipe" || node.kind === "annotation").length,
   };
+  const runtimeNodes = nodes.filter((node) => node.kind === "recipe" || node.kind === "annotation" || node.kind === "output");
+  const successfulNodeCount = runtimeNodes.filter((node) => runStates[node.id]?.status === "成功").length;
+  const canvasHeight = Math.max(390, ...nodes.map((node) => node.position.top + 100));
+  const selectedUpstream = edges.filter((edge) => edge.to === selectedNode.id).map((edge) => nodes.find((node) => node.id === edge.from)?.label).filter(Boolean) as string[];
+  const selectedDownstream = edges.filter((edge) => edge.from === selectedNode.id).map((edge) => nodes.find((node) => node.id === edge.to)?.label).filter(Boolean) as string[];
   const selectedMetrics = isAnnotationNode
     ? selectedProfile.quality.map((metric, index) => index === 0 ? { ...metric, value: `${annotationProgress.toFixed(1)}%`, score: annotationProgress } : metric)
     : selectedProfile.quality;
@@ -1604,28 +1675,155 @@ function GovernanceWorkbench({
     if (!running) return;
     const timer = window.setInterval(() => {
       setRunProgress((current) => {
-        const next = Math.min(100, current + 8);
+        const next = Math.min(100, current + (runMode === "node" ? 12 : 8));
+        setRunStates((currentStates) => {
+          const nextStates = { ...currentStates };
+          if (runMode === "node" && activeRunNodeId) {
+            const activeNode = nodes.find((node) => node.id === activeRunNodeId);
+            if (activeNode) nextStates[activeRunNodeId] = {
+              status: next === 100 ? "成功" : "运行中",
+              duration: next === 100 ? "00:27" : "--",
+              detail: next === 100 ? `${activeNode.label} 重试成功，输出已重新校验` : `${activeNode.label} 正在重新执行`,
+            };
+            return nextStates;
+          }
+          runtimeNodes.forEach((node, index) => {
+            const threshold = Math.round((index + 1) / runtimeNodes.length * 100);
+            nextStates[node.id] = {
+              status: next >= threshold ? "成功" : next >= Math.max(0, threshold - 18) ? "运行中" : "等待中",
+              duration: next >= threshold ? `00:${String(18 + index * 7).padStart(2, "0")}` : "--",
+              detail: next >= threshold ? `${node.label} 执行完成` : next >= threshold - 18 ? `${node.label} 正在处理` : "等待上游节点",
+            };
+          });
+          return nextStates;
+        });
+        if (runMode === "flow" && currentRunWillFail && next >= 76) {
+          const failedId = nodes.some((node) => node.id === "quality") ? "quality" : runtimeNodes.at(-1)?.id;
+          if (failedId) {
+            window.clearInterval(timer);
+            setRunning(false);
+            setFailedNodeId(failedId);
+            setHasSimulatedFailure(true);
+            setRunStates((currentStates) => ({ ...currentStates, [failedId]: { status: "失败", duration: "00:11", detail: "规则服务响应超时，已保留上游中间结果" } }));
+            notify(`${nodes.find((node) => node.id === failedId)?.label ?? "治理节点"} 运行失败，可从运行记录重试`);
+          }
+          return 76;
+        }
         if (next === 100) {
           window.clearInterval(timer);
           setRunning(false);
-          notify(`${project.name} 的治理流程运行完成`);
+          if (runMode === "node" && activeRunNodeId) {
+            setFailedNodeId((currentFailed) => currentFailed === activeRunNodeId ? null : currentFailed);
+            notify(`${nodes.find((node) => node.id === activeRunNodeId)?.label ?? "节点"} 重试成功，流程可继续运行`);
+          } else {
+            setFailedNodeId(null);
+            notify(`${project.name} 的治理流程运行完成`);
+          }
+          setRunMode(null);
+          setActiveRunNodeId(null);
         }
         return next;
       });
-    }, 420);
+    }, 360);
     return () => window.clearInterval(timer);
-  }, [running, notify, project.name]);
+  }, [activeRunNodeId, currentRunWillFail, nodes, notify, project.name, runMode, running, runtimeNodes]);
 
   function runFlow() {
     setRunProgress(4);
     setRunning(true);
+    setRunMode("flow");
+    setActiveRunNodeId(null);
+    setCurrentRunWillFail(!hasSimulatedFailure);
+    setFailedNodeId(null);
+    setRunStates((current) => Object.fromEntries(nodes.map((node) => [node.id, node.kind === "dataset" ? current[node.id] ?? { status: "未运行", duration: "--", detail: node.meta } : { status: "等待中", duration: "--", detail: "等待上游节点" }])));
     setLogOpen(true);
-    notify("治理流程已启动，正在执行 5 个处理节点");
+    notify(`治理流程已启动，正在执行 ${runtimeNodes.length} 个处理节点`);
   }
 
   function selectNode(id: string) {
+    if (connectingFromId) {
+      if (connectingFromId === id) {
+        setConnectingFromId(null);
+        notify("已取消节点连线");
+        return;
+      }
+      if (edges.some((edge) => edge.from === connectingFromId && edge.to === id)) {
+        setConnectingFromId(null);
+        notify("这两个节点已经连接");
+        return;
+      }
+      const from = nodes.find((node) => node.id === connectingFromId);
+      const to = nodes.find((node) => node.id === id);
+      setEdges((current) => [...current, { id: `edge-${Date.now()}`, from: connectingFromId, to: id }]);
+      setConnectingFromId(null);
+      setSelectedNodeId(id);
+      setInspectorTab("血缘");
+      setSaved(false);
+      notify(`已连接 ${from?.label} → ${to?.label}`);
+      return;
+    }
     setSelectedNodeId(id);
     setInspectorTab("配置");
+  }
+
+  function startConnecting() {
+    if (connectingFromId) {
+      setConnectingFromId(null);
+      notify("已取消节点连线");
+      return;
+    }
+    setConnectingFromId(selectedNode.id);
+    notify(`已选择 ${selectedNode.label} 作为上游，请点击一个下游节点`);
+  }
+
+  function addWorkbenchNode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const label = nodeDraftName.trim();
+    if (!label) return;
+    const sameKindCount = nodes.filter((node) => node.kind === nodeDraftKind).length;
+    const baseLeft = nodeDraftKind === "dataset" ? 44 : nodeDraftKind === "output" ? 996 : 620;
+    const node: WorkbenchNode = {
+      id: `node-${Date.now()}`,
+      label,
+      kind: nodeDraftKind,
+      meta: nodeDraftKind === "dataset" ? "待接入数据集" : nodeDraftKind === "output" ? "待发布数据集" : nodeDraftKind === "annotation" ? "待配置标注任务" : "待配置 Recipe",
+      position: { left: Math.min(996, baseLeft + (sameKindCount % 2) * 188), top: 310 + Math.floor(sameKindCount / 2) * 86 },
+    };
+    setNodes((current) => [...current, node]);
+    setRunStates((current) => ({ ...current, [node.id]: { status: "未运行", duration: "--", detail: "等待配置与连接" } }));
+    setSelectedNodeId(node.id);
+    setInspectorTab("配置");
+    setNodeDialogOpen(false);
+    setNodeDraftName("");
+    setSaved(false);
+    notify(`${node.label} 已添加到治理画布`);
+  }
+
+  function removeWorkbenchNode() {
+    if (!deleteTarget || nodes.length === 1) return;
+    const remainingNodes = nodes.filter((node) => node.id !== deleteTarget.id);
+    setNodes(remainingNodes);
+    setEdges((current) => current.filter((edge) => edge.from !== deleteTarget.id && edge.to !== deleteTarget.id));
+    setRunStates((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== deleteTarget.id)));
+    if (selectedNodeId === deleteTarget.id) setSelectedNodeId(remainingNodes[0].id);
+    if (failedNodeId === deleteTarget.id) setFailedNodeId(null);
+    if (connectingFromId === deleteTarget.id) setConnectingFromId(null);
+    setSaved(false);
+    notify(`${deleteTarget.label} 及其关联连线已从画布移除`);
+    setDeleteTarget(null);
+  }
+
+  function runNode(id: string) {
+    const node = nodes.find((item) => item.id === id);
+    if (!node) return;
+    setRunProgress(8);
+    setRunning(true);
+    setRunMode("node");
+    setActiveRunNodeId(id);
+    setCurrentRunWillFail(false);
+    setRunStates((current) => ({ ...current, [id]: { status: "运行中", duration: "--", detail: `${node.label} 正在重新执行` } }));
+    setLogOpen(true);
+    notify(`${node.label} 已开始重新执行`);
   }
 
   function addAnnotationLabel() {
@@ -1678,7 +1876,7 @@ function GovernanceWorkbench({
 
       <div className={`workbench-body ${logOpen ? "with-log" : ""}`}>
         <aside className="flow-resource-panel">
-          <header><strong>项目资源</strong><button aria-label="添加项目资源" onClick={() => notify("资源导入面板已打开")}><UiIcon icon={Plus} /></button></header>
+          <header><strong>项目资源</strong><button aria-label="添加项目资源" onClick={() => setNodeDialogOpen(true)}><UiIcon icon={Plus} /></button></header>
           <div className="resource-tabs">
             {(["数据集", "Recipe"] as const).map((item) => <button key={item} className={resourceType === item ? "active" : ""} onClick={() => setResourceType(item)}>{item}<b>{resourceCount[item]}</b></button>)}
           </div>
@@ -1692,37 +1890,43 @@ function GovernanceWorkbench({
             ))}
             {filteredResources.length === 0 && <p className="resource-empty">没有匹配的资源</p>}
           </div>
-          <footer><span><UiIcon icon={CircleCheck} size={11} />5 个节点已成功运行</span><button aria-label="刷新项目资源" onClick={() => notify("已刷新项目资源")}><UiIcon icon={RefreshCw} size={13} /></button></footer>
+          <footer><span className={failedNodeId ? "has-failure" : ""}><UiIcon icon={failedNodeId ? TriangleAlert : CircleCheck} size={11} />{failedNodeId ? "1 个节点等待重试" : `${successfulNodeCount} 个节点已成功运行`}</span><button aria-label="刷新项目资源" onClick={() => notify("已刷新项目资源")}><UiIcon icon={RefreshCw} size={13} /></button></footer>
         </aside>
 
         <main className="flow-canvas-shell">
           <header className="flow-canvas-head">
             <div><span className="live-dot" /><strong>主流程</strong><small>最近保存：刚刚</small></div>
-            <div><button onClick={() => notify("流程筛选器已展开")}><UiIcon icon={Filter} />筛选</button><button onClick={() => notify("流程已导出为 PNG")}><UiIcon icon={Download} />导出</button><button onClick={() => notify("已定位全部流程节点")}><UiIcon icon={LocateFixed} />定位</button></div>
+            <div><button onClick={() => setNodeDialogOpen(true)}><UiIcon icon={Plus} />添加节点</button><button className={connectingFromId ? "active" : ""} onClick={startConnecting}><UiIcon icon={Link2} />{connectingFromId ? "取消连线" : "连接节点"}</button><button onClick={() => notify("流程筛选器已展开")}><UiIcon icon={Filter} />筛选</button><button onClick={() => notify("流程已导出为 PNG")}><UiIcon icon={Download} />导出</button><button onClick={() => notify("已定位全部流程节点")}><UiIcon icon={LocateFixed} />定位</button></div>
           </header>
           <div className="flow-canvas-viewport">
-            <div className="flow-canvas" style={{ transform: `scale(${zoom / 100})` }}>
+            {connectingFromId && <div className="connection-mode-banner"><UiIcon icon={Link2} /><span>上游：<strong>{nodes.find((node) => node.id === connectingFromId)?.label}</strong>，点击下游节点完成连接</span><button onClick={() => setConnectingFromId(null)}>取消</button></div>}
+            <div className="flow-canvas" style={{ height: canvasHeight, transform: `scale(${zoom / 100})` }}>
               <div className="flow-lane-label lane-input">原始数据</div><div className="flow-lane-label lane-process">治理处理</div><div className="flow-lane-label lane-output">高质量数据</div>
-              {workbenchEdges.map((edge) => <i key={edge.id} className="flow-edge" style={{ left: edge.left, top: edge.top, width: edge.width, transform: `rotate(${edge.rotate}deg)` }}><b /></i>)}
-              {workbenchNodes.map((node) => (
+              {edges.map((edge) => {
+                const style = getWorkbenchEdgeStyle(edge, nodes);
+                return style && <i key={edge.id} className="flow-edge" style={{ left: style.left, top: style.top, width: style.width, transform: `rotate(${style.rotate}deg)` }}><b /></i>;
+              })}
+              {nodes.map((node) => {
+                const nodeRunState = runStates[node.id]?.status ?? "未运行";
+                return (
                 <button
                   key={node.id}
-                  className={`flow-node ${node.kind} ${selectedNodeId === node.id ? "active" : ""}`}
+                  className={`flow-node ${node.kind} ${selectedNodeId === node.id ? "active" : ""} ${connectingFromId === node.id ? "connecting-source" : ""} run-${nodeRunState}`}
                   style={{ left: node.position.left, top: node.position.top }}
                   onClick={() => selectNode(node.id)}
                   onDoubleClick={() => notify(`已打开 ${node.label} 详情`)}
                 >
                   <span><UiIcon icon={getWorkbenchNodeIcon(node.kind)} size={16} /></span>
-                  <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>{node.kind === "output" ? "就绪" : node.kind === "annotation" ? `${annotationProgress.toFixed(1)}%` : "正常"}</i>
+                  <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>{nodeRunState === "失败" ? "运行失败" : nodeRunState === "运行中" && node.kind === "annotation" ? `${annotationProgress.toFixed(1)}%` : nodeRunState}</i>
                 </button>
-              ))}
+              );})}
             </div>
           </div>
           <div className="canvas-minimap"><i /><i /><i /><i /><span /></div>
         </main>
 
         <aside className="node-inspector">
-          <header><div><span className={selectedNode.kind}><UiIcon icon={getWorkbenchNodeIcon(selectedNode.kind)} size={16} /></span><div><strong>{selectedNode.label}</strong><small>{selectedProfile.typeLabel} · {selectedNode.meta}</small></div></div><button aria-label="更多节点操作" onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}><UiIcon icon={MoreHorizontal} /></button></header>
+          <header><div><span className={selectedNode.kind}><UiIcon icon={getWorkbenchNodeIcon(selectedNode.kind)} size={16} /></span><div><strong>{selectedNode.label}</strong><small>{selectedProfile.typeLabel} · {selectedNode.meta}</small></div></div><div className="node-inspector-actions"><button aria-label="从当前节点连接" title="从当前节点连接" onClick={startConnecting}><UiIcon icon={Link2} /></button><button aria-label="删除当前节点" title="删除当前节点" disabled={nodes.length === 1} onClick={() => setDeleteTarget(selectedNode)}><UiIcon icon={Trash2} /></button><button aria-label="更多节点操作" onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}><UiIcon icon={MoreHorizontal} /></button></div></header>
           <div className="inspector-tabs">{(["配置", "质量", "血缘"] as const).map((tab) => <button className={inspectorTab === tab ? "active" : ""} key={tab} onClick={() => setInspectorTab(tab)}>{tab}</button>)}</div>
           {inspectorTab === "配置" && <div className="inspector-content">
             {isAnnotationNode ? <>
@@ -1759,24 +1963,31 @@ function GovernanceWorkbench({
             <button className="inspector-secondary" onClick={() => notify(isAnnotationNode ? `已按 ${samplingRate}% 比例抽取标注复核样本` : `${selectedNode.label} 的质量报告已打开`)}>{isAnnotationNode ? "抽取复核样本" : "查看完整质量报告"}</button>
           </div>}
           {inspectorTab === "血缘" && <div className="inspector-content lineage-inspector">
-            <h4>上下游血缘</h4><small>当前节点参与 {selectedProfile.upstream.length + selectedProfile.downstream.length} 条数据链路</small>
-            {selectedProfile.upstream.map((item) => <div key={`up-${item}`}><i>↑</i><span><small>上游输入</small><strong>{item}</strong></span></div>)}
+            <h4>上下游血缘</h4><small>当前节点参与 {selectedUpstream.length + selectedDownstream.length} 条数据链路</small>
+            {selectedUpstream.map((item) => <div key={`up-${item}`}><i>↑</i><span><small>上游输入</small><strong>{item}</strong></span></div>)}
             <div className="current"><i>●</i><span><small>当前节点</small><strong>{selectedNode.label}</strong></span></div>
-            {selectedProfile.downstream.map((item) => <div key={`down-${item}`}><i>↓</i><span><small>下游输出</small><strong>{item}</strong></span></div>)}
+            {selectedDownstream.map((item) => <div key={`down-${item}`}><i>↓</i><span><small>下游输出</small><strong>{item}</strong></span></div>)}
+            {selectedUpstream.length + selectedDownstream.length === 0 && <button className="inspector-secondary" onClick={startConnecting}><UiIcon icon={Link2} />连接到其他节点</button>}
           </div>}
-          <footer><button onClick={() => notify(isAnnotationNode ? "标注规范、类别和质检规则校验通过" : `已校验 ${selectedNode.label} 的配置`)}><UiIcon icon={Check} />{isAnnotationNode ? "检查标注规范" : "校验配置"}</button><button className="primary" onClick={isAnnotationNode ? openAnnotationWorkspace : () => { setRunProgress(12); setRunning(true); setLogOpen(true); }}><UiIcon icon={isAnnotationNode ? ClipboardCheck : Play} />{isAnnotationNode ? "打开标注工作台" : "运行当前节点"}</button></footer>
+          <footer><button onClick={() => notify(isAnnotationNode ? "标注规范、类别和质检规则校验通过" : `已校验 ${selectedNode.label} 的配置`)}><UiIcon icon={Check} />{isAnnotationNode ? "检查标注规范" : "校验配置"}</button><button className="primary" disabled={running} onClick={isAnnotationNode ? openAnnotationWorkspace : () => runNode(selectedNode.id)}><UiIcon icon={isAnnotationNode ? ClipboardCheck : Play} />{isAnnotationNode ? "打开标注工作台" : runStates[selectedNode.id]?.status === "失败" ? "重试当前节点" : "运行当前节点"}</button></footer>
         </aside>
 
         <section className={`workbench-run-log ${logOpen ? "open" : ""}`}>
-          <header><div><strong>运行记录</strong><span className={running ? "running" : ""}>{running ? `运行中 · ${runProgress}%` : "最近运行成功 · 08-22 16:42"}</span></div><div><button aria-label="刷新运行记录" onClick={() => notify("运行记录已刷新")}><UiIcon icon={RefreshCw} size={13} /></button><button aria-label={logOpen ? "收起运行记录" : "展开运行记录"} onClick={() => setLogOpen(!logOpen)}><UiIcon icon={SlidersHorizontal} size={13} /></button></div></header>
+          <header><div><strong>运行记录</strong><span className={failedNodeId ? "failed" : running ? "running" : ""}>{failedNodeId ? `${nodes.find((node) => node.id === failedNodeId)?.label} 运行失败` : running ? `运行中 · ${runProgress}%` : "最近运行成功 · 刚刚"}</span>{failedNodeId && <button className="retry-failed-node" disabled={running} onClick={() => runNode(failedNodeId)}><UiIcon icon={RefreshCw} />重试失败节点</button>}</div><div><button aria-label="刷新运行记录" onClick={() => notify("运行记录已刷新")}><UiIcon icon={RefreshCw} size={13} /></button><button aria-label={logOpen ? "收起运行记录" : "展开运行记录"} onClick={() => setLogOpen(!logOpen)}><UiIcon icon={SlidersHorizontal} size={13} /></button></div></header>
           {logOpen && <div className="run-log-body">
-            <div className="run-progress"><i><b style={{ width: `${running ? runProgress : 100}%` }} /></i><span>{running ? `${runProgress}%` : "100%"}</span></div>
+            <div className={`run-progress ${failedNodeId ? "failed" : ""}`}><i><b style={{ width: `${running || failedNodeId ? runProgress : 100}%` }} /></i><span>{failedNodeId ? `中断于 ${runProgress}%` : running ? `${runProgress}%` : "100%"}</span></div>
             <div className="run-log-rows">
-              {[['图像格式清洗', '成功', '00:18', '处理 12,680 个文件'], ['篮球图像标注', '运行中', '--', `完成 ${annotationProgress.toFixed(1)}%`], ['文档解析', '成功', '01:42', '解析 1,286 份文档'], ['多模态对齐', running ? '运行中' : '成功', running ? '--' : '02:16', '生成 50,344 条样本'], ['质量规则过滤', running ? '等待中' : '成功', running ? '--' : '00:34', '通过率 96.8%']].map((row) => <button key={row[0]} onClick={() => notify(`${row[0]}：${row[3]}`)}><span className={row[1] === '成功' ? 'success' : row[1] === '运行中' ? 'progress' : 'waiting'}>{row[1] === '成功' ? '✓' : row[1] === '运行中' ? '◌' : '·'}</span><strong>{row[0]}</strong><small>{row[3]}</small><b>{row[2]}</b></button>)}
+              {runtimeNodes.map((node) => {
+                const state = runStates[node.id] ?? { status: "未运行" as const, duration: "--", detail: node.meta };
+                const stateClass = state.status === "成功" ? "success" : state.status === "运行中" ? "progress" : state.status === "失败" ? "failed" : "waiting";
+                return <button key={node.id} className={state.status === "失败" ? "failed" : ""} onClick={() => { selectNode(node.id); notify(`${node.label}：${state.detail}`); }}><span className={stateClass}>{state.status === "成功" ? "✓" : state.status === "运行中" ? "◌" : state.status === "失败" ? "!" : "·"}</span><strong>{node.label}</strong><small>{state.detail}</small><b>{state.duration}</b></button>;
+              })}
             </div>
           </div>}
         </section>
       </div>
+      {nodeDialogOpen && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭添加节点" onClick={() => setNodeDialogOpen(false)} /><form className="reuse-dialog workbench-node-dialog" onSubmit={addWorkbenchNode}><header><div><h2>添加治理节点</h2><p>节点加入画布后可继续配置并连接上下游</p></div><button type="button" aria-label="关闭添加节点" onClick={() => setNodeDialogOpen(false)}><UiIcon icon={X} /></button></header><label>节点类型<select value={nodeDraftKind} onChange={(event) => setNodeDraftKind(event.target.value as WorkbenchNode["kind"])}><option value="dataset">数据集</option><option value="recipe">治理 Recipe</option><option value="annotation">标注任务</option><option value="output">输出数据集</option></select></label><label>节点名称<input required value={nodeDraftName} onChange={(event) => setNodeDraftName(event.target.value)} placeholder="请输入节点名称" /></label><div className="workbench-node-dialog-tip"><UiIcon icon={Link2} /><span>添加后选择“连接节点”，再依次点击上游和下游节点即可建立血缘。</span></div><footer><button type="button" className="reuse-secondary" onClick={() => setNodeDialogOpen(false)}>取消</button><button className="reuse-primary"><UiIcon icon={Plus} />添加到画布</button></footer></form></div>}
+      {deleteTarget && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭删除确认" onClick={() => setDeleteTarget(null)} /><div className="reuse-dialog workbench-delete-dialog"><header><div><h2>删除治理节点</h2><p>{project.name}</p></div><button aria-label="关闭删除确认" onClick={() => setDeleteTarget(null)}><UiIcon icon={X} /></button></header><section><span><UiIcon icon={TriangleAlert} size={20} /></span><div><h3>确认删除“{deleteTarget.label}”</h3><p>该节点及与其相连的 {edges.filter((edge) => edge.from === deleteTarget.id || edge.to === deleteTarget.id).length} 条血缘连线将从当前画布移除，其他节点和运行记录不会受影响。</p></div></section><footer><button className="reuse-secondary" onClick={() => setDeleteTarget(null)}>取消</button><button className="reuse-danger" onClick={removeWorkbenchNode}><UiIcon icon={Trash2} />确认删除</button></footer></div></div>}
     </section>
   );
 }

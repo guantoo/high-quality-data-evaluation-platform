@@ -76,6 +76,12 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /进入数据探查/);
   assert.match(page, /function GovernanceWorkbench/);
   assert.match(page, /workbenchNodeProfiles/);
+  assert.match(page, /type WorkbenchEdge/);
+  assert.match(page, /function getWorkbenchEdgeStyle/);
+  assert.match(page, /function addWorkbenchNode/);
+  assert.match(page, /function removeWorkbenchNode/);
+  assert.match(page, /function startConnecting/);
+  assert.match(page, /重试失败节点/);
   assert.match(page, /kind: "annotation"/);
   assert.match(page, /标注任务配置/);
   assert.match(page, /AI 预标注/);
@@ -114,6 +120,9 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.source-sync-state/);
   assert.match(css, /\.connection-config-summary/);
   assert.match(css, /\.workbench-run-log/);
+  assert.match(css, /\.connection-mode-banner/);
+  assert.match(css, /\.flow-node\.run-失败/);
+  assert.match(css, /\.workbench-delete-dialog/);
   assert.match(css, /\.governance-algorithm-panel/);
   assert.match(css, /\.market-card-grid/);
   assert.match(css, /\.algorithm-detail-drawer/);
@@ -124,5 +133,6 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(workflow, /数据接入闭环/);
   assert.match(workflow, /\[x\] 数据探查结果转清洗任务/);
   assert.match(workflow, /\[x\] 智能清洗版本管理、结果对比和回滚/);
+  assert.match(workflow, /\[x\] 治理工作间节点增删、连线、运行失败与重试/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });
