@@ -94,6 +94,12 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /治理算法市场/);
   assert.match(page, /enterWorkspace/);
   assert.match(page, /function AssessmentPage/);
+  assert.match(page, /type AssessmentConfig/);
+  assert.match(page, /type AssessmentIssue/);
+  assert.match(page, /function saveAssessmentConfig/);
+  assert.match(page, /function advanceAssessmentIssue/);
+  assert.match(page, /function exportAssessmentReport/);
+  assert.match(page, /问题样本处置/);
   assert.match(page, /function ModelDevelopment/);
   assert.match(page, /function ModelEvaluation/);
   assert.match(page, /setLoggedIn\(false\)/);
@@ -117,6 +123,9 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.node-inspector/);
   assert.match(css, /\.annotation-label-section/);
   assert.match(css, /\.annotation-review-queue/);
+  assert.match(css, /\.assessment-view-tabs/);
+  assert.match(css, /\.assessment-issue-workspace/);
+  assert.match(css, /\.assessment-config-dialog/);
   assert.match(css, /\.source-sync-state/);
   assert.match(css, /\.connection-config-summary/);
   assert.match(css, /\.workbench-run-log/);
@@ -134,5 +143,6 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(workflow, /\[x\] 数据探查结果转清洗任务/);
   assert.match(workflow, /\[x\] 智能清洗版本管理、结果对比和回滚/);
   assert.match(workflow, /\[x\] 治理工作间节点增删、连线、运行失败与重试/);
+  assert.match(workflow, /\[x\] 数据集评估配置、问题闭环和报告导出/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });

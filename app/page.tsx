@@ -2176,6 +2176,33 @@ function GovernanceMarketplace({ notify }: { notify: Notify }) {
   );
 }
 
+type AssessmentConfig = {
+  dataset: string;
+  standard: string;
+  sampling: string;
+  threshold: number;
+  components: string[];
+};
+
+type AssessmentIssue = {
+  id: string;
+  sample: string;
+  component: string;
+  problem: string;
+  severity: "高" | "中" | "低";
+  assignee: string;
+  status: "待处理" | "已分派" | "待复核" | "已关闭";
+  suggestion: string;
+};
+
+const assessmentComponents = ["图像完好性", "图像重复率合规性", "图像涉黄合规性", "图像格式一致性", "图像内容有效性"];
+
+const initialAssessmentIssues: AssessmentIssue[] = [
+  { id: "QA-0823-001", sample: "basketball_03812.jpeg", component: "图像重复率合规性", problem: "与 basketball_01866.jpeg 相似度 99.2%", severity: "中", assignee: "未分派", status: "待处理", suggestion: "保留分辨率更高的样本，移除重复文件" },
+  { id: "QA-0823-002", sample: "basketball_09218.jpeg", component: "图像内容有效性", problem: "主体遮挡面积超过 65%", severity: "高", assignee: "视觉数据治理组", status: "已分派", suggestion: "转入人工复核并补充主体可见性标签" },
+  { id: "QA-0823-003", sample: "basketball_00186.jpeg", component: "图像格式一致性", problem: "色彩空间为 CMYK，不符合 sRGB 标准", severity: "低", assignee: "数据生产一组", status: "待复核", suggestion: "转换为 JPEG / sRGB 后重新评估" },
+];
+
 function AssessmentPage({
   tasks,
   openDialog,
@@ -2189,9 +2216,17 @@ function AssessmentPage({
   const [search, setSearch] = useState("");
   const [progress, setProgress] = useState(72);
   const [running, setRunning] = useState(false);
+  const [view, setView] = useState<"评估执行" | "问题闭环">("评估执行");
+  const [configOpen, setConfigOpen] = useState(false);
+  const [config, setConfig] = useState<AssessmentConfig>({ dataset: "篮球高质量数据集1", standard: "图像质量评估标准 v2", sampling: "全量评估", threshold: 95, components: assessmentComponents });
+  const [configDraft, setConfigDraft] = useState<AssessmentConfig>(config);
+  const [issues, setIssues] = useState<AssessmentIssue[]>(initialAssessmentIssues);
+  const [issueFilter, setIssueFilter] = useState("全部状态");
   const filteredTasks = tasks.filter((item) => item.toLowerCase().includes(search.toLowerCase()));
-  const components = ["图像完好性", "图像重复率合规性", "图像涉黄合规性", "图像格式一致性", "图像内容有效性"];
-  const completedCount = progress >= 100 ? 5 : Math.min(4, Math.floor(progress / 20));
+  const completedCount = progress >= 100 ? config.components.length : Math.min(Math.max(0, config.components.length - 1), Math.floor(progress / Math.max(1, 100 / config.components.length)));
+  const openIssueCount = issues.filter((issue) => issue.status !== "已关闭").length;
+  const closedIssueCount = issues.length - openIssueCount;
+  const filteredIssues = issues.filter((issue) => issueFilter === "全部状态" || issue.status === issueFilter);
 
   useEffect(() => {
     if (!running) return;
@@ -2213,6 +2248,69 @@ function AssessmentPage({
     setTask(item);
     setProgress(index < 2 ? 72 : 20);
     setRunning(false);
+    setView("评估执行");
+  }
+
+  function openAssessmentConfig() {
+    setConfigDraft({ ...config, components: [...config.components] });
+    setConfigOpen(true);
+  }
+
+  function toggleAssessmentComponent(component: string) {
+    setConfigDraft((current) => ({
+      ...current,
+      components: current.components.includes(component) ? current.components.filter((item) => item !== component) : [...current.components, component],
+    }));
+  }
+
+  function saveAssessmentConfig(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!configDraft.components.length) {
+      notify("请至少选择一个质量评估组件");
+      return;
+    }
+    setConfig({ ...configDraft, components: [...configDraft.components] });
+    setProgress(0);
+    setRunning(false);
+    setConfigOpen(false);
+    notify(`${task} 的评估配置已保存，请开始执行`);
+  }
+
+  function advanceAssessmentIssue(id: string) {
+    setIssues((current) => current.map((issue) => {
+      if (issue.id !== id) return issue;
+      if (issue.status === "待处理") return { ...issue, assignee: "数据质量治理组", status: "已分派" };
+      if (issue.status === "已分派") return { ...issue, status: "待复核" };
+      if (issue.status === "待复核") return { ...issue, status: "已关闭" };
+      return issue;
+    }));
+    const issue = issues.find((item) => item.id === id);
+    const nextAction = issue?.status === "待处理" ? "已分派整改" : issue?.status === "已分派" ? "已提交复核" : issue?.status === "待复核" ? "复核通过并关闭" : "已查看";
+    notify(`${id} ${nextAction}`);
+  }
+
+  function exportAssessmentReport() {
+    const escapeCsv = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
+    const summary = [
+      ["评估任务", task], ["数据集", config.dataset], ["评估标准", config.standard], ["抽样策略", config.sampling], ["通过阈值", `${config.threshold} 分`], ["评估进度", `${progress}%`], ["问题总数", issues.length], ["已关闭", closedIssueCount],
+    ];
+    const rows = [
+      ["高质量数据集质量评估报告"],
+      ...summary,
+      [],
+      ["问题编号", "样本", "评估组件", "问题描述", "严重度", "责任人", "状态", "整改建议"],
+      ...issues.map((issue) => [issue.id, issue.sample, issue.component, issue.problem, issue.severity, issue.assignee, issue.status, issue.suggestion]),
+    ];
+    const blob = new Blob(["\ufeff", rows.map((row) => row.map(escapeCsv).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${task}-质量评估报告.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    notify(`${task} 的质量评估报告已导出`);
   }
 
   return (
@@ -2240,22 +2338,24 @@ function AssessmentPage({
       </aside>
       <article className="white-panel assessment-scope">
         <header>
-          <div><h2>审查范围</h2><p>审查任务：<strong>{task}</strong></p></div>
-          <Status tone={progress >= 100 ? "green" : "blue"}>{progress >= 100 ? "审查已完成" : running ? "正在执行" : "审查进行中"}</Status>
+          <div><h2>数据集质量评估</h2><p>评估任务：<strong>{task}</strong> · {config.standard}</p></div>
+          <div className="assessment-head-actions"><Status tone={progress >= 100 ? "green" : "blue"}>{progress >= 100 ? "评估已完成" : running ? "正在执行" : progress === 0 ? "等待执行" : "评估进行中"}</Status><button className="reuse-secondary" onClick={openAssessmentConfig}><UiIcon icon={Settings2} />评估配置</button><button className="reuse-primary" disabled={progress < 100} onClick={exportAssessmentReport}><UiIcon icon={Download} />导出报告</button></div>
         </header>
+        <nav className="assessment-view-tabs"><button className={view === "评估执行" ? "active" : ""} onClick={() => setView("评估执行")}><UiIcon icon={Play} />评估执行</button><button className={view === "问题闭环" ? "active" : ""} onClick={() => setView("问题闭环")}><UiIcon icon={ClipboardCheck} />问题闭环 <b>{openIssueCount}</b></button></nav>
+        {view === "评估执行" && <>
         <div className="scope-summary">
           <div><span>数据集</span><strong>1 个</strong></div>
-          <div><span>审查内容</span><strong>5 项</strong></div>
-          <div><span>唯一数据量</span><strong>2 个</strong></div>
-          <div><span>总分</span><strong>{progress >= 100 ? "100" : "98.6"} 分</strong></div>
+          <div><span>评估组件</span><strong>{config.components.length} 项</strong></div>
+          <div><span>评估样本</span><strong>{config.sampling === "全量评估" ? "12,680" : "2,536"}</strong></div>
+          <div><span>质量得分</span><strong>{progress >= 100 ? "96.8" : progress === 0 ? "--" : "进行中"}</strong></div>
         </div>
         <section className="assessment-item">
           <div className={`dataset-illustration ${running ? "is-running" : ""}`}>数</div>
           <div className="assessment-copy">
-            <h3>篮球版本1.Image_annotation_multimodal_recipe</h3>
-            <p>多模态审查 · 5 个质量组件</p>
+            <h3>{config.dataset}</h3>
+            <p>{config.standard} · {config.components.length} 个质量组件 · 阈值 {config.threshold} 分</p>
             <Progress value={progress} />
-            <small>{progress >= 100 ? "审查完成，全部组件通过" : `审查进行中，已完成 ${completedCount} / 5 个组件`}</small>
+            <small>{progress >= 100 ? `评估完成，发现 ${issues.length} 个问题，${closedIssueCount} 个已关闭` : `评估进行中，已完成 ${completedCount} / ${config.components.length} 个组件`}</small>
           </div>
           <button
             className="reuse-primary"
@@ -2265,7 +2365,7 @@ function AssessmentPage({
               setRunning(true);
             }}
           >
-            {running ? "执行中..." : progress >= 100 ? "重新执行" : "继续审查"}
+            <UiIcon icon={running ? RefreshCw : Play} />{running ? "执行中..." : progress >= 100 ? "重新执行" : progress === 0 ? "开始评估" : "继续评估"}
           </button>
         </section>
         <div className="reuse-table-wrap">
@@ -2274,7 +2374,7 @@ function AssessmentPage({
               <tr><th>组件名称</th><th>数据量</th><th>问题数量</th><th>正确率</th><th>评估日期</th><th>状态</th></tr>
             </thead>
             <tbody>
-              {components.map((name, index) => {
+              {config.components.map((name, index) => {
                 const complete = index < completedCount;
                 const current = running && index === completedCount;
                 return (
@@ -2288,7 +2388,15 @@ function AssessmentPage({
             </tbody>
           </table>
         </div>
+        <div className="assessment-result-strip"><span><UiIcon icon={TriangleAlert} /><strong>{issues.length}</strong> 个问题样本</span><span><UiIcon icon={CircleCheck} /><strong>{closedIssueCount}</strong> 个已闭环</span><span><strong>{openIssueCount}</strong> 个待处理或复核</span><button className="reuse-link" onClick={() => setView("问题闭环")}>进入问题闭环 <UiIcon icon={ChevronRight} /></button></div>
+        </>}
+        {view === "问题闭环" && <section className="assessment-issue-workspace">
+          <div className="assessment-issue-summary"><span><small>问题总数</small><strong>{issues.length}</strong></span><span><small>高风险</small><strong>{issues.filter((issue) => issue.severity === "高" && issue.status !== "已关闭").length}</strong></span><span><small>整改处理中</small><strong>{issues.filter((issue) => issue.status === "已分派").length}</strong></span><span><small>待复核</small><strong>{issues.filter((issue) => issue.status === "待复核").length}</strong></span><span><small>闭环率</small><strong>{Math.round(closedIssueCount / Math.max(1, issues.length) * 100)}%</strong></span></div>
+          <div className="assessment-issue-toolbar"><div><h3>问题样本处置</h3><p>分派整改、提交复核并关闭问题，所有状态实时回写任务</p></div><label>状态筛选<select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}><option>全部状态</option><option>待处理</option><option>已分派</option><option>待复核</option><option>已关闭</option></select></label></div>
+          <div className="reuse-table-wrap"><table className="reuse-table compact-table assessment-issue-table"><thead><tr><th>问题编号 / 样本</th><th>评估组件</th><th>问题描述</th><th>风险</th><th>责任人</th><th>状态</th><th>整改建议</th><th>操作</th></tr></thead><tbody>{filteredIssues.map((issue) => <tr key={issue.id}><td><strong>{issue.id}</strong><small>{issue.sample}</small></td><td>{issue.component}</td><td>{issue.problem}</td><td><Status tone={issue.severity === "高" ? "orange" : issue.severity === "中" ? "blue" : "gray"}>{issue.severity}风险</Status></td><td>{issue.assignee}</td><td><Status tone={issue.status === "已关闭" ? "green" : issue.status === "待复核" ? "blue" : issue.status === "已分派" ? "orange" : "gray"}>{issue.status}</Status></td><td>{issue.suggestion}</td><td><button className="reuse-link" onClick={() => advanceAssessmentIssue(issue.id)}>{issue.status === "待处理" ? "分派整改" : issue.status === "已分派" ? "提交复核" : issue.status === "待复核" ? "复核通过" : "查看记录"}</button></td></tr>)}</tbody></table>{filteredIssues.length === 0 && <div className="table-empty">当前筛选条件下没有问题记录</div>}</div>
+        </section>}
       </article>
+      {configOpen && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭评估配置" onClick={() => setConfigOpen(false)} /><form className="reuse-dialog assessment-config-dialog" onSubmit={saveAssessmentConfig}><header><div><h2>评估任务配置</h2><p>{task} · 保存后将重新执行评估</p></div><button type="button" aria-label="关闭评估配置" onClick={() => setConfigOpen(false)}><UiIcon icon={X} /></button></header><label>评估数据集<select value={configDraft.dataset} onChange={(event) => setConfigDraft((current) => ({ ...current, dataset: event.target.value }))}><option>篮球高质量数据集1</option><option>金融年报问答集 v2.1</option><option>客服知识数据集 v3.4</option></select></label><label>评估标准<select value={configDraft.standard} onChange={(event) => setConfigDraft((current) => ({ ...current, standard: event.target.value }))}><option>图像质量评估标准 v2</option><option>多模态训练数据标准 v3</option><option>SFT 数据质量标准 v2</option></select></label><label>抽样策略<select value={configDraft.sampling} onChange={(event) => setConfigDraft((current) => ({ ...current, sampling: event.target.value }))}><option>全量评估</option><option>分层抽样 20%</option><option>风险优先抽样</option></select></label><label>通过阈值<div className="assessment-threshold-field"><input type="range" min="80" max="100" value={configDraft.threshold} onChange={(event) => setConfigDraft((current) => ({ ...current, threshold: Number(event.target.value) }))} /><strong>{configDraft.threshold} 分</strong></div></label><fieldset><legend>质量评估组件 <small>已选择 {configDraft.components.length} 项</small></legend><div>{assessmentComponents.map((component) => <label key={component}><span className="visually-hidden">评估组件</span><input type="checkbox" checked={configDraft.components.includes(component)} onChange={() => toggleAssessmentComponent(component)} /><span><strong>{component}</strong><small>{component.includes("重复") ? "识别完全重复与近似重复样本" : component.includes("格式") ? "检查编码、色彩空间和文件格式" : "按标准规则检查并输出问题样本"}</small></span></label>)}</div></fieldset><footer><button type="button" className="reuse-secondary" onClick={() => setConfigOpen(false)}>取消</button><button className="reuse-primary"><UiIcon icon={Save} />保存配置</button></footer></form></div>}
     </section>
   );
 }
