@@ -60,6 +60,12 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /function SmartInventory/);
   assert.match(page, /function SmartCleaning/);
   assert.match(page, /function GovernanceWorkbench/);
+  assert.match(page, /workbenchNodeProfiles/);
+  assert.match(page, /kind: "annotation"/);
+  assert.match(page, /标注任务配置/);
+  assert.match(page, /AI 预标注/);
+  assert.match(page, /双人复核/);
+  assert.match(page, /打开标注工作台/);
   assert.match(page, /function GovernanceAlgorithms/);
   assert.match(page, /function GovernanceMarketplace/);
   assert.match(page, /高质量数据治理工作间/);
@@ -83,6 +89,8 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.governance-workbench/);
   assert.match(css, /\.flow-canvas/);
   assert.match(css, /\.node-inspector/);
+  assert.match(css, /\.annotation-label-section/);
+  assert.match(css, /\.annotation-review-queue/);
   assert.match(css, /\.workbench-run-log/);
   assert.match(css, /\.governance-algorithm-panel/);
   assert.match(css, /\.market-card-grid/);

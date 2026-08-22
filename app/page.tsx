@@ -1002,15 +1002,26 @@ function GovernancePage({
 type WorkbenchNode = {
   id: string;
   label: string;
-  kind: "dataset" | "recipe" | "output";
+  kind: "dataset" | "recipe" | "annotation" | "output";
   meta: string;
   position: { left: number; top: number };
+};
+
+type WorkbenchNodeProfile = {
+  typeLabel: string;
+  format: string;
+  engine: string;
+  fields: Array<{ label: string; value: string; options?: string[] }>;
+  tags: string[];
+  quality: Array<{ label: string; value: string; score: number }>;
+  upstream: string[];
+  downstream: string[];
 };
 
 const workbenchNodes: WorkbenchNode[] = [
   { id: "raw-image", label: "篮球原始图像", kind: "dataset", meta: "12,680 文件", position: { left: 44, top: 58 } },
   { id: "image-clean", label: "图像格式清洗", kind: "recipe", meta: "标准化 Recipe", position: { left: 238, top: 58 } },
-  { id: "image-label", label: "篮球标注数据", kind: "dataset", meta: "11,924 样本", position: { left: 430, top: 58 } },
+  { id: "image-label", label: "篮球图像标注", kind: "annotation", meta: "11,924 / 12,680 已完成", position: { left: 430, top: 58 } },
   { id: "documents", label: "金融年报文档", kind: "dataset", meta: "1,286 文件", position: { left: 44, top: 238 } },
   { id: "document-parse", label: "文档解析", kind: "recipe", meta: "OCR + 版面分析", position: { left: 238, top: 238 } },
   { id: "sft", label: "SFT 问答数据集", kind: "dataset", meta: "38,420 条", position: { left: 430, top: 238 } },
@@ -1018,6 +1029,138 @@ const workbenchNodes: WorkbenchNode[] = [
   { id: "quality", label: "质量规则过滤", kind: "recipe", meta: "13 条规则", position: { left: 808, top: 142 } },
   { id: "training", label: "高质量训练集", kind: "output", meta: "50,344 条", position: { left: 996, top: 142 } },
 ];
+
+const workbenchNodeProfiles: Record<string, WorkbenchNodeProfile> = {
+  "raw-image": {
+    typeLabel: "文件数据源",
+    format: "JPG / PNG",
+    engine: "对象存储连接器",
+    fields: [
+      { label: "来源目录", value: "/production/basketball/images" },
+      { label: "同步方式", value: "每日增量", options: ["每日增量", "准实时监听", "手动同步"] },
+      { label: "重复文件策略", value: "按文件哈希去重", options: ["按文件哈希去重", "保留最新版本", "全部保留"] },
+    ],
+    tags: ["原始数据", "图像"],
+    quality: [{ label: "文件可读率", value: "99.8%", score: 99.8 }, { label: "元数据完整度", value: "97.6%", score: 97.6 }, { label: "重复率", value: "0.3%", score: 99.7 }],
+    upstream: ["生产图像文件仓"],
+    downstream: ["图像格式清洗"],
+  },
+  "image-clean": {
+    typeLabel: "图像清洗 Recipe",
+    format: "标准化流水线",
+    engine: "图像处理引擎",
+    fields: [
+      { label: "输出格式", value: "JPEG / sRGB", options: ["JPEG / sRGB", "PNG / sRGB", "保留原始格式"] },
+      { label: "目标分辨率", value: "1920 × 1080", options: ["1920 × 1080", "1280 × 720", "不缩放"] },
+      { label: "损坏图像处理", value: "隔离并记录", options: ["隔离并记录", "自动修复", "跳过"] },
+    ],
+    tags: ["格式治理", "批处理"],
+    quality: [{ label: "清洗成功率", value: "99.4%", score: 99.4 }, { label: "格式合规率", value: "100%", score: 100 }, { label: "损坏文件率", value: "0.2%", score: 99.8 }],
+    upstream: ["篮球原始图像"],
+    downstream: ["篮球图像标注"],
+  },
+  "image-label": {
+    typeLabel: "人工标注任务",
+    format: "COCO JSON",
+    engine: "协同标注引擎",
+    fields: [],
+    tags: ["目标检测", "人工复核"],
+    quality: [{ label: "标注完成率", value: "94.0%", score: 94 }, { label: "双人一致率", value: "96.8%", score: 96.8 }, { label: "复核通过率", value: "98.2%", score: 98.2 }, { label: "漏标率", value: "1.1%", score: 98.9 }],
+    upstream: ["图像格式清洗"],
+    downstream: ["多模态对齐"],
+  },
+  documents: {
+    typeLabel: "文档数据源",
+    format: "PDF / OFD",
+    engine: "文档仓连接器",
+    fields: [
+      { label: "文档目录", value: "/finance/annual-reports/2025" },
+      { label: "版本策略", value: "保留最新版本", options: ["保留最新版本", "保留全部版本", "按报告期覆盖"] },
+      { label: "加密文档", value: "转人工解密", options: ["转人工解密", "跳过并告警", "停止流程"] },
+    ],
+    tags: ["金融", "年报文档"],
+    quality: [{ label: "文件可读率", value: "98.9%", score: 98.9 }, { label: "报告期完整度", value: "96.5%", score: 96.5 }, { label: "版本一致性", value: "99.1%", score: 99.1 }],
+    upstream: ["金融报告文件仓"],
+    downstream: ["文档解析"],
+  },
+  "document-parse": {
+    typeLabel: "文档解析 Recipe",
+    format: "Markdown + JSON",
+    engine: "OCR 版面引擎",
+    fields: [
+      { label: "解析模式", value: "OCR + 版面分析", options: ["OCR + 版面分析", "仅文本提取", "多模态解析"] },
+      { label: "表格处理", value: "保留结构", options: ["保留结构", "转 Markdown", "忽略表格"] },
+      { label: "低置信页面", value: "进入人工复核", options: ["进入人工复核", "自动重试", "直接保留"] },
+    ],
+    tags: ["OCR", "版面解析"],
+    quality: [{ label: "OCR 准确率", value: "97.4%", score: 97.4 }, { label: "表格还原率", value: "94.8%", score: 94.8 }, { label: "段落完整度", value: "98.1%", score: 98.1 }],
+    upstream: ["金融年报文档"],
+    downstream: ["SFT 问答数据集"],
+  },
+  sft: {
+    typeLabel: "问答数据集",
+    format: "JSONL",
+    engine: "数据集管理引擎",
+    fields: [
+      { label: "问答结构", value: "instruction / input / output", options: ["instruction / input / output", "messages", "prompt / completion"] },
+      { label: "多轮策略", value: "保留上下文", options: ["保留上下文", "拆分单轮", "仅保留最终轮"] },
+      { label: "版本", value: "finance-sft-v2.1" },
+    ],
+    tags: ["SFT", "问答"],
+    quality: [{ label: "答案完整度", value: "98.2%", score: 98.2 }, { label: "问题唯一率", value: "96.7%", score: 96.7 }, { label: "引用准确率", value: "95.9%", score: 95.9 }],
+    upstream: ["文档解析"],
+    downstream: ["多模态对齐"],
+  },
+  align: {
+    typeLabel: "多模态对齐 Recipe",
+    format: "统一样本协议",
+    engine: "语义对齐引擎",
+    fields: [
+      { label: "对齐主键", value: "sample_id + business_key" },
+      { label: "匹配策略", value: "语义相似度 + 规则", options: ["语义相似度 + 规则", "仅业务主键", "人工确认"] },
+      { label: "相似度阈值", value: "0.86", options: ["0.80", "0.86", "0.90", "0.95"] },
+    ],
+    tags: ["多模态", "语义对齐"],
+    quality: [{ label: "对齐成功率", value: "97.1%", score: 97.1 }, { label: "语义一致性", value: "95.6%", score: 95.6 }, { label: "孤立样本率", value: "1.8%", score: 98.2 }],
+    upstream: ["篮球图像标注", "SFT 问答数据集"],
+    downstream: ["质量规则过滤"],
+  },
+  quality: {
+    typeLabel: "质量过滤 Recipe",
+    format: "规则流水线",
+    engine: "质量规则引擎",
+    fields: [
+      { label: "规则集", value: "训练数据质量规则 v4.2", options: ["训练数据质量规则 v4.2", "高置信严格规则 v3.1", "快速筛选规则 v2.8"] },
+      { label: "不合格样本", value: "隔离并生成清单", options: ["隔离并生成清单", "自动修复后重检", "终止流程"] },
+      { label: "通过阈值", value: "综合得分 ≥ 92", options: ["综合得分 ≥ 90", "综合得分 ≥ 92", "综合得分 ≥ 95"] },
+    ],
+    tags: ["质量门禁", "13 条规则"],
+    quality: [{ label: "规则通过率", value: "96.8%", score: 96.8 }, { label: "完整度", value: "98.7%", score: 98.7 }, { label: "一致性", value: "96.4%", score: 96.4 }, { label: "格式合规", value: "99.2%", score: 99.2 }],
+    upstream: ["多模态对齐"],
+    downstream: ["高质量训练集"],
+  },
+  training: {
+    typeLabel: "发布数据集",
+    format: "Parquet + JSONL",
+    engine: "数据集交付引擎",
+    fields: [
+      { label: "数据集版本", value: "training-set-v3.6" },
+      { label: "数据划分", value: "训练 80% / 验证 10% / 测试 10%", options: ["训练 80% / 验证 10% / 测试 10%", "训练 90% / 验证 5% / 测试 5%", "不划分"] },
+      { label: "发布目标", value: "领域模型训练环境", options: ["领域模型训练环境", "评测环境", "数据集交付平台"] },
+    ],
+    tags: ["高质量", "可交付"],
+    quality: [{ label: "交付完整度", value: "100%", score: 100 }, { label: "质量门禁", value: "96.8%", score: 96.8 }, { label: "版本可追溯", value: "100%", score: 100 }],
+    upstream: ["质量规则过滤"],
+    downstream: ["领域模型训练环境"],
+  },
+};
+
+function getWorkbenchNodeIcon(kind: WorkbenchNode["kind"]): LucideIcon {
+  if (kind === "recipe") return Workflow;
+  if (kind === "annotation") return ClipboardCheck;
+  if (kind === "output") return PackageCheck;
+  return Database;
+}
 
 const workbenchEdges = [
   { id: "e1", left: 170, top: 93, width: 68, rotate: 0 },
@@ -1041,16 +1184,35 @@ function GovernanceWorkbench({
 }) {
   const [resourceType, setResourceType] = useState<"数据集" | "Recipe">("数据集");
   const [resourceSearch, setResourceSearch] = useState("");
-  const [selectedNodeId, setSelectedNodeId] = useState("quality");
+  const [selectedNodeId, setSelectedNodeId] = useState("image-label");
   const [inspectorTab, setInspectorTab] = useState<"配置" | "质量" | "血缘">("配置");
   const [zoom, setZoom] = useState(90);
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState(0);
   const [logOpen, setLogOpen] = useState(true);
   const [saved, setSaved] = useState(true);
+  const [annotationType, setAnnotationType] = useState("目标检测 + 关键点");
+  const [annotationTeam, setAnnotationTeam] = useState("视觉标注一组");
+  const [annotationLabels, setAnnotationLabels] = useState(["篮球", "运动员", "篮筐", "裁判", "三分线"]);
+  const [annotationLabelDraft, setAnnotationLabelDraft] = useState("");
+  const [aiPrelabel, setAiPrelabel] = useState(true);
+  const [doubleReview, setDoubleReview] = useState(true);
+  const [samplingRate, setSamplingRate] = useState(10);
+  const [annotationProgress, setAnnotationProgress] = useState(94);
   const selectedNode = workbenchNodes.find((node) => node.id === selectedNodeId) || workbenchNodes[0];
-  const resources = workbenchNodes.filter((node) => resourceType === "数据集" ? node.kind !== "recipe" : node.kind === "recipe");
+  const selectedProfile = workbenchNodeProfiles[selectedNode.id];
+  const isAnnotationNode = selectedNode.kind === "annotation";
+  const resources = workbenchNodes.filter((node) => resourceType === "数据集"
+    ? node.kind === "dataset" || node.kind === "output"
+    : node.kind === "recipe" || node.kind === "annotation");
   const filteredResources = resources.filter((node) => node.label.includes(resourceSearch));
+  const resourceCount = {
+    数据集: workbenchNodes.filter((node) => node.kind === "dataset" || node.kind === "output").length,
+    Recipe: workbenchNodes.filter((node) => node.kind === "recipe" || node.kind === "annotation").length,
+  };
+  const selectedMetrics = isAnnotationNode
+    ? selectedProfile.quality.map((metric, index) => index === 0 ? { ...metric, value: `${annotationProgress.toFixed(1)}%`, score: annotationProgress } : metric)
+    : selectedProfile.quality;
 
   useEffect(() => {
     if (!running) return;
@@ -1072,7 +1234,31 @@ function GovernanceWorkbench({
     setRunProgress(4);
     setRunning(true);
     setLogOpen(true);
-    notify("治理流程已启动，正在执行 4 个 Recipe");
+    notify("治理流程已启动，正在执行 5 个处理节点");
+  }
+
+  function selectNode(id: string) {
+    setSelectedNodeId(id);
+    setInspectorTab("配置");
+  }
+
+  function addAnnotationLabel() {
+    const label = annotationLabelDraft.trim();
+    if (!label) return;
+    if (annotationLabels.includes(label)) {
+      notify(`${label} 已在标注类别中`);
+      return;
+    }
+    setAnnotationLabels((current) => [...current, label]);
+    setAnnotationLabelDraft("");
+    setSaved(false);
+    notify(`已新增标注类别：${label}`);
+  }
+
+  function openAnnotationWorkspace() {
+    setAnnotationProgress((current) => Math.min(100, current + 0.6));
+    setSaved(false);
+    notify(`已打开${annotationTeam}的标注工作台，并领取下一批 50 个样本`);
   }
 
   return (
@@ -1108,19 +1294,19 @@ function GovernanceWorkbench({
         <aside className="flow-resource-panel">
           <header><strong>项目资源</strong><button aria-label="添加项目资源" onClick={() => notify("资源导入面板已打开")}><UiIcon icon={Plus} /></button></header>
           <div className="resource-tabs">
-            {(["数据集", "Recipe"] as const).map((item) => <button key={item} className={resourceType === item ? "active" : ""} onClick={() => setResourceType(item)}>{item}<b>{item === "数据集" ? 5 : 4}</b></button>)}
+            {(["数据集", "Recipe"] as const).map((item) => <button key={item} className={resourceType === item ? "active" : ""} onClick={() => setResourceType(item)}>{item}<b>{resourceCount[item]}</b></button>)}
           </div>
           <label className="resource-search"><UiIcon icon={Search} /><input value={resourceSearch} onChange={(event) => setResourceSearch(event.target.value)} placeholder={`搜索${resourceType}`} /></label>
           <div className="resource-list">
             {filteredResources.map((node) => (
-              <button key={node.id} className={selectedNodeId === node.id ? "active" : ""} onClick={() => setSelectedNodeId(node.id)}>
-                <span className={node.kind}><UiIcon icon={node.kind === "recipe" ? Workflow : node.kind === "output" ? PackageCheck : Database} size={15} /></span>
+              <button key={node.id} className={selectedNodeId === node.id ? "active" : ""} onClick={() => selectNode(node.id)}>
+                <span className={node.kind}><UiIcon icon={getWorkbenchNodeIcon(node.kind)} size={15} /></span>
                 <div><strong>{node.label}</strong><small>{node.meta}</small></div><i><UiIcon icon={ChevronRight} size={13} /></i>
               </button>
             ))}
             {filteredResources.length === 0 && <p className="resource-empty">没有匹配的资源</p>}
           </div>
-          <footer><span><UiIcon icon={CircleCheck} size={11} />4 个节点已成功运行</span><button aria-label="刷新项目资源" onClick={() => notify("已刷新项目资源")}><UiIcon icon={RefreshCw} size={13} /></button></footer>
+          <footer><span><UiIcon icon={CircleCheck} size={11} />5 个节点已成功运行</span><button aria-label="刷新项目资源" onClick={() => notify("已刷新项目资源")}><UiIcon icon={RefreshCw} size={13} /></button></footer>
         </aside>
 
         <main className="flow-canvas-shell">
@@ -1137,11 +1323,11 @@ function GovernanceWorkbench({
                   key={node.id}
                   className={`flow-node ${node.kind} ${selectedNodeId === node.id ? "active" : ""}`}
                   style={{ left: node.position.left, top: node.position.top }}
-                  onClick={() => setSelectedNodeId(node.id)}
+                  onClick={() => selectNode(node.id)}
                   onDoubleClick={() => notify(`已打开 ${node.label} 详情`)}
                 >
-                  <span><UiIcon icon={node.kind === "recipe" ? Workflow : node.kind === "output" ? PackageCheck : Database} size={16} /></span>
-                  <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>{node.kind === "output" ? "就绪" : "正常"}</i>
+                  <span><UiIcon icon={getWorkbenchNodeIcon(node.kind)} size={16} /></span>
+                  <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>{node.kind === "output" ? "就绪" : node.kind === "annotation" ? `${annotationProgress.toFixed(1)}%` : "正常"}</i>
                 </button>
               ))}
             </div>
@@ -1150,28 +1336,49 @@ function GovernanceWorkbench({
         </main>
 
         <aside className="node-inspector">
-          <header><div><span className={selectedNode.kind}><UiIcon icon={selectedNode.kind === "recipe" ? Workflow : selectedNode.kind === "output" ? PackageCheck : Database} size={16} /></span><div><strong>{selectedNode.label}</strong><small>{selectedNode.meta}</small></div></div><button aria-label="更多节点操作" onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}><UiIcon icon={MoreHorizontal} /></button></header>
+          <header><div><span className={selectedNode.kind}><UiIcon icon={getWorkbenchNodeIcon(selectedNode.kind)} size={16} /></span><div><strong>{selectedNode.label}</strong><small>{selectedProfile.typeLabel} · {selectedNode.meta}</small></div></div><button aria-label="更多节点操作" onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}><UiIcon icon={MoreHorizontal} /></button></header>
           <div className="inspector-tabs">{(["配置", "质量", "血缘"] as const).map((tab) => <button className={inspectorTab === tab ? "active" : ""} key={tab} onClick={() => setInspectorTab(tab)}>{tab}</button>)}</div>
           {inspectorTab === "配置" && <div className="inspector-content">
-            <h4>节点配置</h4>
-            <label>节点名称<input value={selectedNode.label} onChange={() => { setSaved(false); notify("演示环境中节点名称保持不变"); }} /></label>
-            <label>节点类型<select defaultValue={selectedNode.kind === "recipe" ? "治理 Recipe" : "数据集"}><option>数据集</option><option>治理 Recipe</option><option>输出数据集</option></select></label>
-            <div className="config-pair"><span><small>存储格式</small><strong>{selectedNode.kind === "dataset" ? "Parquet" : "Pipeline"}</strong></span><span><small>运行引擎</small><strong>高质量引擎</strong></span></div>
-            <label>执行策略<select defaultValue="增量执行"><option>增量执行</option><option>全量执行</option><option>按需执行</option></select></label>
-            <div className="node-tags"><small>标签</small><span>生产数据</span><span>质量治理</span><button aria-label="添加标签" onClick={() => notify("已打开标签选择器")}><UiIcon icon={Plus} size={12} /></button></div>
+            {isAnnotationNode ? <>
+              <div className="annotation-config-head"><div><h4>标注任务配置</h4><small>剩余 {Math.max(0, Math.round(12680 * (100 - annotationProgress) / 100)).toLocaleString()} 个样本待标注</small></div><Status tone="blue">进行中</Status></div>
+              <label>标注任务类型<select value={annotationType} onChange={(event) => { setAnnotationType(event.target.value); setSaved(false); }}><option>目标检测 + 关键点</option><option>目标检测</option><option>图像分类</option><option>实例分割</option></select></label>
+              <label>标注工具<select defaultValue="矩形框 + 关键点"><option>矩形框 + 关键点</option><option>多边形</option><option>语义分割画笔</option></select></label>
+              <div className="annotation-label-section">
+                <div className="annotation-section-title"><span>标注类别</span><small>{annotationLabels.length} 项</small></div>
+                <div className="annotation-labels">{annotationLabels.map((label) => <span key={label}>{label}<button aria-label={`删除${label}`} onClick={() => { setAnnotationLabels((current) => current.filter((item) => item !== label)); setSaved(false); }}><UiIcon icon={X} size={9} /></button></span>)}</div>
+                <div className="annotation-label-add"><input value={annotationLabelDraft} onChange={(event) => setAnnotationLabelDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addAnnotationLabel(); } }} placeholder="新增类别名称" /><button onClick={addAnnotationLabel}><UiIcon icon={Plus} size={11} />添加</button></div>
+              </div>
+              <div className="annotation-option-list">
+                <div><span><strong>AI 预标注</strong><small>生成初始框，人工确认后提交</small></span><button className={aiPrelabel ? "on" : ""} aria-pressed={aiPrelabel} onClick={() => { setAiPrelabel(!aiPrelabel); setSaved(false); }}><i /></button></div>
+                <div><span><strong>双人复核</strong><small>高风险样本由第二位标注员复核</small></span><button className={doubleReview ? "on" : ""} aria-pressed={doubleReview} onClick={() => { setDoubleReview(!doubleReview); setSaved(false); }}><i /></button></div>
+              </div>
+              <label>执行团队<select value={annotationTeam} onChange={(event) => { setAnnotationTeam(event.target.value); setSaved(false); }}><option>视觉标注一组</option><option>视觉标注二组</option><option>外部协作团队</option></select></label>
+              <label className="sampling-field"><span>质检抽样比例 <b>{samplingRate}%</b></span><input type="range" min="5" max="30" step="5" value={samplingRate} onChange={(event) => { setSamplingRate(Number(event.target.value)); setSaved(false); }} /></label>
+              <div className="annotation-progress-summary"><span><small>已完成</small><strong>{Math.round(12680 * annotationProgress / 100).toLocaleString()}</strong></span><span><small>待复核</small><strong>386</strong></span><span><small>已驳回</small><strong>42</strong></span></div>
+              <button className="inspector-secondary" onClick={() => notify(`已将待标样本分派给${annotationTeam}`)}><UiIcon icon={UserRound} />分派剩余任务</button>
+            </> : <>
+              <h4>{selectedProfile.typeLabel}配置</h4>
+              <label>节点名称<input key={selectedNode.id} defaultValue={selectedNode.label} onChange={() => setSaved(false)} /></label>
+              <div className="config-pair"><span><small>数据格式</small><strong>{selectedProfile.format}</strong></span><span><small>运行引擎</small><strong>{selectedProfile.engine}</strong></span></div>
+              {selectedProfile.fields.map((field) => <label key={`${selectedNode.id}-${field.label}`}>{field.label}{field.options
+                ? <select defaultValue={field.value} onChange={() => setSaved(false)}>{field.options.map((option) => <option key={option}>{option}</option>)}</select>
+                : <input defaultValue={field.value} onChange={() => setSaved(false)} />}</label>)}
+              <div className="node-tags"><small>节点标签</small>{selectedProfile.tags.map((tag) => <span key={tag}>{tag}</span>)}<button aria-label="添加标签" onClick={() => notify("已打开标签选择器")}><UiIcon icon={Plus} size={12} /></button></div>
+            </>}
           </div>}
           {inspectorTab === "质量" && <div className="inspector-content quality-inspector">
-            <h4>最近质量结果</h4>
-            {[['完整度', '98.7%', 98.7], ['准确率', '96.4%', 96.4], ['重复率', '0.7%', 99.3], ['格式合规', '99.2%', 99.2]].map((metric) => <div key={String(metric[0])}><span><strong>{metric[0]}</strong><b>{metric[1]}</b></span><i><b style={{ width: `${metric[2]}%` }} /></i></div>)}
-            <button className="inspector-secondary" onClick={() => notify(`${selectedNode.label} 的质量报告已打开`)}>查看完整质量报告</button>
+            <h4>{isAnnotationNode ? "标注进度与质量" : `${selectedProfile.typeLabel}质量`}</h4>
+            {selectedMetrics.map((metric) => <div key={metric.label}><span><strong>{metric.label}</strong><b>{metric.value}</b></span><i><b style={{ width: `${metric.score}%` }} /></i></div>)}
+            {isAnnotationNode && <div className="annotation-review-queue"><header><strong>复核队列</strong><small>按风险排序</small></header><button onClick={() => notify("已打开遮挡目标复核队列")}><span>遮挡目标</span><b>168</b><Status tone="orange">高风险</Status></button><button onClick={() => notify("已打开小目标复核队列")}><span>小目标</span><b>124</b><Status tone="blue">待复核</Status></button><button onClick={() => notify("已打开类别冲突复核队列")}><span>类别冲突</span><b>94</b><Status tone="gray">一般</Status></button></div>}
+            <button className="inspector-secondary" onClick={() => notify(isAnnotationNode ? `已按 ${samplingRate}% 比例抽取标注复核样本` : `${selectedNode.label} 的质量报告已打开`)}>{isAnnotationNode ? "抽取复核样本" : "查看完整质量报告"}</button>
           </div>}
           {inspectorTab === "血缘" && <div className="inspector-content lineage-inspector">
-            <h4>上下游血缘</h4><small>当前节点参与 3 条数据链路</small>
-            <div><i>↑</i><span><small>上游输入</small><strong>篮球标注数据</strong></span></div>
+            <h4>上下游血缘</h4><small>当前节点参与 {selectedProfile.upstream.length + selectedProfile.downstream.length} 条数据链路</small>
+            {selectedProfile.upstream.map((item) => <div key={`up-${item}`}><i>↑</i><span><small>上游输入</small><strong>{item}</strong></span></div>)}
             <div className="current"><i>●</i><span><small>当前节点</small><strong>{selectedNode.label}</strong></span></div>
-            <div><i>↓</i><span><small>下游输出</small><strong>高质量训练集</strong></span></div>
+            {selectedProfile.downstream.map((item) => <div key={`down-${item}`}><i>↓</i><span><small>下游输出</small><strong>{item}</strong></span></div>)}
           </div>}
-          <footer><button onClick={() => notify(`已校验 ${selectedNode.label} 的配置`)}><UiIcon icon={Check} />校验配置</button><button className="primary" onClick={() => { setRunProgress(12); setRunning(true); setLogOpen(true); }}><UiIcon icon={Play} />运行当前节点</button></footer>
+          <footer><button onClick={() => notify(isAnnotationNode ? "标注规范、类别和质检规则校验通过" : `已校验 ${selectedNode.label} 的配置`)}><UiIcon icon={Check} />{isAnnotationNode ? "检查标注规范" : "校验配置"}</button><button className="primary" onClick={isAnnotationNode ? openAnnotationWorkspace : () => { setRunProgress(12); setRunning(true); setLogOpen(true); }}><UiIcon icon={isAnnotationNode ? ClipboardCheck : Play} />{isAnnotationNode ? "打开标注工作台" : "运行当前节点"}</button></footer>
         </aside>
 
         <section className={`workbench-run-log ${logOpen ? "open" : ""}`}>
@@ -1179,7 +1386,7 @@ function GovernanceWorkbench({
           {logOpen && <div className="run-log-body">
             <div className="run-progress"><i><b style={{ width: `${running ? runProgress : 100}%` }} /></i><span>{running ? `${runProgress}%` : "100%"}</span></div>
             <div className="run-log-rows">
-              {[['图像格式清洗', '成功', '00:18', '处理 12,680 个文件'], ['文档解析', '成功', '01:42', '解析 1,286 份文档'], ['多模态对齐', running ? '运行中' : '成功', running ? '--' : '02:16', '生成 50,344 条样本'], ['质量规则过滤', running ? '等待中' : '成功', running ? '--' : '00:34', '通过率 96.8%']].map((row) => <button key={row[0]} onClick={() => notify(`${row[0]}：${row[3]}`)}><span className={row[1] === '成功' ? 'success' : row[1] === '运行中' ? 'progress' : 'waiting'}>{row[1] === '成功' ? '✓' : row[1] === '运行中' ? '◌' : '·'}</span><strong>{row[0]}</strong><small>{row[3]}</small><b>{row[2]}</b></button>)}
+              {[['图像格式清洗', '成功', '00:18', '处理 12,680 个文件'], ['篮球图像标注', '运行中', '--', `完成 ${annotationProgress.toFixed(1)}%`], ['文档解析', '成功', '01:42', '解析 1,286 份文档'], ['多模态对齐', running ? '运行中' : '成功', running ? '--' : '02:16', '生成 50,344 条样本'], ['质量规则过滤', running ? '等待中' : '成功', running ? '--' : '00:34', '通过率 96.8%']].map((row) => <button key={row[0]} onClick={() => notify(`${row[0]}：${row[3]}`)}><span className={row[1] === '成功' ? 'success' : row[1] === '运行中' ? 'progress' : 'waiting'}>{row[1] === '成功' ? '✓' : row[1] === '运行中' ? '◌' : '·'}</span><strong>{row[0]}</strong><small>{row[3]}</small><b>{row[2]}</b></button>)}
             </div>
           </div>}
         </section>
