@@ -372,66 +372,18 @@ function ProjectToolbar({
   project,
   setProject,
   notify,
-  onFilterApplied,
 }: {
   project: string;
   setProject: (value: string) => void;
   notify: Notify;
-  onFilterApplied: (filters: FilterValues) => void;
 }) {
-  const [mode, setMode] = useState("智能联动");
-  const [view, setView] = useState("查看");
-  const [exportOpen, setExportOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filters, setFilters] = useState<FilterValues>({ dataType: "全部", status: "全部", date: "" });
-
   function changeProject(value: string) {
     setProject(value);
     notify(`已切换到项目：${value}`);
   }
 
-  async function shareProduct() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      notify("本地访问地址已复制");
-    } catch {
-      notify("复制失败，请从地址栏复制链接");
-    }
-  }
-
-  function refresh() {
-    if (refreshing) return;
-    setRefreshing(true);
-    window.setTimeout(() => {
-      setRefreshing(false);
-      notify("指标已刷新，当前数据为最新状态");
-    }, 900);
-  }
-
-  function exportCsv() {
-    const rows = [
-      ["审查内容", "组件名称", "唯一数据量", "问题数量", "正确率"],
-      ...["图像完好性", "图像重复率合规性", "图像涉黄合规性", "图像格式一致性", "图像内容有效性"].map(
-        (name) => ["篮球版本1", name, "2", "0", "100%"],
-      ),
-    ];
-    const csv = `\uFEFF${rows.map((row) => row.join(",")).join("\n")}`;
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "篮球版本1质量评估结果.csv";
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setExportOpen(false);
-    notify("评估结果 CSV 已导出");
-  }
-
-  const activeFilterCount = Object.values(filters).filter((value) => value && value !== "全部").length;
-
   return (
-    <>
-      <section className="project-toolbar">
+      <section className="project-toolbar project-toolbar-minimal">
         <label className="project-select">
           <span>数</span>
           <select value={project} onChange={(event) => changeProject(event.target.value)} aria-label="切换项目">
@@ -440,117 +392,7 @@ function ProjectToolbar({
             <option>测试</option>
           </select>
         </label>
-        <div className="project-actions">
-          <div className="tiny-radios">
-            {["智能联动", "自定义联动"].map((item) => (
-              <button
-                key={item}
-                onClick={() => {
-                  setMode(item);
-                  notify(`已启用${item}`);
-                }}
-                className={mode === item ? "active" : ""}
-              >
-                <i />
-                {item}
-              </button>
-            ))}
-          </div>
-          <div className="tiny-radios">
-            {["编辑", "查看"].map((item) => (
-              <button key={item} onClick={() => setView(item)} className={view === item ? "active" : ""}>
-                <i />
-                {item}
-              </button>
-            ))}
-          </div>
-          <span className="tool-divider" />
-          <button onClick={() => notify("当前项目无未处理告警")}>♧ 告警管理</button>
-          <button onClick={shareProduct}>⌯ 分享产品</button>
-          <span className="tool-divider" />
-          <button className={filterOpen ? "active" : ""} onClick={() => setFilterOpen(!filterOpen)}>
-            {filterOpen ? "⌃" : "⌄"} {filterOpen ? "收起筛选器" : "展开筛选器"}
-            {activeFilterCount > 0 && <b className="action-count">{activeFilterCount}</b>}
-          </button>
-          <button onClick={refresh}>{refreshing ? "◌ 刷新中..." : "⟳ 刷新指标"}</button>
-          <button onClick={() => window.print()}>▤ 项目报告</button>
-          <div className="export-wrap">
-            <button onClick={() => setExportOpen(!exportOpen)}>⇧ 导出</button>
-            {exportOpen && (
-              <div className="export-menu">
-                <button onClick={exportCsv}>导出评估 CSV</button>
-                <button
-                  onClick={() => {
-                    setExportOpen(false);
-                    window.print();
-                  }}
-                >
-                  打印 / 保存 PDF
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
       </section>
-      {filterOpen && (
-        <section className="filter-panel" aria-label="项目筛选器">
-          <label>
-            数据类型
-            <select
-              value={filters.dataType}
-              onChange={(event) => setFilters({ ...filters, dataType: event.target.value })}
-            >
-              <option>全部</option>
-              <option>图像</option>
-              <option>文本</option>
-              <option>表格</option>
-              <option>视频</option>
-            </select>
-          </label>
-          <label>
-            评估状态
-            <select
-              value={filters.status}
-              onChange={(event) => setFilters({ ...filters, status: event.target.value })}
-            >
-              <option>全部</option>
-              <option>评估中</option>
-              <option>已完成</option>
-              <option>存在问题</option>
-            </select>
-          </label>
-          <label>
-            评估日期
-            <input
-              type="date"
-              value={filters.date}
-              onChange={(event) => setFilters({ ...filters, date: event.target.value })}
-            />
-          </label>
-          <span className="filter-spacer" />
-          <button
-            className="reuse-secondary"
-            onClick={() => {
-              const cleared = { dataType: "全部", status: "全部", date: "" };
-              setFilters(cleared);
-              onFilterApplied(cleared);
-              notify("筛选条件已重置");
-            }}
-          >
-            重置
-          </button>
-          <button
-            className="reuse-primary"
-            onClick={() => {
-              onFilterApplied(filters);
-              notify(activeFilterCount > 0 ? `已应用 ${activeFilterCount} 项筛选条件` : "已显示全部数据");
-            }}
-          >
-            应用筛选
-          </button>
-        </section>
-      )}
-    </>
   );
 }
 
@@ -1895,7 +1737,7 @@ export default function Home() {
   const [topPanel, setTopPanel] = useState<TopPanelId>(null);
   const [messagesRead, setMessagesRead] = useState(false);
   const [compact, setCompact] = useState(false);
-  const [filters, setFilters] = useState<FilterValues>({ dataType: "全部", status: "全部", date: "" });
+  const [filters] = useState<FilterValues>({ dataType: "全部", status: "全部", date: "" });
   const [projects, setProjects] = useState(initialProjects);
   const [workspaceProject, setWorkspaceProject] = useState<ProjectRow | null>(null);
   const [governanceView, setGovernanceView] = useState<GovernanceView>("projects");
@@ -2119,7 +1961,7 @@ export default function Home() {
       </div>
 
       <main className="reuse-main">
-        <ProjectToolbar project={project} setProject={setProject} notify={notify} onFilterApplied={setFilters} />
+        <ProjectToolbar project={project} setProject={setProject} notify={notify} />
         {active === "home" && <HomeDashboard filters={filters} notify={notify} />}
         {active === "inventory" && <InventoryPage sources={sources} openDialog={() => openCreate("connection")} notify={notify} />}
         {active === "governance" && governanceView === "workspace" && workspaceProject && (

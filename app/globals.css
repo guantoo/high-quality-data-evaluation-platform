@@ -391,107 +391,6 @@ button:disabled {
   border-radius: 3px;
 }
 
-.project-actions {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 9px;
-  white-space: nowrap;
-}
-
-.project-actions > button,
-.export-wrap > button {
-  height: 32px;
-  padding: 0 8px;
-  font-size: 12px;
-  color: #51627a;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-
-.project-actions > button:hover:not(:disabled),
-.export-wrap > button:hover {
-  color: var(--brand);
-  background: #eef5ff;
-}
-
-.tiny-radios {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.tiny-radios button {
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: #6e7d90;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-
-.tiny-radios button i {
-  width: 13px;
-  height: 13px;
-  border: 1px solid #aab5c2;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 3px #fff;
-}
-
-.tiny-radios button.active {
-  color: var(--brand);
-}
-
-.tiny-radios button.active i {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.tool-divider {
-  width: 1px;
-  height: 27px;
-  margin: 0 2px;
-  background: #e2e7ed;
-}
-
-.export-wrap {
-  position: relative;
-}
-
-.export-menu {
-  position: absolute;
-  z-index: 8;
-  top: 37px;
-  right: 0;
-  width: 132px;
-  padding: 5px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  box-shadow: 0 8px 22px rgba(30, 51, 78, 0.16);
-}
-
-.export-menu button {
-  width: 100%;
-  height: 34px;
-  text-align: left;
-  font-size: 12px;
-  background: transparent;
-  border: 0;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.export-menu button:hover {
-  color: var(--brand);
-  background: #f0f6ff;
-}
-
 .white-panel {
   background: var(--surface);
   border: 1px solid #e0e6ee;
@@ -1894,9 +1793,6 @@ button:disabled {
 
 @media (max-width: 1280px) {
   .project-toolbar { gap: 12px; }
-  .project-actions { gap: 4px; }
-  .project-actions > button,
-  .export-wrap > button { padding: 0 4px; }
   .source-cards { grid-template-columns: repeat(2, minmax(250px, 1fr)); }
   .model-capability-grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -1906,7 +1802,6 @@ button:disabled {
   .reuse-topbar { padding-right: 8px; }
   .reuse-topbar nav button:nth-child(-n + 3) { display: none; }
   .project-toolbar { align-items: flex-start; flex-direction: column; }
-  .project-actions { width: 100%; justify-content: flex-start; overflow-x: auto; }
   .original-dashboard { height: auto; grid-template-columns: 1fr; }
   .dashboard-right { grid-template-rows: 280px auto; }
   .assessment-page { height: auto; grid-template-columns: 1fr; }
@@ -1946,12 +1841,6 @@ button:active:not(:disabled) {
   border: 0 !important;
 }
 
-.project-actions > button.active {
-  color: var(--brand);
-  background: #edf5ff;
-}
-
-.action-count,
 .message-badge {
   min-width: 16px;
   height: 16px;
@@ -1965,56 +1854,8 @@ button:active:not(:disabled) {
   border-radius: 8px;
 }
 
-.action-count {
-  margin-left: 4px;
-  background: var(--accent);
-}
-
 .message-badge {
   margin-left: 4px;
-}
-
-.filter-panel {
-  position: relative;
-  z-index: 10;
-  min-height: 62px;
-  padding: 11px 19px;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  background: #f8fbff;
-  border-bottom: 1px solid #dbe4ef;
-  box-shadow: inset 0 1px 0 #fff, 0 5px 12px rgba(35, 65, 99, 0.05);
-  animation: filter-in 160ms ease-out;
-}
-
-@keyframes filter-in {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.filter-panel label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: #63748a;
-  white-space: nowrap;
-}
-
-.filter-panel select,
-.filter-panel input {
-  height: 34px;
-  min-width: 135px;
-  padding: 0 9px;
-  color: #40546d;
-  background: #fff;
-  border: 1px solid #d5dee9;
-  border-radius: 3px;
-}
-
-.filter-spacer {
-  flex: 1;
 }
 
 .file-panel-title {
@@ -3876,7 +3717,6 @@ button.test-row:hover {
   .reuse-topbar,
   .open-tabs,
   .project-toolbar,
-  .filter-panel,
   .reuse-assistant-button,
   .reuse-assistant,
   .top-popover {
