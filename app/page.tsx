@@ -25,6 +25,7 @@ type DialogId =
   | "evaluation"
   | null;
 type TopPanelId = "guide" | "profile" | "messages" | null;
+type GovernanceView = "projects" | "workspace" | "algorithms" | "marketplace";
 type Notify = (message: string) => void;
 
 type ProjectRow = {
@@ -1288,6 +1289,190 @@ function GovernanceWorkbench({
   );
 }
 
+type GovernanceAlgorithm = {
+  name: string;
+  code: string;
+  category: string;
+  scene: string;
+  version: string;
+  source: "平台内置" | "自定义";
+  updated: string;
+  enabled: boolean;
+  description: string;
+  calls: string;
+  success: string;
+};
+
+const initialGovernanceAlgorithms: GovernanceAlgorithm[] = [
+  { name: "重复数据识别", code: "duplicate-detect", category: "去重治理", scene: "结构化数据", version: "v2.3.1", source: "平台内置", updated: "2026-08-21 14:32", enabled: true, description: "基于主键、相似字段及业务规则识别重复记录，支持精确与模糊匹配。", calls: "12,680", success: "99.2%" },
+  { name: "空值智能填充", code: "null-smart-fill", category: "完整性治理", scene: "结构化数据", version: "v2.1.0", source: "平台内置", updated: "2026-08-20 09:18", enabled: true, description: "根据字段类型、上下文与关联记录自动生成空值修复建议。", calls: "8,426", success: "97.8%" },
+  { name: "格式标准化", code: "format-normalize", category: "规范性治理", scene: "多源数据", version: "v3.0.2", source: "平台内置", updated: "2026-08-18 16:05", enabled: true, description: "统一日期、电话、证件号、金额和编码等常见字段格式。", calls: "21,904", success: "99.7%" },
+  { name: "异常值处理", code: "outlier-repair", category: "准确性治理", scene: "指标数据", version: "v1.8.4", source: "平台内置", updated: "2026-08-16 11:40", enabled: true, description: "使用统计分布与业务阈值检测异常值，并提供修正或隔离策略。", calls: "5,318", success: "96.4%" },
+  { name: "敏感信息脱敏", code: "privacy-mask", category: "安全治理", scene: "隐私数据", version: "v2.5.0", source: "平台内置", updated: "2026-08-13 18:20", enabled: false, description: "识别姓名、证件、联系方式等敏感字段，支持掩码、泛化和加密。", calls: "3,207", success: "98.9%" },
+  { name: "金融文档版面解析", code: "finance-layout", category: "文档治理", scene: "金融文档", version: "v1.2.3", source: "自定义", updated: "2026-08-11 10:14", enabled: true, description: "针对金融年报提取标题、表格、段落及页码结构，生成可治理文本块。", calls: "1,286", success: "95.6%" },
+];
+
+function GovernanceAlgorithms({ notify }: { notify: Notify }) {
+  const [section, setSection] = useState<"算法列表" | "运行记录">("算法列表");
+  const [algorithms, setAlgorithms] = useState(initialGovernanceAlgorithms);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("全部分类");
+  const [source, setSource] = useState("全部来源");
+  const [selected, setSelected] = useState<GovernanceAlgorithm | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftCategory, setDraftCategory] = useState("完整性治理");
+  const categories = ["全部分类", ...Array.from(new Set(algorithms.map((item) => item.category)))];
+  const filtered = algorithms.filter((item) => {
+    const matchSearch = `${item.name}${item.code}${item.scene}`.toLowerCase().includes(search.toLowerCase());
+    return matchSearch && (category === "全部分类" || item.category === category) && (source === "全部来源" || item.source === source);
+  });
+
+  function createAlgorithm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = draftName.trim();
+    if (!name) return;
+    setAlgorithms((current) => [{ name, code: `custom-${current.length + 1}`, category: draftCategory, scene: "通用数据", version: "v1.0.0", source: "自定义", updated: "2026-08-23 刚刚", enabled: false, description: "新建的自定义治理算法，等待补充算法实现与参数配置。", calls: "0", success: "--" }, ...current]);
+    setCreating(false);
+    setDraftName("");
+    notify(`${name} 已创建并加入治理算法列表`);
+  }
+
+  const runRows = [
+    ["重复数据识别", "高质量数据集评估演示", "篮球标注数据", "成功", "18 秒", "2026-08-23 15:46"],
+    ["格式标准化", "高质量数据集评估演示", "SFT 问答数据集", "成功", "42 秒", "2026-08-23 14:18"],
+    ["金融文档版面解析", "高质量数据集测试", "金融年报文档", "运行中", "01:26", "2026-08-23 13:52"],
+    ["异常值处理", "测试", "年度经营指标", "失败", "9 秒", "2026-08-22 18:06"],
+  ];
+
+  return (
+    <section className="governance-feature-page algorithm-management-page">
+      <div className="governance-page-tabs">
+        <div>{(["算法列表", "运行记录"] as const).map((item) => <button key={item} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</div>
+        <span>统一管理平台内置与自定义治理算法</span>
+      </div>
+
+      {section === "算法列表" ? <article className="white-panel governance-algorithm-panel">
+        <header className="algorithm-page-head">
+          <div><h2>治理算法管理</h2><p>维护治理算法版本、适用场景和启用状态</p></div>
+          <div><button className="reuse-primary" onClick={() => setCreating(true)}>＋ 新建算法</button><button className="reuse-secondary" onClick={() => notify("算法包导入面板已打开")}>⇧ 导入算法包</button></div>
+        </header>
+        <div className="algorithm-kpis">
+          {[['算法总数', algorithms.length, '算'], ['已启用', algorithms.filter((item) => item.enabled).length, '启'], ['平台内置', algorithms.filter((item) => item.source === '平台内置').length, '内'], ['近 7 日调用', '52,821', '调']].map((item, index) => <div key={item[0]}><span className={`algorithm-kpi-icon i${index}`}>{item[2]}</span><div><small>{item[0]}</small><strong>{item[1]}</strong></div></div>)}
+        </div>
+        <div className="algorithm-filter-bar">
+          <label className="reuse-search">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索算法名称、编码或场景" /></label>
+          <select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select>
+          <select value={source} onChange={(event) => setSource(event.target.value)}><option>全部来源</option><option>平台内置</option><option>自定义</option></select>
+          <button className="reuse-secondary" onClick={() => { setSearch(""); setCategory("全部分类"); setSource("全部来源"); }}>重置</button>
+          <span>共 {filtered.length} 项</span>
+        </div>
+        <div className="reuse-table-wrap algorithm-table-wrap">
+          <table className="reuse-table algorithm-table"><thead><tr><th>算法名称</th><th>治理分类</th><th>适用场景</th><th>版本</th><th>来源</th><th>近 30 日调用</th><th>成功率</th><th>状态</th><th>最近更新</th><th>操作</th></tr></thead>
+            <tbody>{filtered.map((row, index) => <tr key={row.code}>
+              <td><button className="algorithm-name-cell" onClick={() => setSelected(row)}><span className={`a${index % 5}`}>{row.name.slice(0, 1)}</span><div><strong>{row.name}</strong><small>{row.code}</small></div></button></td>
+              <td>{row.category}</td><td>{row.scene}</td><td><b className="algorithm-version">{row.version}</b></td><td>{row.source}</td><td>{row.calls}</td><td className="algorithm-success">{row.success}</td>
+              <td><button className={`algorithm-state ${row.enabled ? "enabled" : ""}`} onClick={() => { setAlgorithms((current) => current.map((item) => item.code === row.code ? { ...item, enabled: !item.enabled } : item)); notify(`${row.name} 已${row.enabled ? "停用" : "启用"}`); }}><i />{row.enabled ? "已启用" : "已停用"}</button></td>
+              <td>{row.updated}</td><td><button className="reuse-link" onClick={() => setSelected(row)}>配置</button>{" "}<button className="reuse-link" onClick={() => notify(`${row.name} 测试任务已启动`)}>测试</button>{" "}<button className="reuse-link" onClick={() => notify(`已打开 ${row.name} 的版本记录`)}>版本</button></td>
+            </tr>)}</tbody>
+          </table>
+          {filtered.length === 0 && <div className="table-empty">没有匹配的治理算法</div>}
+        </div>
+        <footer className="reuse-pagination"><span>共 {filtered.length} 条</span><button disabled>‹</button><button className="active">1</button><button disabled>›</button></footer>
+      </article> : <article className="white-panel governance-run-panel">
+        <header className="algorithm-page-head"><div><h2>算法运行记录</h2><p>追踪算法执行状态、耗时和处理数据集</p></div><button className="reuse-secondary" onClick={() => notify("运行记录已刷新")}>⟳ 刷新</button></header>
+        <div className="run-summary-bar"><span><b>今日运行</b><strong>28</strong></span><span><b>成功</b><strong>25</strong></span><span><b>运行中</b><strong>2</strong></span><span><b>失败</b><strong>1</strong></span></div>
+        <div className="reuse-table-wrap"><table className="reuse-table"><thead><tr><th>算法名称</th><th>治理项目</th><th>输入数据集</th><th>运行状态</th><th>耗时</th><th>开始时间</th><th>操作</th></tr></thead><tbody>{runRows.map((row) => <tr key={`${row[0]}-${row[5]}`}><td><strong>{row[0]}</strong></td><td>{row[1]}</td><td>{row[2]}</td><td><Status tone={row[3] === '成功' ? 'green' : row[3] === '运行中' ? 'blue' : 'orange'}>{row[3]}</Status></td><td>{row[4]}</td><td>{row[5]}</td><td><button className="reuse-link" onClick={() => notify(`${row[0]} 的运行日志已展开`)}>查看日志</button>{" "}{row[3] === '失败' && <button className="reuse-link" onClick={() => notify(`${row[0]} 已重新运行`)}>重试</button>}</td></tr>)}</tbody></table></div>
+      </article>}
+
+      {selected && <div className="algorithm-drawer-backdrop"><aside className="algorithm-detail-drawer">
+        <header><div><span>{selected.name.slice(0, 1)}</span><div><strong>{selected.name}</strong><small>{selected.code} · {selected.version}</small></div></div><button onClick={() => setSelected(null)}>×</button></header>
+        <nav><button className="active">基本信息</button><button onClick={() => notify("参数配置页已切换")}>参数配置</button><button onClick={() => notify("版本记录页已切换")}>版本记录</button></nav>
+        <section><h3>算法说明</h3><p>{selected.description}</p><h3>算法信息</h3><dl><div><dt>治理分类</dt><dd>{selected.category}</dd></div><div><dt>适用场景</dt><dd>{selected.scene}</dd></div><div><dt>算法来源</dt><dd>{selected.source}</dd></div><div><dt>调用次数</dt><dd>{selected.calls}</dd></div><div><dt>运行成功率</dt><dd>{selected.success}</dd></div><div><dt>最近更新</dt><dd>{selected.updated}</dd></div></dl><h3>默认参数</h3><div className="algorithm-parameters"><span><b>匹配阈值</b><small>0.85</small></span><span><b>执行模式</b><small>增量</small></span><span><b>并发数</b><small>4</small></span></div></section>
+        <footer><button className="reuse-secondary" onClick={() => notify(`${selected.name} 配置已保存为新版本`)}>另存版本</button><button className="reuse-primary" onClick={() => notify(`${selected.name} 已加入当前项目`)}>添加到项目</button></footer>
+      </aside></div>}
+
+      {creating && <div className="algorithm-drawer-backdrop"><form className="algorithm-create-dialog" onSubmit={createAlgorithm}><header><div><strong>新建治理算法</strong><small>创建自定义算法并配置基本信息</small></div><button type="button" onClick={() => setCreating(false)}>×</button></header><section><label>算法名称<input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="请输入算法名称" /></label><label>治理分类<select value={draftCategory} onChange={(event) => setDraftCategory(event.target.value)}>{["完整性治理", "准确性治理", "规范性治理", "安全治理", "文档治理"].map((item) => <option key={item}>{item}</option>)}</select></label><label>算法编码<input value={draftName ? `custom-${draftName.length + algorithms.length}` : ""} readOnly placeholder="创建后自动生成" /></label><label>算法说明<textarea placeholder="描述算法用途、输入输出与适用场景" /></label><div className="upload-algorithm-box"><span>⇧</span><strong>上传算法包</strong><small>支持 ZIP、JAR、Python Wheel，最大 200 MB</small><button type="button" onClick={() => notify("已打开算法包文件选择器")}>选择文件</button></div></section><footer><button type="button" className="reuse-secondary" onClick={() => setCreating(false)}>取消</button><button className="reuse-primary" disabled={!draftName.trim()}>创建算法</button></footer></form></div>}
+    </section>
+  );
+}
+
+type MarketAlgorithm = {
+  id: string;
+  name: string;
+  category: string;
+  author: string;
+  version: string;
+  description: string;
+  installs: string;
+  rating: string;
+  icon: string;
+  tags: string[];
+  featured?: boolean;
+};
+
+const marketAlgorithms: MarketAlgorithm[] = [
+  { id: "duplicate", name: "重复数据识别", category: "去重治理", author: "平台算法中心", version: "v2.3.1", description: "结合主键规则与相似度模型，快速识别跨表、跨源重复记录。", installs: "12.8k", rating: "4.9", icon: "重", tags: ["结构化数据", "批处理"], featured: true },
+  { id: "null-fill", name: "空值智能填充", category: "完整性治理", author: "平台算法中心", version: "v2.1.0", description: "基于上下文、关联字段和历史分布生成高置信度空值修复建议。", installs: "8.4k", rating: "4.8", icon: "空", tags: ["智能修复", "推荐"] },
+  { id: "format", name: "格式标准化", category: "规范性治理", author: "平台算法中心", version: "v3.0.2", description: "覆盖日期、电话、地址、金额、编码等 36 类常见格式标准。", installs: "21.9k", rating: "4.9", icon: "格", tags: ["多源数据", "高性能"], featured: true },
+  { id: "outlier", name: "异常值处理", category: "准确性治理", author: "质量实验室", version: "v1.8.4", description: "融合统计分布、时序趋势和业务阈值的异常检测与修复算法。", installs: "5.3k", rating: "4.7", icon: "异", tags: ["指标数据", "时序"] },
+  { id: "privacy", name: "敏感信息脱敏", category: "安全治理", author: "安全算法中心", version: "v2.5.0", description: "自动发现敏感数据并应用掩码、泛化、替换或加密策略。", installs: "9.7k", rating: "4.8", icon: "敏", tags: ["隐私保护", "合规"] },
+  { id: "document", name: "文档智能解析", category: "文档治理", author: "多模态实验室", version: "v1.6.2", description: "解析 PDF、Word、扫描件中的版面、段落、表格与图像。", installs: "4.2k", rating: "4.6", icon: "文", tags: ["OCR", "知识库"] },
+  { id: "align", name: "多模态数据对齐", category: "多模态治理", author: "多模态实验室", version: "v1.3.0", description: "完成图像、文本、语音样本的语义匹配、对齐和低质样本过滤。", installs: "2.8k", rating: "4.8", icon: "模", tags: ["图文对", "大模型"] },
+  { id: "image", name: "图像质量检测", category: "多模态治理", author: "视觉算法中心", version: "v2.0.5", description: "检测模糊、噪声、曝光、遮挡和无效图像，输出质量评分。", installs: "6.6k", rating: "4.7", icon: "图", tags: ["图像", "质量评分"] },
+];
+
+function GovernanceMarketplace({ notify }: { notify: Notify }) {
+  const [tab, setTab] = useState<"全部算法" | "已安装" | "我的收藏">("全部算法");
+  const [category, setCategory] = useState("全部分类");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("综合排序");
+  const [selected, setSelected] = useState<MarketAlgorithm | null>(null);
+  const [installed, setInstalled] = useState(() => new Set(["duplicate", "format", "privacy"]));
+  const [favorites, setFavorites] = useState(() => new Set(["null-fill", "align"]));
+  const categories = ["全部分类", "完整性治理", "准确性治理", "规范性治理", "去重治理", "安全治理", "文档治理", "多模态治理"];
+  const countByCategory = (item: string) => item === "全部分类" ? marketAlgorithms.length : marketAlgorithms.filter((algorithm) => algorithm.category === item).length;
+  let filtered = marketAlgorithms.filter((item) => {
+    const matchTab = tab === "全部算法" || (tab === "已安装" ? installed.has(item.id) : favorites.has(item.id));
+    return matchTab && (category === "全部分类" || item.category === category) && `${item.name}${item.description}${item.tags.join("")}`.toLowerCase().includes(search.toLowerCase());
+  });
+  if (sort === "安装量最高") filtered = [...filtered].sort((a, b) => Number.parseFloat(b.installs) - Number.parseFloat(a.installs));
+  if (sort === "评分最高") filtered = [...filtered].sort((a, b) => Number.parseFloat(b.rating) - Number.parseFloat(a.rating));
+
+  function toggleInstall(item: MarketAlgorithm) {
+    setInstalled((current) => {
+      const next = new Set(current);
+      if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+      return next;
+    });
+    notify(`${item.name} 已${installed.has(item.id) ? "从当前项目移除" : "安装到当前项目"}`);
+  }
+
+  function toggleFavorite(item: MarketAlgorithm) {
+    setFavorites((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; });
+    notify(`${item.name} 已${favorites.has(item.id) ? "取消收藏" : "加入收藏"}`);
+  }
+
+  return (
+    <section className="governance-feature-page algorithm-market-page">
+      <header className="market-page-head"><div><h2>治理算法市场</h2><p>发现、安装并复用经过验证的数据治理算法</p></div><div><button className="reuse-secondary" onClick={() => notify("算法市场内容已刷新")}>⟳ 刷新市场</button><button className="reuse-primary" onClick={() => notify("算法发布向导已打开")}>＋ 发布算法</button></div></header>
+      <div className="market-stat-strip"><div><strong>42</strong><span>治理算法</span></div><i /><div><strong>8</strong><span>治理分类</span></div><i /><div><strong>99.1%</strong><span>平均成功率</span></div><i /><div><strong>71.7k</strong><span>累计安装</span></div><p><b>平台精选</b> 已完成兼容性、安全性和性能验证</p></div>
+      <div className="market-toolbar"><div>{(["全部算法", "已安装", "我的收藏"] as const).map((item) => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{item}<b>{item === "全部算法" ? marketAlgorithms.length : item === "已安装" ? installed.size : favorites.size}</b></button>)}</div><label className="reuse-search">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索算法名称、能力或标签" /></label><select value={sort} onChange={(event) => setSort(event.target.value)}><option>综合排序</option><option>安装量最高</option><option>评分最高</option></select></div>
+      <div className="market-layout">
+        <aside className="market-categories"><header><strong>算法分类</strong><button onClick={() => setCategory("全部分类")}>重置</button></header>{categories.map((item, index) => <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}><span>{["全", "完", "准", "规", "重", "安", "文", "模"][index]}</span><strong>{item}</strong><b>{countByCategory(item)}</b></button>)}</aside>
+        <article className="market-results"><header><div><strong>{category === "全部分类" ? tab : category}</strong><span>找到 {filtered.length} 个算法</span></div><button onClick={() => notify("展示密度已切换")}>▦</button></header><div className="market-card-grid">
+          {filtered.map((item, index) => <article className={`market-algorithm-card ${selected?.id === item.id ? "selected" : ""}`} key={item.id}>
+            <header><span className={`m${index % 6}`}>{item.icon}</span><div><strong>{item.name}</strong><small>{item.author} · {item.version}</small></div><button className={favorites.has(item.id) ? "favorite" : ""} aria-label={`${favorites.has(item.id) ? '取消收藏' : '收藏'}${item.name}`} onClick={() => toggleFavorite(item)}>{favorites.has(item.id) ? "★" : "☆"}</button></header>
+            <p>{item.description}</p><div className="market-tags">{item.featured && <b>精选</b>}{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+            <footer><div><span>★ {item.rating}</span><span>⇩ {item.installs}</span></div><button className="market-detail-button" onClick={() => setSelected(item)}>详情</button><button className={installed.has(item.id) ? "installed" : ""} onClick={() => toggleInstall(item)}>{installed.has(item.id) ? "✓ 已安装" : "＋ 安装"}</button></footer>
+          </article>)}
+        </div>{filtered.length === 0 && <div className="market-empty"><span>⌕</span><strong>没有匹配的治理算法</strong><p>请调整分类或搜索条件后重试</p></div>}</article>
+        {selected && <aside className="market-detail-panel"><header><div><span>{selected.icon}</span><div><strong>{selected.name}</strong><small>{selected.author}</small></div></div><button onClick={() => setSelected(null)}>×</button></header><section><div className="market-detail-score"><span><small>评分</small><strong>★ {selected.rating}</strong></span><span><small>安装量</small><strong>{selected.installs}</strong></span><span><small>当前版本</small><strong>{selected.version}</strong></span></div><h3>算法简介</h3><p>{selected.description}</p><h3>核心能力</h3><ul><li>支持可视化参数配置与执行预览</li><li>兼容批处理、增量和定时运行</li><li>输出质量报告及完整数据血缘</li></ul><h3>适用范围</h3><div className="market-tags">{selected.tags.map((tag) => <span key={tag}>{tag}</span>)}<span>{selected.category}</span></div><h3>最近版本</h3><div className="market-version"><b>{selected.version}</b><span>优化大规模数据执行性能</span><small>2026-08-18</small></div></section><footer><button className="reuse-secondary" onClick={() => toggleFavorite(selected)}>{favorites.has(selected.id) ? "★ 已收藏" : "☆ 收藏"}</button><button className="reuse-primary" onClick={() => toggleInstall(selected)}>{installed.has(selected.id) ? "从项目移除" : "安装到当前项目"}</button></footer></aside>}
+      </div>
+    </section>
+  );
+}
+
 function AssessmentPage({
   tasks,
   openDialog,
@@ -1713,6 +1898,7 @@ export default function Home() {
   const [filters, setFilters] = useState<FilterValues>({ dataType: "全部", status: "全部", date: "" });
   const [projects, setProjects] = useState(initialProjects);
   const [workspaceProject, setWorkspaceProject] = useState<ProjectRow | null>(null);
+  const [governanceView, setGovernanceView] = useState<GovernanceView>("projects");
   const [sources, setSources] = useState(initialSources);
   const [reviewTasks, setReviewTasks] = useState(initialReviewTasks);
   const [jobs, setJobs] = useState(initialJobs);
@@ -1740,7 +1926,24 @@ export default function Home() {
 
   function openModule(id: ModuleId, label?: string) {
     const moduleItem = modules.find((item) => item.id === id)!;
-    if (id === "governance" && (!label || label === "治理项目管理")) setWorkspaceProject(null);
+    if (id === "governance") {
+      if (!label || label === "治理项目管理") {
+        setGovernanceView("projects");
+        setWorkspaceProject(null);
+      }
+      if (label === "高质量数据治理工作间") {
+        setGovernanceView("workspace");
+        setWorkspaceProject((current) => current || projects[0]);
+      }
+      if (label === "治理算法管理") {
+        setGovernanceView("algorithms");
+        setWorkspaceProject(null);
+      }
+      if (label === "治理算法市场") {
+        setGovernanceView("marketplace");
+        setWorkspaceProject(null);
+      }
+    }
     setActive(id);
     setMenuOpen(null);
     setTopPanel(null);
@@ -1919,23 +2122,25 @@ export default function Home() {
         <ProjectToolbar project={project} setProject={setProject} notify={notify} onFilterApplied={setFilters} />
         {active === "home" && <HomeDashboard filters={filters} notify={notify} />}
         {active === "inventory" && <InventoryPage sources={sources} openDialog={() => openCreate("connection")} notify={notify} />}
-        {active === "governance" && workspaceProject && (
+        {active === "governance" && governanceView === "workspace" && workspaceProject && (
           <GovernanceWorkbench
             project={workspaceProject}
             notify={notify}
             onBack={() => {
               setWorkspaceProject(null);
+              setGovernanceView("projects");
               setTabs((current) => current.map((tab) => tab.id === "governance" ? { ...tab, label: "治理项目管理" } : tab));
             }}
           />
         )}
-        {active === "governance" && !workspaceProject && (
+        {active === "governance" && governanceView === "projects" && (
           <GovernancePage
             projects={projects}
             openDialog={() => openCreate("project")}
             notify={notify}
             enterWorkspace={(row) => {
               setWorkspaceProject(row);
+              setGovernanceView("workspace");
               setTabs((current) => current.map((tab) => tab.id === "governance" ? { ...tab, label: "高质量数据治理工作间" } : tab));
               notify(`已进入 ${row.name} 的高质量数据治理工作间`);
             }}
@@ -1946,6 +2151,8 @@ export default function Home() {
             }}
           />
         )}
+        {active === "governance" && governanceView === "algorithms" && <GovernanceAlgorithms notify={notify} />}
+        {active === "governance" && governanceView === "marketplace" && <GovernanceMarketplace notify={notify} />}
         {active === "assessment" && <AssessmentPage tasks={reviewTasks} openDialog={() => openCreate("assessment")} notify={notify} />}
         {active === "modelDev" && (
           <ModelDevelopment

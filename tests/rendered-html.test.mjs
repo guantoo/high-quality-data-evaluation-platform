@@ -55,7 +55,11 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /function SmartInventory/);
   assert.match(page, /function SmartCleaning/);
   assert.match(page, /function GovernanceWorkbench/);
+  assert.match(page, /function GovernanceAlgorithms/);
+  assert.match(page, /function GovernanceMarketplace/);
   assert.match(page, /高质量数据治理工作间/);
+  assert.match(page, /治理算法管理/);
+  assert.match(page, /治理算法市场/);
   assert.match(page, /enterWorkspace/);
   assert.match(page, /function AssessmentPage/);
   assert.match(page, /function ModelDevelopment/);
@@ -75,5 +79,8 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.flow-canvas/);
   assert.match(css, /\.node-inspector/);
   assert.match(css, /\.workbench-run-log/);
+  assert.match(css, /\.governance-algorithm-panel/);
+  assert.match(css, /\.market-card-grid/);
+  assert.match(css, /\.algorithm-detail-drawer/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });
