@@ -106,6 +106,18 @@ type CleaningIssueSample = {
   confidence: string;
 };
 
+type CleaningVersionRow = {
+  id: string;
+  version: string;
+  parent: string;
+  created: string;
+  operator: string;
+  records: number;
+  issues: number;
+  quality: number;
+  change: string;
+};
+
 type CleaningTaskRow = {
   id: string;
   name: string;
@@ -113,6 +125,7 @@ type CleaningTaskRow = {
   source: string;
   table: string;
   fields: string[];
+  recordCount: number;
   issueCount: number;
   rules: string[];
   samples: CleaningIssueSample[];
@@ -120,8 +133,15 @@ type CleaningTaskRow = {
   progress: number;
   sourceVersion: string;
   outputVersion: string;
+  activeVersion: string;
+  versions: CleaningVersionRow[];
   created: string;
 };
+
+type CleaningTaskDraft = Omit<
+  CleaningTaskRow,
+  "id" | "status" | "progress" | "outputVersion" | "activeVersion" | "versions" | "created"
+>;
 
 type JobRow = {
   name: string;
@@ -289,6 +309,7 @@ const initialCleaningTasks: CleaningTaskRow[] = [
     source: "数据评估文件仓",
     table: "annual_report_qa",
     fields: ["question", "answer", "citation", "annual_value"],
+    recordCount: 126842,
     issueCount: 3218,
     rules: ["重复数据识别", "空值智能填充", "格式标准化", "异常值处理"],
     samples: defaultCleaningSamples,
@@ -296,6 +317,20 @@ const initialCleaningTasks: CleaningTaskRow[] = [
     progress: 0,
     sourceVersion: "v2.1",
     outputVersion: "--",
+    activeVersion: "v2.1",
+    versions: [
+      {
+        id: "version-finance-v21",
+        version: "v2.1",
+        parent: "--",
+        created: "2026-08-22 18:32",
+        operator: "高质量数据评估演示",
+        records: 126842,
+        issues: 3218,
+        quality: 93.7,
+        change: "源数据版本",
+      },
+    ],
     created: "2026-08-22 18:32",
   },
 ];
@@ -659,7 +694,7 @@ function DataExploration({
 }: {
   sources: SourceRow[];
   notify: Notify;
-  createCleaningTask: (task: Omit<CleaningTaskRow, "id" | "status" | "progress" | "outputVersion" | "created">) => void;
+  createCleaningTask: (task: CleaningTaskDraft) => void;
 }) {
   const columns = [
     { name: "customer_id", type: "BIGINT", completeness: 100, unique: "1,256,842", issue: "无" },
@@ -725,6 +760,7 @@ function DataExploration({
       source,
       table,
       fields: selectedIssueFields,
+      recordCount: 1256842,
       issueCount: selectedIssueCount,
       rules,
       samples: selectedSamples,
@@ -884,6 +920,12 @@ function SmartInventory({ notify }: { notify: Notify }) {
   );
 }
 
+function nextCleaningVersion(task: CleaningTaskRow) {
+  const match = task.sourceVersion.match(/v(\d+)\.(\d+)/i);
+  if (match) return `v${match[1]}.${Number(match[2]) + task.versions.length}`;
+  return `clean-v1.${task.versions.length}`;
+}
+
 function SmartCleaning({
   tasks,
   initialTaskId,
@@ -907,7 +949,12 @@ function SmartCleaning({
   const [rules, setRules] = useState(() => ruleCatalog.map((rule) => ({ ...rule, enabled: firstTask?.rules.includes(rule.name) ?? false })));
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(firstTask?.progress ?? 0);
+  const [view, setView] = useState<"任务执行" | "版本管理">("任务执行");
+  const [compareBaseVersion, setCompareBaseVersion] = useState(firstTask?.versions.at(-1)?.version ?? "");
+  const [compareTargetVersion, setCompareTargetVersion] = useState(firstTask?.activeVersion ?? "");
+  const [rollbackTarget, setRollbackTarget] = useState<CleaningVersionRow | null>(null);
   const selectedTask = tasks.find((task) => task.id === taskId) ?? tasks[0];
+  const enabledCount = rules.filter((rule) => rule.enabled).length;
 
   useEffect(() => {
     if (!running || !selectedTask) return;
@@ -918,21 +965,42 @@ function SmartCleaning({
         if (next === 100) {
           window.clearInterval(timer);
           setRunning(false);
-          const outputVersion = selectedTask.sourceVersion.includes("v2.1") ? "v2.2" : "clean-v1.1";
-          updateTask(selectedTask.id, { progress: 100, status: "已完成", outputVersion });
+          const outputVersion = nextCleaningVersion(selectedTask);
+          const parentVersion = selectedTask.versions.find((version) => version.version === selectedTask.activeVersion) ?? selectedTask.versions[0];
+          const outputIssues = Math.max(0, Math.round(parentVersion.issues * (enabledCount >= 4 ? 0.03 : Math.max(0.08, 0.22 - enabledCount * 0.035))));
+          const outputQuality = parentVersion.version === selectedTask.sourceVersion ? 98.5 : Math.min(99.8, Number((parentVersion.quality + 0.4).toFixed(1)));
+          const version: CleaningVersionRow = {
+            id: `${selectedTask.id}-${outputVersion}-${Date.now()}`,
+            version: outputVersion,
+            parent: selectedTask.activeVersion,
+            created: "刚刚",
+            operator: "高质量数据评估演示",
+            records: selectedTask.recordCount,
+            issues: outputIssues,
+            quality: outputQuality,
+            change: `执行 ${enabledCount} 条清洗规则`,
+          };
+          updateTask(selectedTask.id, { progress: 100, status: "已完成", outputVersion, activeVersion: outputVersion, versions: [version, ...selectedTask.versions] });
+          setCompareBaseVersion(selectedTask.activeVersion);
+          setCompareTargetVersion(outputVersion);
           notify(`${selectedTask.name} 清洗完成，已生成版本 ${outputVersion}`);
         }
         return next;
       });
     }, 250);
     return () => window.clearInterval(timer);
-  }, [notify, running, selectedTask, updateTask]);
+  }, [enabledCount, notify, running, selectedTask, updateTask]);
 
   if (!selectedTask) return <article className="white-panel inventory-workspace"><div className="table-empty">暂无清洗任务，请先从数据探查创建任务</div></article>;
 
-  const enabledCount = rules.filter((rule) => rule.enabled).length;
   const emptyCount = selectedTask.samples.filter((sample) => sample.problem === "空值").length;
   const formatCount = selectedTask.samples.filter((sample) => sample.problem.includes("格式") || sample.problem.includes("日期")).length;
+  const baseVersion = selectedTask.versions.find((version) => version.version === compareBaseVersion) ?? selectedTask.versions.at(-1)!;
+  const targetVersion = selectedTask.versions.find((version) => version.version === compareTargetVersion) ?? selectedTask.versions[0];
+  const qualityDelta = Number((targetVersion.quality - baseVersion.quality).toFixed(1));
+  const issueDelta = targetVersion.issues - baseVersion.issues;
+  const recordDelta = targetVersion.records - baseVersion.records;
+  const ruleHitDelta = Math.max(0, baseVersion.issues - targetVersion.issues);
 
   function selectCleaningTask(id: string) {
     const task = tasks.find((item) => item.id === id);
@@ -941,6 +1009,10 @@ function SmartCleaning({
     setProgress(task.progress);
     setRunning(task.status === "运行中");
     setRules(ruleCatalog.map((rule) => ({ ...rule, enabled: task.rules.includes(rule.name) })));
+    setView("任务执行");
+    setCompareBaseVersion(task.versions.at(-1)?.version ?? task.sourceVersion);
+    setCompareTargetVersion(task.activeVersion);
+    setRollbackTarget(null);
   }
 
   function applyRules(nextRules: typeof rules) {
@@ -951,20 +1023,58 @@ function SmartCleaning({
   function startCleaning() {
     setProgress(0);
     setRunning(true);
-    updateTask(selectedTask.id, { progress: 0, status: "运行中", outputVersion: "--" });
+    setView("任务执行");
+    updateTask(selectedTask.id, { progress: 0, status: "运行中" });
     notify(`${selectedTask.name} 已开始执行 ${enabledCount} 条清洗规则`);
+  }
+
+  function rollbackVersion() {
+    if (!rollbackTarget) return;
+    updateTask(selectedTask.id, { activeVersion: rollbackTarget.version, outputVersion: rollbackTarget.version });
+    setCompareTargetVersion(rollbackTarget.version);
+    setRollbackTarget(null);
+    notify(`${selectedTask.name} 当前版本已切换为 ${rollbackTarget.version}，历史版本均已保留`);
   }
 
   return (
     <article className="white-panel inventory-workspace cleaning-workspace">
       <div className="reuse-panel-head inventory-head"><div><h2>智能数据清洗</h2><p>基于探查结果编排清洗规则，预览影响并生成可追溯的新版本</p></div><div><label className="inventory-select">清洗任务<select value={selectedTask.id} disabled={running} onChange={(event) => selectCleaningTask(event.target.value)}>{tasks.map((task) => <option key={task.id} value={task.id}>{task.name}</option>)}</select></label><button className="reuse-primary" disabled={running || enabledCount === 0} onClick={startCleaning}><UiIcon icon={running ? RefreshCw : Play} />{running ? `清洗中 ${progress}%` : selectedTask.status === "已完成" ? "重新执行" : "开始智能清洗"}</button></div></div>
-      <div className="cleaning-task-context"><span><small>目标数据集</small><strong>{selectedTask.dataset}</strong></span><span><small>来源</small><strong>{selectedTask.source} / {selectedTask.table}</strong></span><span><small>源版本</small><strong>{selectedTask.sourceVersion}</strong></span><span><small>输出版本</small><strong>{selectedTask.outputVersion}</strong></span><Status tone={selectedTask.status === "已完成" ? "green" : running ? "blue" : "gray"}>{running ? "运行中" : selectedTask.status}</Status></div>
+      <div className="cleaning-task-context"><span><small>目标数据集</small><strong>{selectedTask.dataset}</strong></span><span><small>来源</small><strong>{selectedTask.source} / {selectedTask.table}</strong></span><span><small>源版本</small><strong>{selectedTask.sourceVersion}</strong></span><span><small>当前版本</small><strong>{selectedTask.activeVersion}</strong></span><Status tone={selectedTask.status === "已完成" ? "green" : running ? "blue" : "gray"}>{running ? "运行中" : selectedTask.status}</Status></div>
+      <nav className="cleaning-mode-tabs" aria-label="智能清洗视图">
+        <button className={view === "任务执行" ? "active" : ""} onClick={() => setView("任务执行")}><UiIcon icon={Play} />任务执行</button>
+        <button className={view === "版本管理" ? "active" : ""} onClick={() => setView("版本管理")}><UiIcon icon={GitBranch} />版本管理 <b>{selectedTask.versions.length}</b></button>
+      </nav>
+      {view === "任务执行" && <>
       <div className="cleaning-kpis">{[["待处理问题", selectedTask.issueCount.toLocaleString(), `涉及 ${selectedTask.fields.length} 个字段`], ["问题样本", selectedTask.samples.length.toString(), "已从探查结果保留"], ["空值样本", emptyCount.toString(), "已匹配填充规则"], ["格式异常", formatCount.toString(), "已匹配标准化规则"], ["预计质量提升", "+4.8", "从 93.7 到 98.5"]].map((item, index) => <div key={item[0]} className={index === 4 ? "highlight" : ""}><span>{item[0]}</span><strong>{item[1]}</strong><small>{item[2]}</small></div>)}</div>
       <div className="cleaning-grid">
         <section className="sub-panel rule-panel"><header><div><h3>清洗规则</h3><p>已启用 {enabledCount} / {rules.length} 项</p></div><button className="reuse-link" onClick={() => applyRules(rules.map((rule) => ({ ...rule, enabled: true })))}>全部启用</button></header><div className="rule-list">{rules.map((rule, index) => <div key={rule.name}><span className={`rule-icon r${index}`}>{["重", "空", "格", "异", "敏"][index]}</span><div><strong>{rule.name}</strong><small>{rule.desc}</small></div><button className={`toggle-switch ${rule.enabled ? "on" : ""}`} aria-label={`${rule.enabled ? "关闭" : "启用"}${rule.name}`} onClick={() => applyRules(rules.map((item) => item.name === rule.name ? { ...item, enabled: !item.enabled } : item))}><i /></button></div>)}</div></section>
         <section className="sub-panel cleaning-run-panel"><header><div><h3>执行流程</h3><p>{running ? "正在处理数据" : progress === 100 ? `已生成 ${selectedTask.outputVersion}` : "等待开始"}</p></div><Status tone={running ? "blue" : progress === 100 ? "green" : "gray"}>{running ? "运行中" : progress === 100 ? "已完成" : "未运行"}</Status></header><div className="cleaning-progress-ring" style={{ "--score": `${progress * 3.6}deg` } as React.CSSProperties}><strong>{progress}%</strong><span>当前进度</span></div><div className="cleaning-steps">{[["数据备份", 10], ["规则校验", 25], ["执行清洗", 70], ["质量复检", 90], ["生成版本", 100]].map((step, index) => <div key={step[0]} className={progress >= step[1] ? "done" : running && progress < step[1] && (index === 0 || progress >= ([0, 10, 25, 70, 90][index])) ? "active" : ""}><i>{progress >= step[1] ? "✓" : index + 1}</i><span>{step[0]}</span></div>)}</div><p className="cleaning-note">清洗过程保留 {selectedTask.sourceVersion}，不会覆盖源数据；完成后生成独立版本。</p></section>
       </div>
       <section className="sub-panel cleaning-preview"><header><div><h3>问题与修复预览</h3><p>{selectedTask.samples.length} 条探查问题样本已随任务保留</p></div><button className="reuse-link" onClick={() => notify(`${selectedTask.name} 修复预览已重新计算`)}>重新预览</button></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>字段 / 记录</th><th>问题类型</th><th>原始值</th><th>建议修复</th><th>命中规则</th><th>置信度</th></tr></thead><tbody>{selectedTask.samples.map((sample) => <tr key={sample.id}><td><strong>{sample.field}</strong> #{sample.id.replace("issue-", "")}</td><td>{sample.problem}</td><td className="before-value">{sample.original}</td><td className="after-value">{sample.suggestion}</td><td>{sample.rule}</td><td>{sample.confidence}</td></tr>)}</tbody></table>{selectedTask.samples.length === 0 && <div className="table-empty">当前任务没有保留问题样本</div>}</div></section>
+      </>}
+      {view === "版本管理" && <section className="cleaning-version-workspace">
+        <div className="version-compare-toolbar">
+          <div><h3><UiIcon icon={Rows3} />版本结果对比</h3><p>选择两个不可变版本，核对质量、问题与记录变化</p></div>
+          <div><label>基准版本<select value={baseVersion.version} onChange={(event) => setCompareBaseVersion(event.target.value)}>{selectedTask.versions.map((version) => <option key={version.id} value={version.version}>{version.version}</option>)}</select></label><span>→</span><label>对比版本<select value={targetVersion.version} onChange={(event) => setCompareTargetVersion(event.target.value)}>{selectedTask.versions.map((version) => <option key={version.id} value={version.version}>{version.version}</option>)}</select></label></div>
+        </div>
+        <div className="version-compare-summary">
+          <span><small>数据质量</small><strong>{targetVersion.quality}%</strong><em className={qualityDelta >= 0 ? "positive" : "negative"}>{qualityDelta >= 0 ? "+" : ""}{qualityDelta}</em></span>
+          <span><small>问题记录</small><strong>{targetVersion.issues.toLocaleString()}</strong><em className={issueDelta <= 0 ? "positive" : "negative"}>{issueDelta > 0 ? "+" : ""}{issueDelta.toLocaleString()}</em></span>
+          <span><small>有效记录</small><strong>{targetVersion.records.toLocaleString()}</strong><em>{recordDelta >= 0 ? "+" : ""}{recordDelta.toLocaleString()}</em></span>
+          <span><small>当前生效版本</small><strong>{selectedTask.activeVersion}</strong><Status>可回溯</Status></span>
+        </div>
+        <section className="sub-panel version-difference-panel"><header><div><h3>对比明细</h3><p>{baseVersion.version} → {targetVersion.version}</p></div><span className="version-immutable"><UiIcon icon={ShieldCheck} />版本内容不可变</span></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>指标</th><th>{baseVersion.version}</th><th>{targetVersion.version}</th><th>变化</th><th>判定</th></tr></thead><tbody>
+          <tr><td><strong>问题记录</strong></td><td>{baseVersion.issues.toLocaleString()}</td><td>{targetVersion.issues.toLocaleString()}</td><td className={issueDelta <= 0 ? "version-change-positive" : "version-change-negative"}>{issueDelta > 0 ? "+" : ""}{issueDelta.toLocaleString()}</td><td><Status tone={issueDelta <= 0 ? "green" : "orange"}>{issueDelta <= 0 ? "改善" : "需复核"}</Status></td></tr>
+          <tr><td><strong>数据质量</strong></td><td>{baseVersion.quality}%</td><td>{targetVersion.quality}%</td><td className={qualityDelta >= 0 ? "version-change-positive" : "version-change-negative"}>{qualityDelta >= 0 ? "+" : ""}{qualityDelta}</td><td><Status tone={qualityDelta >= 0 ? "green" : "orange"}>{qualityDelta >= 0 ? "提升" : "下降"}</Status></td></tr>
+          <tr><td><strong>有效记录</strong></td><td>{baseVersion.records.toLocaleString()}</td><td>{targetVersion.records.toLocaleString()}</td><td>{recordDelta >= 0 ? "+" : ""}{recordDelta.toLocaleString()}</td><td><Status tone="blue">一致</Status></td></tr>
+          <tr><td><strong>规则命中</strong></td><td>--</td><td>{ruleHitDelta.toLocaleString()}</td><td className="version-change-positive">已处理 {ruleHitDelta.toLocaleString()}</td><td><Status>已复检</Status></td></tr>
+        </tbody></table></div></section>
+        <section className="sub-panel version-history-panel"><header><div><h3>版本记录</h3><p>每次执行生成新版本；回滚仅切换当前指针</p></div><span>{selectedTask.versions.length} 个版本</span></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>版本</th><th>父版本</th><th>生成时间</th><th>操作人</th><th>记录 / 问题</th><th>质量</th><th>变更说明</th><th>状态与操作</th></tr></thead><tbody>{selectedTask.versions.map((version) => {
+          const isActive = version.version === selectedTask.activeVersion;
+          return <tr key={version.id} className={isActive ? "active-version-row" : ""}><td><strong>{version.version}</strong></td><td>{version.parent}</td><td>{version.created}</td><td>{version.operator}</td><td>{version.records.toLocaleString()} / {version.issues.toLocaleString()}</td><td><strong>{version.quality}%</strong></td><td>{version.change}</td><td>{isActive ? <Status>当前版本</Status> : <><button className="reuse-link" onClick={() => { setCompareBaseVersion(version.version); setCompareTargetVersion(selectedTask.activeVersion); }}>对比</button> <button className="reuse-link rollback-link" onClick={() => setRollbackTarget(version)}>回滚到此版本</button></>}</td></tr>;
+        })}</tbody></table></div></section>
+      </section>}
+      {rollbackTarget && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭回滚确认" onClick={() => setRollbackTarget(null)} /><div className="reuse-dialog version-rollback-dialog"><header><div><h2>确认切换当前版本</h2><p>{selectedTask.name}</p></div><button aria-label="关闭回滚确认" onClick={() => setRollbackTarget(null)}><UiIcon icon={X} /></button></header><section><span className="rollback-version-icon"><UiIcon icon={Undo2} size={20} /></span><div><h3>回滚到 {rollbackTarget.version}</h3><p>当前生效版本将从 <strong>{selectedTask.activeVersion}</strong> 切换到 <strong>{rollbackTarget.version}</strong>。已有版本记录和清洗结果不会删除，之后可再次切回。</p></div></section><footer><button className="reuse-secondary" onClick={() => setRollbackTarget(null)}>取消</button><button className="reuse-primary" onClick={rollbackVersion}><UiIcon icon={Undo2} />确认回滚</button></footer></div></div>}
     </article>
   );
 }
@@ -982,7 +1092,7 @@ function InventoryPage({
   cleaningTasks: CleaningTaskRow[];
   openDialog: () => void;
   updateSource: (name: string, patch: Partial<SourceRow>) => void;
-  createCleaningTask: (task: Omit<CleaningTaskRow, "id" | "status" | "progress" | "outputVersion" | "created">) => string;
+  createCleaningTask: (task: CleaningTaskDraft) => string;
   updateCleaningTask: (id: string, patch: Partial<CleaningTaskRow>) => void;
   notify: Notify;
 }) {
@@ -1082,7 +1192,7 @@ function InventoryPage({
     timers.current.push(timer);
   }
 
-  function createTaskFromExploration(task: Omit<CleaningTaskRow, "id" | "status" | "progress" | "outputVersion" | "created">) {
+  function createTaskFromExploration(task: CleaningTaskDraft) {
     const id = createCleaningTask(task);
     setInitialCleaningTaskId(id);
     setSection("智能数据清洗");
@@ -2463,9 +2573,20 @@ export default function Home() {
     setSources((current) => current.map((source) => source.name === name ? { ...source, ...patch } : source));
   }
 
-  const createCleaningTask = useCallback((task: Omit<CleaningTaskRow, "id" | "status" | "progress" | "outputVersion" | "created">) => {
+  const createCleaningTask = useCallback((task: CleaningTaskDraft) => {
     const id = `clean-${Date.now()}`;
-    setCleaningTasks((current) => [{ ...task, id, status: "待执行", progress: 0, outputVersion: "--", created: "刚刚" }, ...current]);
+    const sourceVersion: CleaningVersionRow = {
+      id: `${id}-source`,
+      version: task.sourceVersion,
+      parent: "--",
+      created: "刚刚",
+      operator: "高质量数据评估演示",
+      records: task.recordCount,
+      issues: task.issueCount,
+      quality: 93.7,
+      change: "探查结果快照",
+    };
+    setCleaningTasks((current) => [{ ...task, id, status: "待执行", progress: 0, outputVersion: "--", activeVersion: task.sourceVersion, versions: [sourceVersion], created: "刚刚" }, ...current]);
     return id;
   }, []);
 

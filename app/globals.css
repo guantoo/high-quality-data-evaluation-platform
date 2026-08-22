@@ -3244,6 +3244,137 @@ button.test-row:hover {
   font-weight: 600;
 }
 
+.cleaning-mode-tabs {
+  height: 39px;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  border-bottom: 1px solid #dfe6ee;
+}
+
+.cleaning-mode-tabs button {
+  height: 39px;
+  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #65768a;
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.cleaning-mode-tabs button.active {
+  color: #175da8;
+  border-bottom-color: #2d7ff9;
+}
+
+.cleaning-mode-tabs b {
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: inline-grid;
+  place-items: center;
+  color: #56728e;
+  font-size: 9px;
+  background: #edf2f7;
+  border-radius: 9px;
+}
+
+.cleaning-mode-tabs button.active b {
+  color: #1762b0;
+  background: #e6f1fd;
+}
+
+.cleaning-version-workspace {
+  display: grid;
+  gap: 12px;
+}
+
+.version-compare-toolbar {
+  min-height: 58px;
+  padding: 9px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #f8fafc;
+  border: 1px solid #dfe6ee;
+}
+
+.version-compare-toolbar h3,
+.version-compare-toolbar p { margin: 0; }
+.version-compare-toolbar h3 { display: flex; align-items: center; gap: 6px; color: #334b65; font-size: 12px; }
+.version-compare-toolbar p { margin-top: 4px; color: #8795a6; font-size: 9px; }
+.version-compare-toolbar > div:last-child { display: flex; align-items: center; gap: 8px; }
+.version-compare-toolbar label { color: #6b7b8f; font-size: 9px; }
+.version-compare-toolbar select { height: 30px; margin-left: 6px; padding: 0 24px 0 8px; color: #38506a; font-size: 10px; font-weight: 600; background: #fff; border: 1px solid #d3dce6; border-radius: 2px; }
+.version-compare-toolbar > div:last-child > span { color: #7290ad; font-weight: 700; }
+
+.version-compare-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #fff;
+  border: 1px solid #dfe6ee;
+}
+
+.version-compare-summary > span {
+  min-height: 62px;
+  padding: 10px 13px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-content: center;
+  gap: 4px 8px;
+  border-right: 1px solid #e5eaf0;
+}
+
+.version-compare-summary > span:last-child { border-right: 0; }
+.version-compare-summary small { grid-column: 1 / -1; color: #7f8d9e; font-size: 9px; }
+.version-compare-summary strong { color: #2f4863; font-size: 18px; }
+.version-compare-summary em { align-self: end; color: #76869a; font-size: 9px; font-style: normal; font-weight: 600; }
+.version-compare-summary em.positive,
+.version-change-positive { color: #168965 !important; font-weight: 600; }
+.version-compare-summary em.negative,
+.version-change-negative { color: #bf6458 !important; font-weight: 600; }
+.version-compare-summary .reuse-status { align-self: center; justify-self: end; }
+
+.version-difference-panel,
+.version-history-panel { margin: 0; }
+.version-immutable { display: inline-flex; align-items: center; gap: 5px; color: #5c7894; font-size: 9px; font-weight: 600; }
+.version-history-panel > header > span { color: #6f8297; font-size: 9px; font-weight: 600; }
+.version-history-panel .reuse-table td:last-child { white-space: nowrap; }
+.active-version-row { background: #f2f8ff; }
+.rollback-link { color: #7a5eac !important; }
+
+.version-rollback-dialog { width: 510px; }
+.version-rollback-dialog > section {
+  min-height: 112px;
+  padding: 20px 4px 4px;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: start;
+  gap: 13px;
+}
+
+.rollback-version-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: #356fae;
+  background: #eaf3fc;
+  border: 1px solid #d5e5f5;
+  border-radius: 2px;
+}
+
+.version-rollback-dialog > section h3 { margin: 1px 0 8px; color: #334b65; font-size: 13px; }
+.version-rollback-dialog > section p { margin: 0; color: #6d7e92; font-size: 10px; line-height: 1.8; }
+.version-rollback-dialog > section strong { color: #2e608f; }
+
 /* High-quality data governance workbench */
 .project-entry {
   padding: 0;
@@ -4603,6 +4734,9 @@ button:disabled .ui-icon[data-loading="true"] {
   .domain-grid,
   .local-file-grid { grid-template-columns: repeat(2, 1fr); }
   .inventory-head > div:last-child { justify-content: flex-start; }
+  .version-compare-toolbar { align-items: flex-start; flex-direction: column; }
+  .version-compare-summary { grid-template-columns: repeat(2, 1fr); }
+  .version-compare-summary > span:nth-child(2n) { border-right: 0; }
 }
 
 @media print {

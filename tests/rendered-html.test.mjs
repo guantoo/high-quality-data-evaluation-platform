@@ -65,6 +65,10 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /function LocalDataManager/);
   assert.match(page, /function SmartInventory/);
   assert.match(page, /function SmartCleaning/);
+  assert.match(page, /type CleaningVersionRow/);
+  assert.match(page, /function nextCleaningVersion/);
+  assert.match(page, /版本结果对比/);
+  assert.match(page, /回滚到此版本/);
   assert.match(page, /function testDraftConnection/);
   assert.match(page, /function testSource/);
   assert.match(page, /function syncSource/);
@@ -99,6 +103,9 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.local-dropzone/);
   assert.match(css, /\.domain-grid/);
   assert.match(css, /\.cleaning-grid/);
+  assert.match(css, /\.cleaning-mode-tabs/);
+  assert.match(css, /\.version-compare-summary/);
+  assert.match(css, /\.version-rollback-dialog/);
   assert.match(css, /\.governance-workbench/);
   assert.match(css, /\.flow-canvas/);
   assert.match(css, /\.node-inspector/);
@@ -116,5 +123,6 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(workflow, /模型能力评测与交付/);
   assert.match(workflow, /数据接入闭环/);
   assert.match(workflow, /\[x\] 数据探查结果转清洗任务/);
+  assert.match(workflow, /\[x\] 智能清洗版本管理、结果对比和回滚/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });
