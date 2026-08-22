@@ -90,6 +90,10 @@ type SourceRow = {
   scale: string;
   strategy: string;
   updated: string;
+  endpoint: string;
+  status: "正常" | "待验证" | "测试中" | "同步中" | "异常";
+  progress: number;
+  syncResult: string;
 };
 
 type JobRow = {
@@ -116,6 +120,8 @@ type CreatePayload = {
   option: string;
   model: string;
   dataset: string;
+  endpoint?: string;
+  strategy?: string;
 };
 
 type FilterValues = {
@@ -198,6 +204,10 @@ const initialSources: SourceRow[] = [
     scale: "12.8 GB",
     strategy: "每 30 分钟",
     updated: "5 分钟前",
+    endpoint: "10.20.8.16:3306 / production",
+    status: "正常",
+    progress: 100,
+    syncResult: "最近同步 42 张表，新增 18,620 条记录",
   },
   {
     name: "数据评估文件仓",
@@ -206,6 +216,10 @@ const initialSources: SourceRow[] = [
     scale: "36.4 GB",
     strategy: "手动触发",
     updated: "18 分钟前",
+    endpoint: "/data/high-quality-datasets",
+    status: "正常",
+    progress: 100,
+    syncResult: "最近导入 12 个数据集，共 36.4 GB",
   },
   {
     name: "知识文档仓",
@@ -214,6 +228,10 @@ const initialSources: SourceRow[] = [
     scale: "34 GB",
     strategy: "每日 02:00",
     updated: "2 小时前",
+    endpoint: "sftp://10.20.8.32:22/knowledge",
+    status: "正常",
+    progress: 100,
+    syncResult: "最近同步 1,286 个文件，失败 0 个",
   },
   {
     name: "业务事件接口",
@@ -222,6 +240,10 @@ const initialSources: SourceRow[] = [
     scale: "实时流",
     strategy: "准实时",
     updated: "刚刚",
+    endpoint: "https://events.internal.example/v1",
+    status: "正常",
+    progress: 100,
+    syncResult: "实时消费正常，当前 2.4M 条/日",
   },
 ];
 
@@ -805,17 +827,108 @@ function SmartCleaning({ notify }: { notify: Notify }) {
 function InventoryPage({
   sources,
   openDialog,
+  updateSource,
   notify,
 }: {
   sources: SourceRow[];
   openDialog: () => void;
+  updateSource: (name: string, patch: Partial<SourceRow>) => void;
   notify: Notify;
 }) {
   const [section, setSection] = useState("数据库管理");
   const [search, setSearch] = useState("");
   const [selectedSource, setSelectedSource] = useState(sources[0]?.name ?? "");
+  const [editingSourceName, setEditingSourceName] = useState<string | null>(null);
+  const [endpointDraft, setEndpointDraft] = useState("");
+  const [strategyDraft, setStrategyDraft] = useState("");
+  const timers = useRef<number[]>([]);
+  const previousSourceCount = useRef(sources.length);
   const filtered = sources.filter((source) => source.name.toLowerCase().includes(search.toLowerCase()));
   const selected = sources.find((source) => source.name === selectedSource) ?? sources[0];
+  const editingSource = sources.find((source) => source.name === editingSourceName);
+
+  useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
+
+  useEffect(() => {
+    if (sources.length > previousSourceCount.current && sources[0]) setSelectedSource(sources[0].name);
+    previousSourceCount.current = sources.length;
+  }, [sources]);
+
+  function statusTone(status: SourceRow["status"]): "green" | "blue" | "orange" | "gray" {
+    if (status === "正常") return "green";
+    if (status === "测试中" || status === "同步中") return "blue";
+    if (status === "异常") return "orange";
+    return "gray";
+  }
+
+  function testSource(source: SourceRow) {
+    if (source.status === "测试中" || source.status === "同步中") return;
+    updateSource(source.name, { status: "测试中", progress: 20, syncResult: "正在验证网络、身份凭据和最小权限" });
+    notify(`${source.name} 正在执行连接测试`);
+    const timer = window.setTimeout(() => {
+      const failed = !source.endpoint.trim() || source.endpoint.toLowerCase().includes("invalid");
+      updateSource(source.name, failed
+        ? { status: "异常", progress: 0, syncResult: "连接失败：请检查地址和访问凭据" }
+        : { status: "正常", progress: 100, syncResult: "连接测试通过，可执行数据同步" });
+      notify(failed ? `${source.name} 连接测试失败` : `${source.name} 连接测试成功`);
+    }, 850);
+    timers.current.push(timer);
+  }
+
+  function syncSource(source: SourceRow) {
+    if (source.status !== "正常") {
+      notify(`${source.name} 需先通过连接测试`);
+      return;
+    }
+    updateSource(source.name, { status: "同步中", progress: 8, syncResult: "正在读取数据目录和增量位点" });
+    notify(`${source.name} 同步任务已启动`);
+    [28, 52, 76, 100].forEach((progress, index) => {
+      const timer = window.setTimeout(() => {
+        if (progress < 100) {
+          updateSource(source.name, { progress, syncResult: progress < 50 ? "正在读取结构与元数据" : "正在写入数据资产目录" });
+          return;
+        }
+        updateSource(source.name, {
+          status: "正常",
+          progress: 100,
+          updated: "刚刚",
+          summary: source.summary === "等待首次同步" ? "已识别 8 张表" : source.summary,
+          scale: source.scale === "--" ? "1.6 GB" : source.scale,
+          syncResult: "同步完成：新增 8 张表、24,680 条记录，失败 0 条",
+        });
+        notify(`${source.name} 同步完成，可进入数据探查`);
+      }, 500 + index * 520);
+      timers.current.push(timer);
+    });
+  }
+
+  function openSourceEditor(source: SourceRow) {
+    setEditingSourceName(source.name);
+    setEndpointDraft(source.endpoint);
+    setStrategyDraft(source.strategy);
+  }
+
+  function saveSourceConfiguration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingSource) return;
+    updateSource(editingSource.name, {
+      endpoint: endpointDraft,
+      strategy: strategyDraft,
+      status: "测试中",
+      progress: 20,
+      syncResult: "配置已保存，正在重新验证连接",
+    });
+    setEditingSourceName(null);
+    notify(`${editingSource.name} 配置已保存，正在重新验证`);
+    const timer = window.setTimeout(() => {
+      const failed = !endpointDraft.trim() || endpointDraft.toLowerCase().includes("invalid");
+      updateSource(editingSource.name, failed
+        ? { status: "异常", progress: 0, syncResult: "配置验证失败，请重新检查连接地址" }
+        : { status: "正常", progress: 100, syncResult: "新配置验证通过，可立即同步" });
+      notify(failed ? `${editingSource.name} 新配置验证失败` : `${editingSource.name} 新配置验证通过`);
+    }, 900);
+    timers.current.push(timer);
+  }
 
   return (
     <section className="reuse-content-page">
@@ -860,7 +973,7 @@ function InventoryPage({
                   <p>{item.type} · {item.summary}</p>
                   <small>最近同步：{item.updated}</small>
                 </div>
-                <Status>连接正常</Status>
+                <Status tone={statusTone(item.status)}>{item.status === "正常" ? "连接正常" : item.status}</Status>
               </button>
             );
           })}
@@ -873,10 +986,12 @@ function InventoryPage({
             <span>{selected.type}</span>
             <span>{selected.scale}</span>
             <span>{selected.strategy}</span>
-            <button className="reuse-link" onClick={() => notify(`${selected.name} 连接测试成功`)}>测试连接</button>
-            <button className="reuse-link" onClick={() => notify(`${selected.name} 同步任务已启动`)}>立即同步</button>
+            <button className="reuse-link" disabled={selected.status === "测试中" || selected.status === "同步中"} onClick={() => testSource(selected)}>{selected.status === "测试中" ? "测试中..." : "测试连接"}</button>
+            <button className="reuse-link" disabled={selected.status !== "正常"} onClick={() => syncSource(selected)}>{selected.status === "同步中" ? `同步中 ${selected.progress}%` : "立即同步"}</button>
+            <button className="reuse-link" disabled={selected.status !== "正常" || selected.updated === "尚未同步"} onClick={() => setSection("数据探查")}>进入数据探查</button>
           </div>
         )}
+        {selected && <div className={`source-sync-state ${selected.status.toLowerCase()}`}><Progress value={selected.progress} /><span>{selected.syncResult}</span><b>{selected.progress}%</b></div>}
         <div className="reuse-table-wrap">
           <table className="reuse-table">
             <thead>
@@ -892,10 +1007,11 @@ function InventoryPage({
                   <td>{row.scale}</td>
                   <td>{row.strategy}</td>
                   <td>{row.updated}</td>
-                  <td><Status>正常</Status></td>
+                  <td><Status tone={statusTone(row.status)}>{row.status}</Status></td>
                   <td>
                     <button className="reuse-link" onClick={() => setSelectedSource(row.name)}>查看</button>{" "}
-                    <button className="reuse-link" onClick={() => notify(`已打开 ${row.name} 的连接配置`)}>配置</button>
+                    <button className="reuse-link" onClick={() => openSourceEditor(row)}>配置</button>{" "}
+                    <button className="reuse-link" disabled={row.status !== "正常"} onClick={() => syncSource(row)}>同步</button>
                   </td>
                 </tr>
               ))}
@@ -908,6 +1024,7 @@ function InventoryPage({
       {section === "本地数据管理" && <LocalDataManager notify={notify} />}
       {section === "智能数据盘点" && <SmartInventory notify={notify} />}
       {section === "智能数据清洗" && <SmartCleaning notify={notify} />}
+      {editingSource && <div className="dialog-backdrop connection-editor-backdrop"><button className="dialog-dismiss" aria-label="关闭连接配置" onClick={() => setEditingSourceName(null)} /><form className="reuse-dialog connection-editor" onSubmit={saveSourceConfiguration}><header><div><h2>配置数据连接</h2><p>{editingSource.name} · 修改后将自动重新验证</p></div><button type="button" aria-label="关闭连接配置" onClick={() => setEditingSourceName(null)}><UiIcon icon={X} /></button></header><label>连接类型<input value={editingSource.type} readOnly /></label><label>连接地址<input required value={endpointDraft} onChange={(event) => setEndpointDraft(event.target.value)} /></label><label>同步策略<select value={strategyDraft} onChange={(event) => setStrategyDraft(event.target.value)}><option>手动触发</option><option>每 30 分钟</option><option>每日 02:00</option><option>准实时</option></select></label><div className="connection-config-summary"><span><small>当前状态</small><Status tone={statusTone(editingSource.status)}>{editingSource.status}</Status></span><span><small>最近结果</small><strong>{editingSource.syncResult}</strong></span></div><footer><button type="button" className="reuse-secondary" onClick={() => setEditingSourceName(null)}>取消</button><button className="reuse-primary"><UiIcon icon={Save} />保存并验证</button></footer></form></div>}
     </section>
   );
 }
@@ -1890,6 +2007,9 @@ function CreateDialog({
   const [model, setModel] = useState("Qwen3-8B");
   const [dataset, setDataset] = useState("金融年报问答集 v2.1");
   const [saving, setSaving] = useState(false);
+  const [connectionAddress, setConnectionAddress] = useState("");
+  const [connectionStrategy, setConnectionStrategy] = useState("手动触发");
+  const [connectionTest, setConnectionTest] = useState<"idle" | "testing" | "success" | "error">("idle");
 
   const titles: Record<Exclude<DialogId, null>, [string, string]> = {
     assessment: ["添加审查任务", "复用原平台数据审查流程"],
@@ -1901,8 +2021,20 @@ function CreateDialog({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (id === "connection" && connectionTest !== "success") return;
     setSaving(true);
-    window.setTimeout(() => onCreated({ kind: id, name, option, model, dataset }), 520);
+    window.setTimeout(() => onCreated({ kind: id, name, option, model, dataset, endpoint: connectionAddress, strategy: connectionStrategy }), 520);
+  }
+
+  function testDraftConnection() {
+    if (!connectionAddress.trim()) {
+      setConnectionTest("error");
+      return;
+    }
+    setConnectionTest("testing");
+    window.setTimeout(() => {
+      setConnectionTest(connectionAddress.toLowerCase().includes("invalid") ? "error" : "success");
+    }, 700);
   }
 
   return (
@@ -1943,9 +2075,10 @@ function CreateDialog({
         )}
         {id === "connection" && (
           <>
-            <label>连接类型<select value={option} onChange={(event) => setOption(event.target.value)}><option>MySQL</option><option>PostgreSQL</option><option>SFTP</option><option>REST API</option><option>本地文件</option></select></label>
-            <label>连接地址<input required placeholder="例如：127.0.0.1:3306" /></label>
-            <div className="connection-check"><span>✓</span><p><strong>本地安全检查</strong><br />保存前将验证网络可达性和最小权限。</p></div>
+            <label>连接类型<select value={option} onChange={(event) => { setOption(event.target.value); setConnectionTest("idle"); }}><option>MySQL</option><option>PostgreSQL</option><option>SFTP</option><option>REST API</option><option>本地文件</option></select></label>
+            <label>连接地址<input required value={connectionAddress} onChange={(event) => { setConnectionAddress(event.target.value); setConnectionTest("idle"); }} placeholder={option === "本地文件" ? "例如：/data/datasets" : option === "REST API" ? "例如：https://api.example/v1" : "例如：127.0.0.1:3306"} /></label>
+            <label>同步策略<select value={connectionStrategy} onChange={(event) => setConnectionStrategy(event.target.value)}><option>手动触发</option><option>每 30 分钟</option><option>每日 02:00</option><option>准实时</option></select></label>
+            <div className={`connection-check ${connectionTest}`}><span>{connectionTest === "testing" ? "…" : connectionTest === "success" ? "✓" : connectionTest === "error" ? "!" : "○"}</span><p><strong>{connectionTest === "testing" ? "正在测试连接" : connectionTest === "success" ? "连接与权限验证通过" : connectionTest === "error" ? "连接验证失败" : "保存前需要验证连接"}</strong><br />{connectionTest === "success" ? "网络可达、身份凭据有效，并满足最小读取权限。" : connectionTest === "error" ? "请填写有效地址；地址中包含 invalid 时会模拟失败。" : "将检查网络可达性、身份凭据和最小权限。"}</p><button type="button" disabled={connectionTest === "testing"} onClick={testDraftConnection}>{connectionTest === "testing" ? "测试中..." : connectionTest === "success" ? "重新测试" : "测试连接"}</button></div>
           </>
         )}
         {id === "project" && (
@@ -1963,7 +2096,7 @@ function CreateDialog({
         )}
         <footer>
           <button type="button" className="reuse-secondary" onClick={onClose}>取消</button>
-          <button className="reuse-primary" disabled={saving}>{saving ? "创建中..." : "确定"}</button>
+          <button className="reuse-primary" disabled={saving || (id === "connection" && connectionTest !== "success")}>{saving ? "创建中..." : id === "connection" ? "保存连接" : "确定"}</button>
         </footer>
       </form>
     </div>
@@ -2120,8 +2253,20 @@ export default function Home() {
       ]);
     }
     if (payload.kind === "connection") {
+      const connectionType = payload.option === "MySQL" ? "MySQL 8.0" : payload.option === "PostgreSQL" ? "PostgreSQL 16" : payload.option;
       setSources((current) => [
-        { name: payload.name, type: payload.option, summary: "等待首次盘点", scale: "--", strategy: "手动触发", updated: "刚刚" },
+        {
+          name: payload.name,
+          type: connectionType,
+          summary: "等待首次同步",
+          scale: "--",
+          strategy: payload.strategy || "手动触发",
+          updated: "尚未同步",
+          endpoint: payload.endpoint || "--",
+          status: "正常",
+          progress: 100,
+          syncResult: "连接验证通过，等待执行首次同步",
+        },
         ...current,
       ]);
     }
@@ -2152,6 +2297,10 @@ export default function Home() {
   function runEvaluation(name: string) {
     setEvaluations((current) => current.map((item) => item.name === name ? { ...item, status: "评测中" } : item));
     notify(`${name} 已开始运行`);
+  }
+
+  function updateSource(name: string, patch: Partial<SourceRow>) {
+    setSources((current) => current.map((source) => source.name === name ? { ...source, ...patch } : source));
   }
 
   if (!loggedIn) return <Login onLogin={() => { setLoggedIn(true); notify("登录成功，欢迎回来"); }} />;
@@ -2270,7 +2419,7 @@ export default function Home() {
       <main className="reuse-main">
         <ProjectToolbar project={project} setProject={setProject} notify={notify} />
         {active === "home" && <HomeDashboard filters={filters} notify={notify} />}
-        {active === "inventory" && <InventoryPage sources={sources} openDialog={() => openCreate("connection")} notify={notify} />}
+        {active === "inventory" && <InventoryPage sources={sources} openDialog={() => openCreate("connection")} updateSource={updateSource} notify={notify} />}
         {active === "governance" && governanceView === "workspace" && workspaceProject && (
           <GovernanceWorkbench
             project={workspaceProject}

@@ -42,10 +42,11 @@ test("server-renders the high-quality data assessment platform", async () => {
 });
 
 test("keeps production metadata and core interactions in source", async () => {
-  const [page, layout, css] = await Promise.all([
+  const [page, layout, css, workflow] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../docs/平台操作流程与功能补全清单.md", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /^"use client";/);
@@ -59,6 +60,11 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /function LocalDataManager/);
   assert.match(page, /function SmartInventory/);
   assert.match(page, /function SmartCleaning/);
+  assert.match(page, /function testDraftConnection/);
+  assert.match(page, /function testSource/);
+  assert.match(page, /function syncSource/);
+  assert.match(page, /function saveSourceConfiguration/);
+  assert.match(page, /进入数据探查/);
   assert.match(page, /function GovernanceWorkbench/);
   assert.match(page, /workbenchNodeProfiles/);
   assert.match(page, /kind: "annotation"/);
@@ -91,10 +97,16 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.node-inspector/);
   assert.match(css, /\.annotation-label-section/);
   assert.match(css, /\.annotation-review-queue/);
+  assert.match(css, /\.source-sync-state/);
+  assert.match(css, /\.connection-config-summary/);
   assert.match(css, /\.workbench-run-log/);
   assert.match(css, /\.governance-algorithm-panel/);
   assert.match(css, /\.market-card-grid/);
   assert.match(css, /\.algorithm-detail-drawer/);
   assert.match(css, /\.ui-icon/);
+  assert.match(workflow, /数据接入/);
+  assert.match(workflow, /数据探查与盘点/);
+  assert.match(workflow, /模型能力评测与交付/);
+  assert.match(workflow, /数据接入闭环/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });
