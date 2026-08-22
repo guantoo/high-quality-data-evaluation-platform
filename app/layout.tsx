@@ -14,20 +14,20 @@ export async function generateMetadata(): Promise<Metadata> {
   const imageUrl = `${protocol}://${host}/og.png`;
 
   return {
-    title: "高质量数据平台｜数据治理、评估与模型工程",
+    title: "高质量数据集评估平台",
     description:
-      "覆盖数据资产、治理生产、数据集评估、模型开发、能力评测与交付部署的一体化工作平台。",
+      "复用原平台操作体系，统一承载数据盘点、数据治理、数据集评估、模型开发与能力评测。",
     openGraph: {
-      title: "高质量数据平台",
-      description: "数据治理 · 模型工程 · 安全交付",
+      title: "高质量数据集评估平台",
+      description: "数据盘点 · 数据治理 · 数据评估 · 模型开发",
       type: "website",
       locale: "zh_CN",
-      images: [{ url: imageUrl, width: 1680, height: 945, alt: "高质量数据平台" }],
+      images: [{ url: imageUrl, width: 1536, height: 1024, alt: "高质量数据集评估平台" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "高质量数据平台",
-      description: "数据治理 · 模型工程 · 安全交付",
+      title: "高质量数据集评估平台",
+      description: "数据盘点 · 数据治理 · 数据评估 · 模型开发",
       images: [imageUrl],
     },
   };
