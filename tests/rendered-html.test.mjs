@@ -50,6 +50,10 @@ test("keeps production metadata and core interactions in source", async () => {
 
   assert.match(page, /^"use client";/);
   assert.match(page, /function ProjectToolbar/);
+  assert.match(page, /function DataExploration/);
+  assert.match(page, /function LocalDataManager/);
+  assert.match(page, /function SmartInventory/);
+  assert.match(page, /function SmartCleaning/);
   assert.match(page, /function AssessmentPage/);
   assert.match(page, /function ModelDevelopment/);
   assert.match(page, /function ModelEvaluation/);
@@ -59,5 +63,10 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.icon-rail/);
   assert.match(css, /\.reuse-topbar/);
   assert.match(css, /\.original-dashboard/);
+  assert.match(css, /\.inventory-workspace/);
+  assert.match(css, /\.exploration-grid/);
+  assert.match(css, /\.local-dropzone/);
+  assert.match(css, /\.domain-grid/);
+  assert.match(css, /\.cleaning-grid/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });

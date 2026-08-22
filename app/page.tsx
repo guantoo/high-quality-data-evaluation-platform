@@ -686,6 +686,231 @@ function HomeDashboard({ filters, notify }: { filters: FilterValues; notify: Not
   );
 }
 
+function DataExploration({ sources, notify }: { sources: SourceRow[]; notify: Notify }) {
+  const columns = [
+    { name: "customer_id", type: "BIGINT", completeness: 100, unique: "1,256,842", issue: "无" },
+    { name: "customer_name", type: "VARCHAR", completeness: 99.8, unique: "1,238,407", issue: "2,516 个空值" },
+    { name: "mobile_phone", type: "VARCHAR", completeness: 97.6, unique: "1,201,338", issue: "格式异常 186" },
+    { name: "customer_level", type: "VARCHAR", completeness: 100, unique: "5", issue: "无" },
+    { name: "register_date", type: "DATE", completeness: 98.7, unique: "2,845", issue: "日期异常 42" },
+    { name: "annual_value", type: "DECIMAL", completeness: 96.4, unique: "842,039", issue: "极值 31" },
+  ];
+  const [source, setSource] = useState(sources[0]?.name ?? "生产业务库");
+  const [table, setTable] = useState("customer_profile");
+  const [selectedField, setSelectedField] = useState(columns[0].name);
+  const [scanning, setScanning] = useState(false);
+  const [progress, setProgress] = useState(100);
+
+  useEffect(() => {
+    if (!scanning) return;
+    const timer = window.setInterval(() => {
+      setProgress((current) => {
+        const next = Math.min(100, current + 11);
+        if (next === 100) {
+          window.clearInterval(timer);
+          setScanning(false);
+          notify(`${table} 数据探查已完成`);
+        }
+        return next;
+      });
+    }, 280);
+    return () => window.clearInterval(timer);
+  }, [notify, scanning, table]);
+
+  const selected = columns.find((column) => column.name === selectedField) ?? columns[0];
+  const distribution = selectedField === "customer_level"
+    ? [["战略客户", 18], ["重点客户", 31], ["普通客户", 42], ["潜在客户", 9]]
+    : [["有效值", Math.round(selected.completeness)], ["空值", Math.max(1, Math.round(100 - selected.completeness))], ["异常值", selected.issue === "无" ? 0 : 3]];
+
+  return (
+    <article className="white-panel inventory-workspace exploration-workspace">
+      <div className="reuse-panel-head inventory-head">
+        <div><h2>数据探查</h2><p>对数据表执行结构识别、字段画像、质量扫描和样例预览</p></div>
+        <div>
+          <label className="inventory-select">数据源<select value={source} onChange={(event) => setSource(event.target.value)}>{sources.map((item) => <option key={item.name}>{item.name}</option>)}</select></label>
+          <label className="inventory-select">数据表<select value={table} onChange={(event) => setTable(event.target.value)}><option>customer_profile</option><option>order_detail</option><option>service_record</option><option>product_catalog</option></select></label>
+          <button className="reuse-primary" disabled={scanning} onClick={() => { setProgress(0); setScanning(true); }}>{scanning ? `探查中 ${progress}%` : "▶ 开始探查"}</button>
+        </div>
+      </div>
+      {scanning && <div className="workspace-progress"><Progress value={progress} /><span>正在读取字段统计与样例数据...</span></div>}
+      <div className="inventory-kpis">
+        {[['记录总量', '1,256,842', '较上次 +12,608'], ['字段数量', '24', '6 个数值字段'], ['完整度', '98.7%', '高于标准 3.7%'], ['异常字段', '3', '建议进入清洗']].map((item, index) => (
+          <div key={item[0]}><span className={`kpi-icon k${index}`}>{['数', '列', '完', '!'][index]}</span><p>{item[0]}</p><strong>{item[1]}</strong><small>{item[2]}</small></div>
+        ))}
+      </div>
+      <div className="exploration-grid">
+        <section className="sub-panel field-profile-panel">
+          <header><div><h3>字段画像</h3><p>点击字段查看分布与质量问题</p></div><span>{columns.length} / 24 个重点字段</span></header>
+          <div className="reuse-table-wrap">
+            <table className="reuse-table compact-table">
+              <thead><tr><th>字段名称</th><th>类型</th><th>完整度</th><th>唯一值</th><th>问题</th></tr></thead>
+              <tbody>{columns.map((column) => (
+                <tr key={column.name} className={selectedField === column.name ? "selected-row" : ""}>
+                  <td><button className="reuse-link field-button" onClick={() => setSelectedField(column.name)}>{column.name}</button></td>
+                  <td><span className="field-type-tag">{column.type}</span></td><td><div className="inline-score"><Progress value={column.completeness} /><span>{column.completeness}%</span></div></td>
+                  <td>{column.unique}</td><td className={column.issue === "无" ? "good-text" : "warning-text"}>{column.issue}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </section>
+        <section className="sub-panel field-insight-panel">
+          <header><div><h3>{selected.name}</h3><p>{selected.type} · 字段分布</p></div><Status tone={selected.issue === "无" ? "green" : "orange"}>{selected.issue === "无" ? "质量正常" : "建议处理"}</Status></header>
+          <div className="donut-score" style={{ "--score": `${selected.completeness * 3.6}deg` } as React.CSSProperties}><strong>{selected.completeness}%</strong><span>字段完整度</span></div>
+          <div className="distribution-list">{distribution.map((item) => (
+            <div key={item[0]}><span>{item[0]}</span><div><i style={{ width: `${item[1]}%` }} /></div><b>{item[1]}%</b></div>
+          ))}</div>
+          <button className="reuse-secondary" onClick={() => notify(`${selected.name} 已加入清洗规则建议`)}>生成清洗建议</button>
+        </section>
+      </div>
+      <section className="sub-panel sample-panel">
+        <header><div><h3>样例数据</h3><p>展示前 5 条脱敏记录</p></div><button className="reuse-link" onClick={() => notify("样例数据已重新抽样")}>换一批样例</button></header>
+        <div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>customer_id</th><th>customer_name</th><th>mobile_phone</th><th>customer_level</th><th>register_date</th><th>annual_value</th></tr></thead><tbody>
+          {[['10032018', '赵*明', '138****7621', '重点客户', '2022-06-18', '¥ 86,420'], ['10032019', '陈*华', '186****1093', '普通客户', '2023-01-09', '¥ 31,806'], ['10032020', '王*', '139****5218', '战略客户', '2020-11-26', '¥ 268,500'], ['10032021', '刘*宁', '137****4802', '潜在客户', '2024-03-17', '¥ 9,630'], ['10032022', '周*宇', '158****3409', '重点客户', '2021-08-03', '¥ 112,780']].map((row) => <tr key={row[0]}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>)}
+        </tbody></table></div>
+      </section>
+    </article>
+  );
+}
+
+function LocalDataManager({ notify }: { notify: Notify }) {
+  type LocalFile = { name: string; format: string; size: string; records: string; updated: string; status: string };
+  const [files, setFiles] = useState<LocalFile[]>([
+    { name: "篮球图像数据集.zip", format: "ZIP / 图像", size: "286 MB", records: "2,480 个文件", updated: "2026-08-22 22:16", status: "可用" },
+    { name: "金融年报问答集.csv", format: "CSV / 文本", size: "38.6 MB", records: "126,842 条", updated: "2026-08-22 18:32", status: "可用" },
+    { name: "制度文档汇编.pdf", format: "PDF / 文档", size: "124 MB", records: "380 个文档", updated: "2026-08-21 15:08", status: "可用" },
+    { name: "客服录音样本.wav", format: "WAV / 语音", size: "1.2 GB", records: "1,865 段", updated: "2026-08-20 11:46", status: "待解析" },
+  ]);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useState<"列表" | "卡片">("列表");
+  const input = useRef<HTMLInputElement>(null);
+  const filtered = files.filter((file) => file.name.toLowerCase().includes(search.toLowerCase()));
+
+  function addLocalFiles(event: ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files ?? []);
+    if (!selected.length) return;
+    const added = selected.map((file) => ({
+      name: file.name,
+      format: `${file.name.split(".").pop()?.toUpperCase() || "文件"} / 自动识别`,
+      size: file.size > 1024 * 1024 ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(file.size / 1024))} KB`,
+      records: "解析中",
+      updated: "刚刚",
+      status: "解析中",
+    }));
+    setFiles((current) => [...added, ...current]);
+    event.target.value = "";
+    notify(`已导入 ${added.length} 个本地文件，正在解析`);
+    window.setTimeout(() => {
+      const names = new Set(added.map((file) => file.name));
+      setFiles((current) => current.map((file) => names.has(file.name) ? { ...file, records: "已识别", status: "可用" } : file));
+    }, 1400);
+  }
+
+  return (
+    <article className="white-panel inventory-workspace local-manager-workspace">
+      <div className="reuse-panel-head inventory-head">
+        <div><h2>本地数据管理</h2><p>上传、解析和管理用于治理与评估的本地文件</p></div>
+        <div><label className="reuse-search">⌕ <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索文件名称" /></label><div className="view-switch"><button className={view === "列表" ? "active" : ""} onClick={() => setView("列表")}>☷</button><button className={view === "卡片" ? "active" : ""} onClick={() => setView("卡片")}>▦</button></div><button className="reuse-primary" onClick={() => input.current?.click()}>＋ 导入本地文件</button></div>
+      </div>
+      <button className="local-dropzone" onClick={() => input.current?.click()}><span>⇧</span><div><strong>点击选择本地文件</strong><p>支持 CSV、Excel、JSON、PDF、图像、音频、视频及 ZIP，单文件建议不超过 2 GB</p></div><b>浏览文件</b></button>
+      <input ref={input} className="visually-hidden" type="file" multiple onChange={addLocalFiles} />
+      <div className="local-summary"><span>文件总数 <b>{files.length}</b></span><span>已解析 <b>{files.filter((file) => file.status === "可用").length}</b></span><span>存储占用 <b>1.65 GB</b></span><span>待处理 <b>{files.filter((file) => file.status !== "可用").length}</b></span></div>
+      {view === "列表" ? (
+        <div className="reuse-table-wrap"><table className="reuse-table local-file-table"><thead><tr><th>文件名称</th><th>格式 / 类型</th><th>大小</th><th>数据量</th><th>更新时间</th><th>解析状态</th><th>操作</th></tr></thead><tbody>{filtered.map((file, index) => (
+          <tr key={file.name}><td><div className="local-file-name"><span className={`local-file-icon f${index % 4}`}>{file.format.slice(0, 2)}</span><strong>{file.name}</strong></div></td><td>{file.format}</td><td>{file.size}</td><td>{file.records}</td><td>{file.updated}</td><td><Status tone={file.status === "可用" ? "green" : file.status === "解析中" ? "blue" : "orange"}>{file.status}</Status></td><td><button className="reuse-link" onClick={() => notify(`正在预览 ${file.name}`)}>预览</button>{" "}<button className="reuse-link" onClick={() => notify(`${file.name} 已加入数据集创建向导`)}>创建数据集</button>{" "}<button className="reuse-link danger-link" onClick={() => { setFiles((current) => current.filter((item) => item.name !== file.name)); notify(`${file.name} 已从当前列表移除`); }}>移除</button></td></tr>
+        ))}</tbody></table>{filtered.length === 0 && <div className="table-empty">未找到匹配的本地文件</div>}</div>
+      ) : (
+        <div className="local-file-grid">{filtered.map((file, index) => <button key={file.name} onClick={() => notify(`正在预览 ${file.name}`)}><span className={`local-file-icon f${index % 4}`}>{file.format.slice(0, 2)}</span><strong>{file.name}</strong><p>{file.format} · {file.size}</p><small>{file.records} · {file.updated}</small><Status tone={file.status === "可用" ? "green" : "orange"}>{file.status}</Status></button>)}</div>
+      )}
+    </article>
+  );
+}
+
+function SmartInventory({ notify }: { notify: Notify }) {
+  const domains = [
+    { name: "客户域", icon: "客", assets: 128, tables: 42, coverage: 94, color: "blue" },
+    { name: "交易域", icon: "交", assets: 216, tables: 68, coverage: 88, color: "cyan" },
+    { name: "产品域", icon: "产", assets: 96, tables: 31, coverage: 81, color: "violet" },
+    { name: "风控域", icon: "风", assets: 74, tables: 24, coverage: 76, color: "orange" },
+  ];
+  const [selectedDomain, setSelectedDomain] = useState(domains[0].name);
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(100);
+
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => {
+      setProgress((current) => {
+        const next = Math.min(100, current + 5);
+        if (next === 100) {
+          window.clearInterval(timer);
+          setRunning(false);
+          notify("智能数据盘点完成，发现 17 个新增资产");
+        }
+        return next;
+      });
+    }, 230);
+    return () => window.clearInterval(timer);
+  }, [notify, running]);
+
+  const selected = domains.find((domain) => domain.name === selectedDomain) ?? domains[0];
+  return (
+    <article className="white-panel inventory-workspace smart-inventory-workspace">
+      <div className="reuse-panel-head inventory-head"><div><h2>智能数据盘点</h2><p>自动识别数据资产、业务领域、敏感等级与上下游关系</p></div><div><span className="inventory-updated">上次盘点：2026-08-22 23:18</span><button className="reuse-primary" disabled={running} onClick={() => { setProgress(0); setRunning(true); }}>{running ? `盘点中 ${progress}%` : "◈ 开始智能盘点"}</button></div></div>
+      {running && <div className="workspace-progress"><Progress value={progress} /><span>正在识别数据源、表结构与业务语义...</span></div>}
+      <div className="inventory-kpis asset-kpis">{[['数据资产', '514', '+17 新增'], ['数据表', '165', '12 个数据源'], ['数据字段', '3,842', '画像完成 92%'], ['敏感字段', '286', '已分级 100%'], ['血缘关系', '1,208', '+64 条关系']].map((item, index) => <div key={item[0]}><span className={`kpi-icon k${index % 4}`}>{['资', '表', '列', '敏', '链'][index]}</span><p>{item[0]}</p><strong>{item[1]}</strong><small>{item[2]}</small></div>)}</div>
+      <div className="domain-grid">{domains.map((domain) => <button key={domain.name} className={selectedDomain === domain.name ? "active" : ""} onClick={() => setSelectedDomain(domain.name)}><span className={domain.color}>{domain.icon}</span><div><strong>{domain.name}</strong><p>{domain.assets} 个资产 · {domain.tables} 张表</p><div className="domain-progress"><i style={{ width: `${domain.coverage}%` }} /></div><small>盘点覆盖率 {domain.coverage}%</small></div><b>›</b></button>)}</div>
+      <div className="inventory-detail-grid">
+        <section className="sub-panel asset-tree-panel"><header><div><h3>{selected.name}资产目录</h3><p>{selected.assets} 个资产，按语义自动归类</p></div><button className="reuse-link" onClick={() => notify(`${selected.name}目录已展开到字段级`)}>展开全部</button></header><div className="asset-tree">{[['基础信息', 26, '客户基本资料、身份标识'], ['行为记录', 34, '访问、咨询、服务轨迹'], ['价值指标', 18, '贡献度、生命周期价值'], ['标签特征', 50, '偏好、等级、风险标签']].map((item, index) => <button key={item[0]}><span>{index === 0 ? '▾' : '›'}</span><i>▦</i><div><strong>{item[0]}</strong><small>{item[2]}</small></div><b>{item[1]}</b></button>)}</div></section>
+        <section className="sub-panel asset-quality-panel"><header><div><h3>盘点质量</h3><p>资产识别与治理准备度</p></div><Status>整体良好</Status></header>{[['语义识别', 96], ['字段画像', 92], ['敏感识别', 100], ['血缘覆盖', 84], ['责任人绑定', 71]].map((item) => <div className="quality-bar" key={item[0]}><span>{item[0]}</span><div><i style={{ width: `${item[1]}%` }} /></div><b>{item[1]}%</b></div>)}<button className="reuse-secondary" onClick={() => notify("已生成资产盘点报告")}>生成盘点报告</button></section>
+      </div>
+      <section className="sub-panel inventory-history"><header><div><h3>最近盘点记录</h3><p>保留最近 30 次盘点结果</p></div></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>任务名称</th><th>数据源</th><th>发现资产</th><th>新增 / 变化</th><th>执行时间</th><th>耗时</th><th>状态</th></tr></thead><tbody>{[['全域数据资产盘点-0822', '全部数据源', '514', '+17 / 23', '2026-08-22 23:18', '18m 42s'], ['生产库增量盘点-0821', '生产业务库', '128', '+4 / 8', '2026-08-21 23:00', '6m 18s'], ['知识文档仓盘点-0820', '知识文档仓', '96', '+12 / 2', '2026-08-20 02:10', '11m 05s']].map((row) => <tr key={row[0]}>{row.map((cell) => <td key={cell}>{cell}</td>)}<td><Status>已完成</Status></td></tr>)}</tbody></table></div></section>
+    </article>
+  );
+}
+
+function SmartCleaning({ notify }: { notify: Notify }) {
+  const [dataset, setDataset] = useState("金融年报问答集 v2.1");
+  const [rules, setRules] = useState([
+    { name: "重复数据识别", desc: "基于主键与语义相似度去重", enabled: true },
+    { name: "空值智能填充", desc: "按字段类型和上下文推荐填充值", enabled: true },
+    { name: "格式标准化", desc: "统一日期、电话、证件与金额格式", enabled: true },
+    { name: "异常值处理", desc: "识别极值、离群点和不合理范围", enabled: true },
+    { name: "敏感信息脱敏", desc: "对手机号、证件号、姓名进行脱敏", enabled: false },
+  ]);
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => {
+      setProgress((current) => {
+        const next = Math.min(100, current + 6);
+        if (next === 100) {
+          window.clearInterval(timer);
+          setRunning(false);
+          notify(`${dataset} 智能清洗完成，已生成新版本 v2.2`);
+        }
+        return next;
+      });
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [dataset, notify, running]);
+
+  const enabledCount = rules.filter((rule) => rule.enabled).length;
+  return (
+    <article className="white-panel inventory-workspace cleaning-workspace">
+      <div className="reuse-panel-head inventory-head"><div><h2>智能数据清洗</h2><p>基于探查结果编排清洗规则，预览影响并生成可追溯的新版本</p></div><div><label className="inventory-select">目标数据集<select value={dataset} onChange={(event) => { setDataset(event.target.value); setProgress(0); }}><option>金融年报问答集 v2.1</option><option>篮球图像数据集 v1.3</option><option>客服知识向量集 v3.4</option></select></label><button className="reuse-primary" disabled={running || enabledCount === 0} onClick={() => { setProgress(0); setRunning(true); }}>{running ? `清洗中 ${progress}%` : "✦ 开始智能清洗"}</button></div></div>
+      <div className="cleaning-kpis">{[['待处理问题', '3,218', '涉及 6 个字段'], ['重复记录', '842', '占比 0.67%'], ['空值记录', '2,516', '占比 0.20%'], ['格式异常', '186', '占比 0.01%'], ['预计质量提升', '+4.8', '从 93.7 到 98.5']].map((item, index) => <div key={item[0]} className={index === 4 ? "highlight" : ""}><span>{item[0]}</span><strong>{item[1]}</strong><small>{item[2]}</small></div>)}</div>
+      <div className="cleaning-grid">
+        <section className="sub-panel rule-panel"><header><div><h3>清洗规则</h3><p>已启用 {enabledCount} / {rules.length} 项</p></div><button className="reuse-link" onClick={() => setRules((current) => current.map((rule) => ({ ...rule, enabled: true })))}>全部启用</button></header><div className="rule-list">{rules.map((rule, index) => <div key={rule.name}><span className={`rule-icon r${index}`}>{['重', '空', '格', '异', '敏'][index]}</span><div><strong>{rule.name}</strong><small>{rule.desc}</small></div><button className={`toggle-switch ${rule.enabled ? "on" : ""}`} aria-label={`${rule.enabled ? '关闭' : '启用'}${rule.name}`} onClick={() => setRules((current) => current.map((item) => item.name === rule.name ? { ...item, enabled: !item.enabled } : item))}><i /></button></div>)}</div></section>
+        <section className="sub-panel cleaning-run-panel"><header><div><h3>执行流程</h3><p>{running ? '正在处理数据' : progress === 100 ? '最近一次执行已完成' : '等待开始'}</p></div><Status tone={running ? "blue" : progress === 100 ? "green" : "gray"}>{running ? "运行中" : progress === 100 ? "已完成" : "未运行"}</Status></header><div className="cleaning-progress-ring" style={{ "--score": `${progress * 3.6}deg` } as React.CSSProperties}><strong>{progress}%</strong><span>当前进度</span></div><div className="cleaning-steps">{[['数据备份', 10], ['规则校验', 25], ['执行清洗', 70], ['质量复检', 90], ['生成版本', 100]].map((step, index) => <div key={step[0]} className={progress >= step[1] ? "done" : running && progress < step[1] && (index === 0 || progress >= ([0, 10, 25, 70, 90][index])) ? "active" : ""}><i>{progress >= step[1] ? '✓' : index + 1}</i><span>{step[0]}</span></div>)}</div><p className="cleaning-note">清洗过程将保留原始版本，可随时回滚，不会覆盖源数据。</p></section>
+      </div>
+      <section className="sub-panel cleaning-preview"><header><div><h3>问题与修复预览</h3><p>执行前抽样展示规则命中结果</p></div><button className="reuse-link" onClick={() => notify("已重新生成清洗预览")}>重新预览</button></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>字段 / 记录</th><th>问题类型</th><th>原始值</th><th>建议修复</th><th>命中规则</th><th>置信度</th></tr></thead><tbody>{[['customer_name #3812', '空值', '(空)', '根据关联账户补全', '空值智能填充', '96%'], ['mobile_phone #9218', '格式异常', '138-0066-218', '13800662180', '格式标准化', '99%'], ['annual_value #186', '异常值', '9,862,000,000', '98,620.00', '异常值处理', '92%'], ['record #11028', '重复记录', '与 #10982 相似', '合并并保留最新值', '重复数据识别', '98%']].map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={cell} className={index === 2 ? 'before-value' : index === 3 ? 'after-value' : ''}>{cell}</td>)}</tr>)}</tbody></table></div></section>
+    </article>
+  );
+}
+
 function InventoryPage({
   sources,
   openDialog,
@@ -710,7 +935,7 @@ function InventoryPage({
           </button>
         ))}
       </div>
-      <article className="white-panel reuse-list-panel">
+      {section === "数据库管理" && <article className="white-panel reuse-list-panel inventory-database-panel">
         <div className="reuse-panel-head">
           <div>
             <h2>{section}</h2>
@@ -778,7 +1003,11 @@ function InventoryPage({
           </table>
           {filtered.length === 0 && <div className="table-empty">未找到匹配的数据连接</div>}
         </div>
-      </article>
+      </article>}
+      {section === "数据探查" && <DataExploration sources={sources} notify={notify} />}
+      {section === "本地数据管理" && <LocalDataManager notify={notify} />}
+      {section === "智能数据盘点" && <SmartInventory notify={notify} />}
+      {section === "智能数据清洗" && <SmartCleaning notify={notify} />}
     </section>
   );
 }
