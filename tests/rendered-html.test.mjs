@@ -49,6 +49,8 @@ test("keeps production metadata and core interactions in source", async () => {
   ]);
 
   assert.match(page, /^"use client";/);
+  assert.match(page, /from "lucide-react"/);
+  assert.match(page, /function UiIcon/);
   assert.match(page, /function ProjectToolbar/);
   assert.match(page, /function DataExploration/);
   assert.match(page, /function LocalDataManager/);
@@ -82,5 +84,6 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.governance-algorithm-panel/);
   assert.match(css, /\.market-card-grid/);
   assert.match(css, /\.algorithm-detail-drawer/);
+  assert.match(css, /\.ui-icon/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });

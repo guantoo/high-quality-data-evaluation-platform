@@ -4200,6 +4200,113 @@ button:active:not(:disabled) {
   filter: brightness(0.97);
 }
 
+/* Unified line-icon system */
+.ui-icon {
+  display: block;
+  flex: 0 0 auto;
+  color: currentColor;
+  pointer-events: none;
+}
+
+.reuse-primary,
+.reuse-secondary,
+.reuse-link,
+.reuse-topbar nav button,
+.workbench-actions button,
+.workbench-view-tabs button,
+.flow-canvas-head button,
+.node-inspector > footer button,
+.market-page-head button,
+.algorithm-page-head button,
+.market-algorithm-card > footer > button,
+.market-detail-panel > footer button,
+.model-banner button,
+.inventory-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.reuse-link { justify-content: flex-start; }
+
+.reuse-topbar nav button .ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.reuse-breadcrumb button,
+.rail-flyout header button,
+.top-popover header button,
+.reuse-assistant header button,
+.log-drawer header button,
+.algorithm-detail-drawer > header button,
+.algorithm-create-dialog > header button,
+.market-detail-panel > header button {
+  display: inline-grid;
+  place-items: center;
+}
+
+.icon-rail nav button > span {
+  display: grid;
+  place-items: center;
+}
+
+.project-select > span .ui-icon { stroke-width: 2; }
+
+.reuse-search > .ui-icon,
+.resource-search > .ui-icon {
+  width: 14px;
+  height: 14px;
+  color: #8091a4;
+}
+
+.view-switch button,
+.tag-add,
+.flow-resource-panel > header button,
+.flow-resource-panel > footer button,
+.workbench-run-log > header button,
+.node-tags button,
+.market-results > header button {
+  display: inline-grid;
+  place-items: center;
+}
+
+.flow-resource-panel > footer span,
+.market-algorithm-card > footer > div span,
+.market-detail-score strong,
+.reuse-toast {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.asset-tree button > i {
+  display: grid;
+  place-items: center;
+  font-style: normal;
+}
+
+.flow-node > span .ui-icon,
+.resource-list > button > span .ui-icon,
+.node-inspector > header > div > span .ui-icon {
+  stroke-width: 1.9;
+}
+
+.workbench-run.is-running .ui-icon,
+button:disabled .ui-icon[data-loading="true"] {
+  animation: workbench-spin 1s linear infinite;
+}
+
+.market-algorithm-card > header > button.favorite .ui-icon {
+  fill: currentColor;
+}
+
+.market-empty > span {
+  display: grid;
+  place-items: center;
+}
+
 @media (max-width: 1280px) {
   .exploration-grid { grid-template-columns: 1.5fr 0.8fr; }
   .inventory-head { align-items: flex-start; padding: 10px 0; }

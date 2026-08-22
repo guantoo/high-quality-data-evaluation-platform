@@ -9,6 +9,50 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  Bell,
+  Blocks,
+  BookOpen,
+  CalendarClock,
+  Check,
+  ChevronRight,
+  CircleCheck,
+  ClipboardCheck,
+  Database,
+  Download,
+  Filter,
+  FolderKanban,
+  Gauge,
+  GitBranch,
+  Grid2X2,
+  House,
+  LayoutDashboard,
+  LocateFixed,
+  LogOut,
+  Menu,
+  Minus,
+  MoreHorizontal,
+  PackageCheck,
+  Play,
+  Plus,
+  RefreshCw,
+  Redo2,
+  Rows3,
+  Save,
+  Search,
+  Settings2,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Star,
+  Undo2,
+  Upload,
+  UserRound,
+  Workflow,
+  X,
+  ZoomIn,
+  type LucideIcon,
+} from "lucide-react";
 
 type ModuleId =
   | "home"
@@ -27,6 +71,10 @@ type DialogId =
 type TopPanelId = "guide" | "profile" | "messages" | null;
 type GovernanceView = "projects" | "workspace" | "algorithms" | "marketplace";
 type Notify = (message: string) => void;
+
+function UiIcon({ icon: Icon, size = 14 }: { icon: LucideIcon; size?: number }) {
+  return <Icon className="ui-icon" size={size} strokeWidth={1.8} aria-hidden="true" />;
+}
 
 type ProjectRow = {
   name: string;
@@ -80,43 +128,43 @@ const modules: Array<{
   id: ModuleId;
   label: string;
   short: string;
-  icon: string;
+  icon: LucideIcon;
   children: string[];
 }> = [
-  { id: "home", label: "首页", short: "首页", icon: "⌂", children: [] },
+  { id: "home", label: "首页", short: "首页", icon: House, children: [] },
   {
     id: "inventory",
     label: "智能数据盘点",
     short: "盘点",
-    icon: "◈",
+    icon: Database,
     children: ["数据库管理", "数据探查", "本地数据管理", "智能数据盘点", "智能数据清洗"],
   },
   {
     id: "governance",
     label: "高质量数据治理",
     short: "治理",
-    icon: "▥",
+    icon: ShieldCheck,
     children: ["治理项目管理", "高质量数据治理工作间", "治理算法管理", "治理算法市场"],
   },
   {
     id: "assessment",
     label: "高质量数据集评估",
     short: "评估",
-    icon: "▧",
+    icon: ClipboardCheck,
     children: ["高质量数据评估", "高质量数据评估历史"],
   },
   {
     id: "modelDev",
     label: "可用不可见模型开发",
     short: "开发",
-    icon: "⌘",
+    icon: Blocks,
     children: ["模型开发任务", "RAG 增强", "微调训练", "蒸馏量化", "模型注册"],
   },
   {
     id: "modelEval",
     label: "大模型能力评测",
     short: "评测",
-    icon: "◎",
+    icon: Gauge,
     children: ["评测标准", "评测任务", "能力对比", "发布门禁"],
   },
 ];
@@ -383,9 +431,9 @@ function ProjectToolbar({
   }
 
   return (
-      <section className="project-toolbar project-toolbar-minimal">
-        <label className="project-select">
-          <span>数</span>
+    <section className="project-toolbar project-toolbar-minimal">
+      <label className="project-select">
+        <span><UiIcon icon={Database} size={18} /></span>
           <select value={project} onChange={(event) => changeProject(event.target.value)} aria-label="切换项目">
             <option>高质量数据集评估演示</option>
             <option>高质量数据集测试</option>
@@ -455,7 +503,7 @@ function HomeDashboard({ filters, notify }: { filters: FilterValues; notify: Not
           </button>
         ))}
         <button className="file-empty" onClick={() => fileInput.current?.click()}>
-          <span>＋</span>
+          <span><UiIcon icon={Plus} size={18} /></span>
           <p>添加本地数据文件</p>
           <small>支持多选，文件仅保留在当前浏览器会话</small>
         </button>
@@ -572,7 +620,7 @@ function DataExploration({ sources, notify }: { sources: SourceRow[]; notify: No
         <div>
           <label className="inventory-select">数据源<select value={source} onChange={(event) => setSource(event.target.value)}>{sources.map((item) => <option key={item.name}>{item.name}</option>)}</select></label>
           <label className="inventory-select">数据表<select value={table} onChange={(event) => setTable(event.target.value)}><option>customer_profile</option><option>order_detail</option><option>service_record</option><option>product_catalog</option></select></label>
-          <button className="reuse-primary" disabled={scanning} onClick={() => { setProgress(0); setScanning(true); }}>{scanning ? `探查中 ${progress}%` : "▶ 开始探查"}</button>
+          <button className="reuse-primary" disabled={scanning} onClick={() => { setProgress(0); setScanning(true); }}><UiIcon icon={scanning ? RefreshCw : Play} />{scanning ? `探查中 ${progress}%` : "开始探查"}</button>
         </div>
       </div>
       {scanning && <div className="workspace-progress"><Progress value={progress} /><span>正在读取字段统计与样例数据...</span></div>}
@@ -653,9 +701,9 @@ function LocalDataManager({ notify }: { notify: Notify }) {
     <article className="white-panel inventory-workspace local-manager-workspace">
       <div className="reuse-panel-head inventory-head">
         <div><h2>本地数据管理</h2><p>上传、解析和管理用于治理与评估的本地文件</p></div>
-        <div><label className="reuse-search">⌕ <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索文件名称" /></label><div className="view-switch"><button className={view === "列表" ? "active" : ""} onClick={() => setView("列表")}>☷</button><button className={view === "卡片" ? "active" : ""} onClick={() => setView("卡片")}>▦</button></div><button className="reuse-primary" onClick={() => input.current?.click()}>＋ 导入本地文件</button></div>
+        <div><label className="reuse-search"><UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索文件名称" /></label><div className="view-switch"><button aria-label="列表视图" className={view === "列表" ? "active" : ""} onClick={() => setView("列表")}><UiIcon icon={Rows3} /></button><button aria-label="卡片视图" className={view === "卡片" ? "active" : ""} onClick={() => setView("卡片")}><UiIcon icon={Grid2X2} /></button></div><button className="reuse-primary" onClick={() => input.current?.click()}><UiIcon icon={Upload} />导入本地文件</button></div>
       </div>
-      <button className="local-dropzone" onClick={() => input.current?.click()}><span>⇧</span><div><strong>点击选择本地文件</strong><p>支持 CSV、Excel、JSON、PDF、图像、音频、视频及 ZIP，单文件建议不超过 2 GB</p></div><b>浏览文件</b></button>
+      <button className="local-dropzone" onClick={() => input.current?.click()}><span><UiIcon icon={Upload} size={20} /></span><div><strong>点击选择本地文件</strong><p>支持 CSV、Excel、JSON、PDF、图像、音频、视频及 ZIP，单文件建议不超过 2 GB</p></div><b>浏览文件</b></button>
       <input ref={input} className="visually-hidden" type="file" multiple onChange={addLocalFiles} />
       <div className="local-summary"><span>文件总数 <b>{files.length}</b></span><span>已解析 <b>{files.filter((file) => file.status === "可用").length}</b></span><span>存储占用 <b>1.65 GB</b></span><span>待处理 <b>{files.filter((file) => file.status !== "可用").length}</b></span></div>
       {view === "列表" ? (
@@ -704,7 +752,7 @@ function SmartInventory({ notify }: { notify: Notify }) {
       <div className="inventory-kpis asset-kpis">{[['数据资产', '514', '+17 新增'], ['数据表', '165', '12 个数据源'], ['数据字段', '3,842', '画像完成 92%'], ['敏感字段', '286', '已分级 100%'], ['血缘关系', '1,208', '+64 条关系']].map((item, index) => <div key={item[0]}><span className={`kpi-icon k${index % 4}`}>{['资', '表', '列', '敏', '链'][index]}</span><p>{item[0]}</p><strong>{item[1]}</strong><small>{item[2]}</small></div>)}</div>
       <div className="domain-grid">{domains.map((domain) => <button key={domain.name} className={selectedDomain === domain.name ? "active" : ""} onClick={() => setSelectedDomain(domain.name)}><span className={domain.color}>{domain.icon}</span><div><strong>{domain.name}</strong><p>{domain.assets} 个资产 · {domain.tables} 张表</p><div className="domain-progress"><i style={{ width: `${domain.coverage}%` }} /></div><small>盘点覆盖率 {domain.coverage}%</small></div><b>›</b></button>)}</div>
       <div className="inventory-detail-grid">
-        <section className="sub-panel asset-tree-panel"><header><div><h3>{selected.name}资产目录</h3><p>{selected.assets} 个资产，按语义自动归类</p></div><button className="reuse-link" onClick={() => notify(`${selected.name}目录已展开到字段级`)}>展开全部</button></header><div className="asset-tree">{[['基础信息', 26, '客户基本资料、身份标识'], ['行为记录', 34, '访问、咨询、服务轨迹'], ['价值指标', 18, '贡献度、生命周期价值'], ['标签特征', 50, '偏好、等级、风险标签']].map((item, index) => <button key={item[0]}><span>{index === 0 ? '▾' : '›'}</span><i>▦</i><div><strong>{item[0]}</strong><small>{item[2]}</small></div><b>{item[1]}</b></button>)}</div></section>
+        <section className="sub-panel asset-tree-panel"><header><div><h3>{selected.name}资产目录</h3><p>{selected.assets} 个资产，按语义自动归类</p></div><button className="reuse-link" onClick={() => notify(`${selected.name}目录已展开到字段级`)}><UiIcon icon={GitBranch} />展开全部</button></header><div className="asset-tree">{[['基础信息', 26, '客户基本资料、身份标识'], ['行为记录', 34, '访问、咨询、服务轨迹'], ['价值指标', 18, '贡献度、生命周期价值'], ['标签特征', 50, '偏好、等级、风险标签']].map((item) => <button key={item[0]}><span><UiIcon icon={ChevronRight} size={12} /></span><i><UiIcon icon={FolderKanban} size={14} /></i><div><strong>{item[0]}</strong><small>{item[2]}</small></div><b>{item[1]}</b></button>)}</div></section>
         <section className="sub-panel asset-quality-panel"><header><div><h3>盘点质量</h3><p>资产识别与治理准备度</p></div><Status>整体良好</Status></header>{[['语义识别', 96], ['字段画像', 92], ['敏感识别', 100], ['血缘覆盖', 84], ['责任人绑定', 71]].map((item) => <div className="quality-bar" key={item[0]}><span>{item[0]}</span><div><i style={{ width: `${item[1]}%` }} /></div><b>{item[1]}%</b></div>)}<button className="reuse-secondary" onClick={() => notify("已生成资产盘点报告")}>生成盘点报告</button></section>
       </div>
       <section className="sub-panel inventory-history"><header><div><h3>最近盘点记录</h3><p>保留最近 30 次盘点结果</p></div></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>任务名称</th><th>数据源</th><th>发现资产</th><th>新增 / 变化</th><th>执行时间</th><th>耗时</th><th>状态</th></tr></thead><tbody>{[['全域数据资产盘点-0822', '全部数据源', '514', '+17 / 23', '2026-08-22 23:18', '18m 42s'], ['生产库增量盘点-0821', '生产业务库', '128', '+4 / 8', '2026-08-21 23:00', '6m 18s'], ['知识文档仓盘点-0820', '知识文档仓', '96', '+12 / 2', '2026-08-20 02:10', '11m 05s']].map((row) => <tr key={row[0]}>{row.map((cell) => <td key={cell}>{cell}</td>)}<td><Status>已完成</Status></td></tr>)}</tbody></table></div></section>
@@ -786,9 +834,9 @@ function InventoryPage({
           </div>
           <div>
             <label className="reuse-search">
-              ⌕ <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
+              <UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
             </label>
-            <button className="reuse-primary" onClick={openDialog}>＋ 新建数据连接</button>
+            <button className="reuse-primary" onClick={openDialog}><UiIcon icon={Plus} />新建数据连接</button>
           </div>
         </div>
         <div className="source-cards">
@@ -888,9 +936,9 @@ function GovernancePage({
             <p>当前项目：高质量数据集评估演示</p>
           </div>
           <div>
-            <button className="reuse-primary" onClick={openDialog}>＋ 新建项目</button>
+            <button className="reuse-primary" onClick={openDialog}><UiIcon icon={Plus} />新建项目</button>
             <label className="reuse-search">
-              ⌕ <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
+              <UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
             </label>
             <button className="reuse-secondary" onClick={() => notify(`已筛选出 ${filtered.length} 个项目`)}>搜索</button>
           </div>
@@ -913,7 +961,7 @@ function GovernancePage({
                     </td>
                     <td>普通项目</td><td>{row.overview}</td><td>高质量数据评估演示</td><td>{row.created}</td>
                     <td>高质量数据评估演示</td><td>{row.updated}</td>
-                    <td><button className="tag-add" onClick={() => notify(`${row.name} 已添加重点标记`)}>＋</button></td>
+                    <td><button className="tag-add" aria-label={`标记${row.name}`} onClick={() => notify(`${row.name} 已添加重点标记`)}><UiIcon icon={Star} size={13} /></button></td>
                     <td>
                       <button className="reuse-link" onClick={() => enterWorkspace(row)}>ETL</button>{" "}
                       <button className="reuse-link" onClick={() => copyProject(row)}>复制</button>{" "}
@@ -930,7 +978,7 @@ function GovernancePage({
             <span>▤</span>
             <h3>{section}</h3>
             <p>暂无运行中的记录，可从治理工作间创建定时任务。</p>
-            <button className="reuse-primary" onClick={() => notify("定时任务创建向导已准备")}>＋ 创建定时任务</button>
+            <button className="reuse-primary" onClick={() => notify("定时任务创建向导已准备")}><UiIcon icon={CalendarClock} />创建定时任务</button>
           </div>
         )}
         <footer className="reuse-pagination">
@@ -1027,11 +1075,11 @@ function GovernanceWorkbench({
           <i className={saved ? "saved" : ""}>{saved ? "✓ 已保存" : "● 有未保存修改"}</i>
         </div>
         <div className="workbench-actions">
-          <button title="撤销" onClick={() => notify("已撤销上一步画布操作")}>↶</button>
-          <button title="重做" onClick={() => notify("已重做画布操作")}>↷</button>
-          <button className="workbench-save" onClick={() => { setSaved(true); notify("项目流程已保存"); }}>保存</button>
-          <button onClick={() => notify("已打开定时任务配置")}>▣ 定时任务</button>
-          <button className="workbench-run" disabled={running} onClick={runFlow}>{running ? `运行中 ${runProgress}%` : "▶ 运行全部"}</button>
+          <button title="撤销" aria-label="撤销" onClick={() => notify("已撤销上一步画布操作")}><UiIcon icon={Undo2} /></button>
+          <button title="重做" aria-label="重做" onClick={() => notify("已重做画布操作")}><UiIcon icon={Redo2} /></button>
+          <button className="workbench-save" onClick={() => { setSaved(true); notify("项目流程已保存"); }}><UiIcon icon={Save} />保存</button>
+          <button onClick={() => notify("已打开定时任务配置")}><UiIcon icon={CalendarClock} />定时任务</button>
+          <button className="workbench-run" disabled={running} onClick={runFlow}><UiIcon icon={running ? RefreshCw : Play} />{running ? `运行中 ${runProgress}%` : "运行全部"}</button>
         </div>
       </header>
 
@@ -1042,34 +1090,34 @@ function GovernanceWorkbench({
           ))}
         </div>
         <div className="canvas-view-actions">
-          <button onClick={() => { setZoom(90); notify("已自动整理流程画布"); }}>◇ 自动布局</button>
-          <button onClick={() => setZoom((value) => Math.max(60, value - 10))}>−</button><span>{zoom}%</span><button onClick={() => setZoom((value) => Math.min(130, value + 10))}>＋</button>
+          <button onClick={() => { setZoom(90); notify("已自动整理流程画布"); }}><UiIcon icon={LayoutDashboard} />自动布局</button>
+          <button aria-label="缩小画布" onClick={() => setZoom((value) => Math.max(60, value - 10))}><UiIcon icon={Minus} /></button><span>{zoom}%</span><button aria-label="放大画布" onClick={() => setZoom((value) => Math.min(130, value + 10))}><UiIcon icon={ZoomIn} /></button>
         </div>
       </nav>
 
       <div className={`workbench-body ${logOpen ? "with-log" : ""}`}>
         <aside className="flow-resource-panel">
-          <header><strong>项目资源</strong><button onClick={() => notify("资源导入面板已打开")}>＋</button></header>
+          <header><strong>项目资源</strong><button aria-label="添加项目资源" onClick={() => notify("资源导入面板已打开")}><UiIcon icon={Plus} /></button></header>
           <div className="resource-tabs">
             {(["数据集", "Recipe"] as const).map((item) => <button key={item} className={resourceType === item ? "active" : ""} onClick={() => setResourceType(item)}>{item}<b>{item === "数据集" ? 5 : 4}</b></button>)}
           </div>
-          <label className="resource-search">⌕<input value={resourceSearch} onChange={(event) => setResourceSearch(event.target.value)} placeholder={`搜索${resourceType}`} /></label>
+          <label className="resource-search"><UiIcon icon={Search} /><input value={resourceSearch} onChange={(event) => setResourceSearch(event.target.value)} placeholder={`搜索${resourceType}`} /></label>
           <div className="resource-list">
             {filteredResources.map((node) => (
               <button key={node.id} className={selectedNodeId === node.id ? "active" : ""} onClick={() => setSelectedNodeId(node.id)}>
-                <span className={node.kind}>{node.kind === "recipe" ? "◇" : node.kind === "output" ? "✓" : "▤"}</span>
-                <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>›</i>
+                <span className={node.kind}><UiIcon icon={node.kind === "recipe" ? Workflow : node.kind === "output" ? PackageCheck : Database} size={15} /></span>
+                <div><strong>{node.label}</strong><small>{node.meta}</small></div><i><UiIcon icon={ChevronRight} size={13} /></i>
               </button>
             ))}
             {filteredResources.length === 0 && <p className="resource-empty">没有匹配的资源</p>}
           </div>
-          <footer><span>◉ 4 个节点已成功运行</span><button onClick={() => notify("已刷新项目资源")}>⟳</button></footer>
+          <footer><span><UiIcon icon={CircleCheck} size={11} />4 个节点已成功运行</span><button aria-label="刷新项目资源" onClick={() => notify("已刷新项目资源")}><UiIcon icon={RefreshCw} size={13} /></button></footer>
         </aside>
 
         <main className="flow-canvas-shell">
           <header className="flow-canvas-head">
             <div><span className="live-dot" /><strong>主流程</strong><small>最近保存：刚刚</small></div>
-            <div><button onClick={() => notify("流程筛选器已展开")}>⌁ 筛选</button><button onClick={() => notify("流程已导出为 PNG")}>⇩ 导出</button><button onClick={() => notify("已定位全部流程节点")}>⌖ 定位</button></div>
+            <div><button onClick={() => notify("流程筛选器已展开")}><UiIcon icon={Filter} />筛选</button><button onClick={() => notify("流程已导出为 PNG")}><UiIcon icon={Download} />导出</button><button onClick={() => notify("已定位全部流程节点")}><UiIcon icon={LocateFixed} />定位</button></div>
           </header>
           <div className="flow-canvas-viewport">
             <div className="flow-canvas" style={{ transform: `scale(${zoom / 100})` }}>
@@ -1083,7 +1131,7 @@ function GovernanceWorkbench({
                   onClick={() => setSelectedNodeId(node.id)}
                   onDoubleClick={() => notify(`已打开 ${node.label} 详情`)}
                 >
-                  <span>{node.kind === "recipe" ? "◇" : node.kind === "output" ? "✓" : "▤"}</span>
+                  <span><UiIcon icon={node.kind === "recipe" ? Workflow : node.kind === "output" ? PackageCheck : Database} size={16} /></span>
                   <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>{node.kind === "output" ? "就绪" : "正常"}</i>
                 </button>
               ))}
@@ -1093,7 +1141,7 @@ function GovernanceWorkbench({
         </main>
 
         <aside className="node-inspector">
-          <header><div><span className={selectedNode.kind}>{selectedNode.kind === "recipe" ? "◇" : selectedNode.kind === "output" ? "✓" : "▤"}</span><div><strong>{selectedNode.label}</strong><small>{selectedNode.meta}</small></div></div><button onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}>•••</button></header>
+          <header><div><span className={selectedNode.kind}><UiIcon icon={selectedNode.kind === "recipe" ? Workflow : selectedNode.kind === "output" ? PackageCheck : Database} size={16} /></span><div><strong>{selectedNode.label}</strong><small>{selectedNode.meta}</small></div></div><button aria-label="更多节点操作" onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}><UiIcon icon={MoreHorizontal} /></button></header>
           <div className="inspector-tabs">{(["配置", "质量", "血缘"] as const).map((tab) => <button className={inspectorTab === tab ? "active" : ""} key={tab} onClick={() => setInspectorTab(tab)}>{tab}</button>)}</div>
           {inspectorTab === "配置" && <div className="inspector-content">
             <h4>节点配置</h4>
@@ -1101,7 +1149,7 @@ function GovernanceWorkbench({
             <label>节点类型<select defaultValue={selectedNode.kind === "recipe" ? "治理 Recipe" : "数据集"}><option>数据集</option><option>治理 Recipe</option><option>输出数据集</option></select></label>
             <div className="config-pair"><span><small>存储格式</small><strong>{selectedNode.kind === "dataset" ? "Parquet" : "Pipeline"}</strong></span><span><small>运行引擎</small><strong>高质量引擎</strong></span></div>
             <label>执行策略<select defaultValue="增量执行"><option>增量执行</option><option>全量执行</option><option>按需执行</option></select></label>
-            <div className="node-tags"><small>标签</small><span>生产数据</span><span>质量治理</span><button onClick={() => notify("已打开标签选择器")}>＋</button></div>
+            <div className="node-tags"><small>标签</small><span>生产数据</span><span>质量治理</span><button aria-label="添加标签" onClick={() => notify("已打开标签选择器")}><UiIcon icon={Plus} size={12} /></button></div>
           </div>}
           {inspectorTab === "质量" && <div className="inspector-content quality-inspector">
             <h4>最近质量结果</h4>
@@ -1114,11 +1162,11 @@ function GovernanceWorkbench({
             <div className="current"><i>●</i><span><small>当前节点</small><strong>{selectedNode.label}</strong></span></div>
             <div><i>↓</i><span><small>下游输出</small><strong>高质量训练集</strong></span></div>
           </div>}
-          <footer><button onClick={() => notify(`已校验 ${selectedNode.label} 的配置`)}>校验配置</button><button className="primary" onClick={() => { setRunProgress(12); setRunning(true); setLogOpen(true); }}>▶ 运行当前节点</button></footer>
+          <footer><button onClick={() => notify(`已校验 ${selectedNode.label} 的配置`)}><UiIcon icon={Check} />校验配置</button><button className="primary" onClick={() => { setRunProgress(12); setRunning(true); setLogOpen(true); }}><UiIcon icon={Play} />运行当前节点</button></footer>
         </aside>
 
         <section className={`workbench-run-log ${logOpen ? "open" : ""}`}>
-          <header><div><strong>运行记录</strong><span className={running ? "running" : ""}>{running ? `运行中 · ${runProgress}%` : "最近运行成功 · 08-22 16:42"}</span></div><div><button onClick={() => notify("运行记录已刷新")}>⟳</button><button onClick={() => setLogOpen(!logOpen)}>{logOpen ? "⌄" : "⌃"}</button></div></header>
+          <header><div><strong>运行记录</strong><span className={running ? "running" : ""}>{running ? `运行中 · ${runProgress}%` : "最近运行成功 · 08-22 16:42"}</span></div><div><button aria-label="刷新运行记录" onClick={() => notify("运行记录已刷新")}><UiIcon icon={RefreshCw} size={13} /></button><button aria-label={logOpen ? "收起运行记录" : "展开运行记录"} onClick={() => setLogOpen(!logOpen)}><UiIcon icon={SlidersHorizontal} size={13} /></button></div></header>
           {logOpen && <div className="run-log-body">
             <div className="run-progress"><i><b style={{ width: `${running ? runProgress : 100}%` }} /></i><span>{running ? `${runProgress}%` : "100%"}</span></div>
             <div className="run-log-rows">
@@ -1197,13 +1245,13 @@ function GovernanceAlgorithms({ notify }: { notify: Notify }) {
       {section === "算法列表" ? <article className="white-panel governance-algorithm-panel">
         <header className="algorithm-page-head">
           <div><h2>治理算法管理</h2><p>维护治理算法版本、适用场景和启用状态</p></div>
-          <div><button className="reuse-primary" onClick={() => setCreating(true)}>＋ 新建算法</button><button className="reuse-secondary" onClick={() => notify("算法包导入面板已打开")}>⇧ 导入算法包</button></div>
+          <div><button className="reuse-primary" onClick={() => setCreating(true)}><UiIcon icon={Plus} />新建算法</button><button className="reuse-secondary" onClick={() => notify("算法包导入面板已打开")}><UiIcon icon={Upload} />导入算法包</button></div>
         </header>
         <div className="algorithm-kpis">
           {[['算法总数', algorithms.length, '算'], ['已启用', algorithms.filter((item) => item.enabled).length, '启'], ['平台内置', algorithms.filter((item) => item.source === '平台内置').length, '内'], ['近 7 日调用', '52,821', '调']].map((item, index) => <div key={item[0]}><span className={`algorithm-kpi-icon i${index}`}>{item[2]}</span><div><small>{item[0]}</small><strong>{item[1]}</strong></div></div>)}
         </div>
         <div className="algorithm-filter-bar">
-          <label className="reuse-search">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索算法名称、编码或场景" /></label>
+          <label className="reuse-search"><UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索算法名称、编码或场景" /></label>
           <select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select>
           <select value={source} onChange={(event) => setSource(event.target.value)}><option>全部来源</option><option>平台内置</option><option>自定义</option></select>
           <button className="reuse-secondary" onClick={() => { setSearch(""); setCategory("全部分类"); setSource("全部来源"); }}>重置</button>
@@ -1222,19 +1270,19 @@ function GovernanceAlgorithms({ notify }: { notify: Notify }) {
         </div>
         <footer className="reuse-pagination"><span>共 {filtered.length} 条</span><button disabled>‹</button><button className="active">1</button><button disabled>›</button></footer>
       </article> : <article className="white-panel governance-run-panel">
-        <header className="algorithm-page-head"><div><h2>算法运行记录</h2><p>追踪算法执行状态、耗时和处理数据集</p></div><button className="reuse-secondary" onClick={() => notify("运行记录已刷新")}>⟳ 刷新</button></header>
+        <header className="algorithm-page-head"><div><h2>算法运行记录</h2><p>追踪算法执行状态、耗时和处理数据集</p></div><button className="reuse-secondary" onClick={() => notify("运行记录已刷新")}><UiIcon icon={RefreshCw} />刷新</button></header>
         <div className="run-summary-bar"><span><b>今日运行</b><strong>28</strong></span><span><b>成功</b><strong>25</strong></span><span><b>运行中</b><strong>2</strong></span><span><b>失败</b><strong>1</strong></span></div>
         <div className="reuse-table-wrap"><table className="reuse-table"><thead><tr><th>算法名称</th><th>治理项目</th><th>输入数据集</th><th>运行状态</th><th>耗时</th><th>开始时间</th><th>操作</th></tr></thead><tbody>{runRows.map((row) => <tr key={`${row[0]}-${row[5]}`}><td><strong>{row[0]}</strong></td><td>{row[1]}</td><td>{row[2]}</td><td><Status tone={row[3] === '成功' ? 'green' : row[3] === '运行中' ? 'blue' : 'orange'}>{row[3]}</Status></td><td>{row[4]}</td><td>{row[5]}</td><td><button className="reuse-link" onClick={() => notify(`${row[0]} 的运行日志已展开`)}>查看日志</button>{" "}{row[3] === '失败' && <button className="reuse-link" onClick={() => notify(`${row[0]} 已重新运行`)}>重试</button>}</td></tr>)}</tbody></table></div>
       </article>}
 
       {selected && <div className="algorithm-drawer-backdrop"><aside className="algorithm-detail-drawer">
-        <header><div><span>{selected.name.slice(0, 1)}</span><div><strong>{selected.name}</strong><small>{selected.code} · {selected.version}</small></div></div><button onClick={() => setSelected(null)}>×</button></header>
+        <header><div><span><UiIcon icon={Settings2} size={17} /></span><div><strong>{selected.name}</strong><small>{selected.code} · {selected.version}</small></div></div><button aria-label="关闭算法详情" onClick={() => setSelected(null)}><UiIcon icon={X} /></button></header>
         <nav><button className="active">基本信息</button><button onClick={() => notify("参数配置页已切换")}>参数配置</button><button onClick={() => notify("版本记录页已切换")}>版本记录</button></nav>
         <section><h3>算法说明</h3><p>{selected.description}</p><h3>算法信息</h3><dl><div><dt>治理分类</dt><dd>{selected.category}</dd></div><div><dt>适用场景</dt><dd>{selected.scene}</dd></div><div><dt>算法来源</dt><dd>{selected.source}</dd></div><div><dt>调用次数</dt><dd>{selected.calls}</dd></div><div><dt>运行成功率</dt><dd>{selected.success}</dd></div><div><dt>最近更新</dt><dd>{selected.updated}</dd></div></dl><h3>默认参数</h3><div className="algorithm-parameters"><span><b>匹配阈值</b><small>0.85</small></span><span><b>执行模式</b><small>增量</small></span><span><b>并发数</b><small>4</small></span></div></section>
         <footer><button className="reuse-secondary" onClick={() => notify(`${selected.name} 配置已保存为新版本`)}>另存版本</button><button className="reuse-primary" onClick={() => notify(`${selected.name} 已加入当前项目`)}>添加到项目</button></footer>
       </aside></div>}
 
-      {creating && <div className="algorithm-drawer-backdrop"><form className="algorithm-create-dialog" onSubmit={createAlgorithm}><header><div><strong>新建治理算法</strong><small>创建自定义算法并配置基本信息</small></div><button type="button" onClick={() => setCreating(false)}>×</button></header><section><label>算法名称<input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="请输入算法名称" /></label><label>治理分类<select value={draftCategory} onChange={(event) => setDraftCategory(event.target.value)}>{["完整性治理", "准确性治理", "规范性治理", "安全治理", "文档治理"].map((item) => <option key={item}>{item}</option>)}</select></label><label>算法编码<input value={draftName ? `custom-${draftName.length + algorithms.length}` : ""} readOnly placeholder="创建后自动生成" /></label><label>算法说明<textarea placeholder="描述算法用途、输入输出与适用场景" /></label><div className="upload-algorithm-box"><span>⇧</span><strong>上传算法包</strong><small>支持 ZIP、JAR、Python Wheel，最大 200 MB</small><button type="button" onClick={() => notify("已打开算法包文件选择器")}>选择文件</button></div></section><footer><button type="button" className="reuse-secondary" onClick={() => setCreating(false)}>取消</button><button className="reuse-primary" disabled={!draftName.trim()}>创建算法</button></footer></form></div>}
+      {creating && <div className="algorithm-drawer-backdrop"><form className="algorithm-create-dialog" onSubmit={createAlgorithm}><header><div><strong>新建治理算法</strong><small>创建自定义算法并配置基本信息</small></div><button type="button" aria-label="关闭新建算法" onClick={() => setCreating(false)}><UiIcon icon={X} /></button></header><section><label>算法名称<input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="请输入算法名称" /></label><label>治理分类<select value={draftCategory} onChange={(event) => setDraftCategory(event.target.value)}>{["完整性治理", "准确性治理", "规范性治理", "安全治理", "文档治理"].map((item) => <option key={item}>{item}</option>)}</select></label><label>算法编码<input value={draftName ? `custom-${draftName.length + algorithms.length}` : ""} readOnly placeholder="创建后自动生成" /></label><label>算法说明<textarea placeholder="描述算法用途、输入输出与适用场景" /></label><div className="upload-algorithm-box"><span><UiIcon icon={Upload} size={18} /></span><strong>上传算法包</strong><small>支持 ZIP、JAR、Python Wheel，最大 200 MB</small><button type="button" onClick={() => notify("已打开算法包文件选择器")}>选择文件</button></div></section><footer><button type="button" className="reuse-secondary" onClick={() => setCreating(false)}>取消</button><button className="reuse-primary" disabled={!draftName.trim()}><UiIcon icon={Plus} />创建算法</button></footer></form></div>}
     </section>
   );
 }
@@ -1297,19 +1345,19 @@ function GovernanceMarketplace({ notify }: { notify: Notify }) {
 
   return (
     <section className="governance-feature-page algorithm-market-page">
-      <header className="market-page-head"><div><h2>治理算法市场</h2><p>发现、安装并复用经过验证的数据治理算法</p></div><div><button className="reuse-secondary" onClick={() => notify("算法市场内容已刷新")}>⟳ 刷新市场</button><button className="reuse-primary" onClick={() => notify("算法发布向导已打开")}>＋ 发布算法</button></div></header>
+      <header className="market-page-head"><div><h2>治理算法市场</h2><p>发现、安装并复用经过验证的数据治理算法</p></div><div><button className="reuse-secondary" onClick={() => notify("算法市场内容已刷新")}><UiIcon icon={RefreshCw} />刷新市场</button><button className="reuse-primary" onClick={() => notify("算法发布向导已打开")}><UiIcon icon={Upload} />发布算法</button></div></header>
       <div className="market-stat-strip"><div><strong>42</strong><span>治理算法</span></div><i /><div><strong>8</strong><span>治理分类</span></div><i /><div><strong>99.1%</strong><span>平均成功率</span></div><i /><div><strong>71.7k</strong><span>累计安装</span></div><p><b>平台精选</b> 已完成兼容性、安全性和性能验证</p></div>
-      <div className="market-toolbar"><div>{(["全部算法", "已安装", "我的收藏"] as const).map((item) => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{item}<b>{item === "全部算法" ? marketAlgorithms.length : item === "已安装" ? installed.size : favorites.size}</b></button>)}</div><label className="reuse-search">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索算法名称、能力或标签" /></label><select value={sort} onChange={(event) => setSort(event.target.value)}><option>综合排序</option><option>安装量最高</option><option>评分最高</option></select></div>
+      <div className="market-toolbar"><div>{(["全部算法", "已安装", "我的收藏"] as const).map((item) => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{item}<b>{item === "全部算法" ? marketAlgorithms.length : item === "已安装" ? installed.size : favorites.size}</b></button>)}</div><label className="reuse-search"><UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索算法名称、能力或标签" /></label><select value={sort} onChange={(event) => setSort(event.target.value)}><option>综合排序</option><option>安装量最高</option><option>评分最高</option></select></div>
       <div className="market-layout">
         <aside className="market-categories"><header><strong>算法分类</strong><button onClick={() => setCategory("全部分类")}>重置</button></header>{categories.map((item, index) => <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}><span>{["全", "完", "准", "规", "重", "安", "文", "模"][index]}</span><strong>{item}</strong><b>{countByCategory(item)}</b></button>)}</aside>
-        <article className="market-results"><header><div><strong>{category === "全部分类" ? tab : category}</strong><span>找到 {filtered.length} 个算法</span></div><button onClick={() => notify("展示密度已切换")}>▦</button></header><div className="market-card-grid">
+        <article className="market-results"><header><div><strong>{category === "全部分类" ? tab : category}</strong><span>找到 {filtered.length} 个算法</span></div><button aria-label="切换展示密度" onClick={() => notify("展示密度已切换")}><UiIcon icon={Grid2X2} /></button></header><div className="market-card-grid">
           {filtered.map((item, index) => <article className={`market-algorithm-card ${selected?.id === item.id ? "selected" : ""}`} key={item.id}>
-            <header><span className={`m${index % 6}`}>{item.icon}</span><div><strong>{item.name}</strong><small>{item.author} · {item.version}</small></div><button className={favorites.has(item.id) ? "favorite" : ""} aria-label={`${favorites.has(item.id) ? '取消收藏' : '收藏'}${item.name}`} onClick={() => toggleFavorite(item)}>{favorites.has(item.id) ? "★" : "☆"}</button></header>
+            <header><span className={`m${index % 6}`}><UiIcon icon={Settings2} size={16} /></span><div><strong>{item.name}</strong><small>{item.author} · {item.version}</small></div><button className={favorites.has(item.id) ? "favorite" : ""} aria-label={`${favorites.has(item.id) ? '取消收藏' : '收藏'}${item.name}`} onClick={() => toggleFavorite(item)}><UiIcon icon={Star} size={15} /></button></header>
             <p>{item.description}</p><div className="market-tags">{item.featured && <b>精选</b>}{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
-            <footer><div><span>★ {item.rating}</span><span>⇩ {item.installs}</span></div><button className="market-detail-button" onClick={() => setSelected(item)}>详情</button><button className={installed.has(item.id) ? "installed" : ""} onClick={() => toggleInstall(item)}>{installed.has(item.id) ? "✓ 已安装" : "＋ 安装"}</button></footer>
+            <footer><div><span><UiIcon icon={Star} size={10} />{item.rating}</span><span><UiIcon icon={Download} size={10} />{item.installs}</span></div><button className="market-detail-button" onClick={() => setSelected(item)}>详情</button><button className={installed.has(item.id) ? "installed" : ""} onClick={() => toggleInstall(item)}><UiIcon icon={installed.has(item.id) ? Check : Plus} size={11} />{installed.has(item.id) ? "已安装" : "安装"}</button></footer>
           </article>)}
-        </div>{filtered.length === 0 && <div className="market-empty"><span>⌕</span><strong>没有匹配的治理算法</strong><p>请调整分类或搜索条件后重试</p></div>}</article>
-        {selected && <aside className="market-detail-panel"><header><div><span>{selected.icon}</span><div><strong>{selected.name}</strong><small>{selected.author}</small></div></div><button onClick={() => setSelected(null)}>×</button></header><section><div className="market-detail-score"><span><small>评分</small><strong>★ {selected.rating}</strong></span><span><small>安装量</small><strong>{selected.installs}</strong></span><span><small>当前版本</small><strong>{selected.version}</strong></span></div><h3>算法简介</h3><p>{selected.description}</p><h3>核心能力</h3><ul><li>支持可视化参数配置与执行预览</li><li>兼容批处理、增量和定时运行</li><li>输出质量报告及完整数据血缘</li></ul><h3>适用范围</h3><div className="market-tags">{selected.tags.map((tag) => <span key={tag}>{tag}</span>)}<span>{selected.category}</span></div><h3>最近版本</h3><div className="market-version"><b>{selected.version}</b><span>优化大规模数据执行性能</span><small>2026-08-18</small></div></section><footer><button className="reuse-secondary" onClick={() => toggleFavorite(selected)}>{favorites.has(selected.id) ? "★ 已收藏" : "☆ 收藏"}</button><button className="reuse-primary" onClick={() => toggleInstall(selected)}>{installed.has(selected.id) ? "从项目移除" : "安装到当前项目"}</button></footer></aside>}
+        </div>{filtered.length === 0 && <div className="market-empty"><span><UiIcon icon={Search} size={24} /></span><strong>没有匹配的治理算法</strong><p>请调整分类或搜索条件后重试</p></div>}</article>
+        {selected && <aside className="market-detail-panel"><header><div><span><UiIcon icon={Settings2} size={16} /></span><div><strong>{selected.name}</strong><small>{selected.author}</small></div></div><button aria-label="关闭算法详情" onClick={() => setSelected(null)}><UiIcon icon={X} /></button></header><section><div className="market-detail-score"><span><small>评分</small><strong><UiIcon icon={Star} size={11} />{selected.rating}</strong></span><span><small>安装量</small><strong>{selected.installs}</strong></span><span><small>当前版本</small><strong>{selected.version}</strong></span></div><h3>算法简介</h3><p>{selected.description}</p><h3>核心能力</h3><ul><li>支持可视化参数配置与执行预览</li><li>兼容批处理、增量和定时运行</li><li>输出质量报告及完整数据血缘</li></ul><h3>适用范围</h3><div className="market-tags">{selected.tags.map((tag) => <span key={tag}>{tag}</span>)}<span>{selected.category}</span></div><h3>最近版本</h3><div className="market-version"><b>{selected.version}</b><span>优化大规模数据执行性能</span><small>2026-08-18</small></div></section><footer><button className="reuse-secondary" onClick={() => toggleFavorite(selected)}><UiIcon icon={Star} />{favorites.has(selected.id) ? "已收藏" : "收藏"}</button><button className="reuse-primary" onClick={() => toggleInstall(selected)}><UiIcon icon={installed.has(selected.id) ? Check : Download} />{installed.has(selected.id) ? "从项目移除" : "安装到当前项目"}</button></footer></aside>}
       </div>
     </section>
   );
@@ -1359,10 +1407,10 @@ function AssessmentPage({
       <aside className="white-panel task-browser">
         <div className="reuse-panel-head small">
           <div><h2>审查任务列表</h2><p>20 个任务 · 展示 {filteredTasks.length}</p></div>
-          <button className="reuse-primary" onClick={openDialog}>＋ 添加</button>
+          <button className="reuse-primary" onClick={openDialog}><UiIcon icon={Plus} />添加</button>
         </div>
         <label className="reuse-search full">
-          ⌕ <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
+          <UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
         </label>
         <div className="assessment-task-list">
           {filteredTasks.map((item) => {
@@ -1463,7 +1511,7 @@ function ModelDevelopment({
           <span>在租户隔离环境中完成微调、RAG、蒸馏量化和模型注册，训练数据、权重和密钥全程受控。</span>
         </div>
         <div className="secure-orbit"><span>◆</span><i /><i /><i /></div>
-        <button onClick={() => openDialog()}>＋ 新建模型开发任务</button>
+        <button onClick={() => openDialog()}><UiIcon icon={Plus} />新建模型开发任务</button>
       </article>
       <div className="model-capability-grid">
         {capabilities.map((item, index) => (
@@ -1477,8 +1525,8 @@ function ModelDevelopment({
         <div className="reuse-panel-head">
           <div><h2>模型开发任务</h2><p>安全域资源使用率 68% · 当前等待队列 {jobs.filter((job) => job.status === "排队中").length}</p></div>
           <div>
-            <label className="reuse-search">⌕ <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索任务名称" /></label>
-            <button className="reuse-primary" onClick={() => openDialog()}>＋ 新建任务</button>
+            <label className="reuse-search"><UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索任务名称" /></label>
+            <button className="reuse-primary" onClick={() => openDialog()}><UiIcon icon={Plus} />新建任务</button>
           </div>
         </div>
         <div className="reuse-table-wrap">
@@ -1575,7 +1623,7 @@ function ModelEvaluation({
       <article className="white-panel reuse-list-panel">
         <div className="reuse-panel-head">
           <div><h2>评测任务列表</h2><p>模型版本必须通过评测门禁后才能发布</p></div>
-          <button className="reuse-primary" onClick={openDialog}>＋ 新建评测任务</button>
+          <button className="reuse-primary" onClick={openDialog}><UiIcon icon={Plus} />新建评测任务</button>
         </div>
         <div className="reuse-table-wrap">
           <table className="reuse-table">
@@ -1647,7 +1695,7 @@ function CreateDialog({
       <form className="reuse-dialog" onSubmit={submit}>
         <header>
           <div><h2>{titles[id][0]}</h2><p>{titles[id][1]}</p></div>
-          <button type="button" onClick={onClose}>×</button>
+          <button type="button" aria-label="关闭创建窗口" onClick={onClose}><UiIcon icon={X} /></button>
         </header>
         <label>
           {id === "connection" ? "连接名称" : id === "project" ? "项目名称" : "任务名称"}
@@ -1716,7 +1764,7 @@ function LogDrawer({ job, onClose }: { job: JobRow; onClose: () => void }) {
   ];
   return (
     <aside className="log-drawer">
-      <header><div><span>实时日志</span><strong>{job.name}</strong></div><button onClick={onClose}>×</button></header>
+      <header><div><span>实时日志</span><strong>{job.name}</strong></div><button aria-label="关闭实时日志" onClick={onClose}><UiIcon icon={X} /></button></header>
       <div className="log-meta"><Status tone={job.status === "已完成" ? "green" : "blue"}>{job.status}</Status><span>{job.model}</span><span>{job.progress}%</span></div>
       <pre>{logs.join("\n\n")}</pre>
       <footer><span className="live-dot" />日志自动刷新中<button className="reuse-secondary" onClick={onClose}>关闭</button></footer>
@@ -1872,7 +1920,7 @@ export default function Home() {
               aria-current={active === item.id ? "page" : undefined}
               aria-expanded={item.children.length ? menuOpen === item.id : undefined}
             >
-              <span>{item.icon}</span><small>{item.short}</small>
+              <span><UiIcon icon={item.icon} size={20} /></span><small>{item.short}</small>
             </button>
           ))}
         </nav>
@@ -1891,28 +1939,28 @@ export default function Home() {
 
       {menuOpen && (
         <aside className="rail-flyout">
-          <header><strong>{modules.find((item) => item.id === menuOpen)?.label}</strong><button onClick={() => setMenuOpen(null)}>×</button></header>
+          <header><strong>{modules.find((item) => item.id === menuOpen)?.label}</strong><button aria-label="关闭菜单" onClick={() => setMenuOpen(null)}><UiIcon icon={X} size={17} /></button></header>
           {modules.find((item) => item.id === menuOpen)?.children.map((child, index) => (
             <button
               key={child}
               className={tabs.find((tab) => tab.id === menuOpen)?.label === child ? "active" : ""}
               aria-current={tabs.find((tab) => tab.id === menuOpen)?.label === child ? "page" : undefined}
               onClick={() => openModule(menuOpen, child)}
-            ><span>{index + 1}</span>{child}<b>›</b></button>
+            ><span>{index + 1}</span>{child}<b><UiIcon icon={ChevronRight} size={15} /></b></button>
           ))}
         </aside>
       )}
 
       <header className="reuse-topbar">
         <div className="reuse-breadcrumb">
-          <button onClick={() => setMenuOpen(active === "home" ? "inventory" : active)}>☰</button>
+          <button aria-label="打开模块菜单" onClick={() => setMenuOpen(active === "home" ? "inventory" : active)}><UiIcon icon={Menu} size={16} /></button>
           <strong>{currentModule.label}</strong><span>/</span><span>{tabs.find((tab) => tab.id === active)?.label || currentModule.label}</span>
         </div>
         <nav>
-          <button className={topPanel === "guide" ? "active" : ""} onClick={() => setTopPanel(topPanel === "guide" ? null : "guide")}>▣ 快速入门</button>
-          <button className={topPanel === "profile" ? "active" : ""} onClick={() => setTopPanel(topPanel === "profile" ? null : "profile")}>♙ 我的主页</button>
-          <button className={topPanel === "messages" ? "active" : ""} onClick={() => setTopPanel(topPanel === "messages" ? null : "messages")}>▤ 消息{!messagesRead && <b className="message-badge">3</b>}</button>
-          <button onClick={() => setLoggedIn(false)}>⇥ 退出登录</button><i /><strong>高质量数据评估演示</strong>
+          <button className={topPanel === "guide" ? "active" : ""} onClick={() => setTopPanel(topPanel === "guide" ? null : "guide")}><UiIcon icon={BookOpen} />快速入门</button>
+          <button className={topPanel === "profile" ? "active" : ""} onClick={() => setTopPanel(topPanel === "profile" ? null : "profile")}><UiIcon icon={UserRound} />我的主页</button>
+          <button className={topPanel === "messages" ? "active" : ""} onClick={() => setTopPanel(topPanel === "messages" ? null : "messages")}><UiIcon icon={Bell} />消息{!messagesRead && <b className="message-badge">3</b>}</button>
+          <button onClick={() => setLoggedIn(false)}><UiIcon icon={LogOut} />退出登录</button><i /><strong>高质量数据评估演示</strong>
         </nav>
       </header>
 
@@ -1920,7 +1968,7 @@ export default function Home() {
         <aside className={`top-popover ${topPanel}`}>
           {topPanel === "guide" && (
             <>
-              <header><div><strong>快速入门</strong><span>按业务流程开始工作</span></div><button onClick={() => setTopPanel(null)}>×</button></header>
+              <header><div><strong>快速入门</strong><span>按业务流程开始工作</span></div><button aria-label="关闭快速入门" onClick={() => setTopPanel(null)}><UiIcon icon={X} size={16} /></button></header>
               <button onClick={() => openModule("inventory")}><span>1</span><div><strong>接入并盘点数据</strong><small>创建连接，查看资产规模</small></div><b>›</b></button>
               <button onClick={() => openModule("assessment")}><span>2</span><div><strong>创建质量评估</strong><small>选择数据集与质量规则</small></div><b>›</b></button>
               <button onClick={() => openModule("modelDev")}><span>3</span><div><strong>进入模型开发</strong><small>微调、RAG、蒸馏和注册</small></div><b>›</b></button>
@@ -1928,14 +1976,14 @@ export default function Home() {
           )}
           {topPanel === "profile" && (
             <>
-              <header><div><strong>高质量数据评估演示</strong><span>平台管理员</span></div><button onClick={() => setTopPanel(null)}>×</button></header>
+              <header><div><strong>高质量数据评估演示</strong><span>平台管理员</span></div><button aria-label="关闭个人信息" onClick={() => setTopPanel(null)}><UiIcon icon={X} size={16} /></button></header>
               <div className="profile-card"><span>高</span><div><strong>演示租户</strong><small>最后登录：刚刚 · 本地环境</small></div></div>
               <div className="profile-stats"><span><b>12</b>数据集</span><span><b>20</b>治理任务</span><span><b>{jobs.length}</b>模型任务</span></div>
             </>
           )}
           {topPanel === "messages" && (
             <>
-              <header><div><strong>消息中心</strong><span>{messagesRead ? "没有未读消息" : "3 条未读消息"}</span></div><button onClick={() => setTopPanel(null)}>×</button></header>
+              <header><div><strong>消息中心</strong><span>{messagesRead ? "没有未读消息" : "3 条未读消息"}</span></div><button aria-label="关闭消息中心" onClick={() => setTopPanel(null)}><UiIcon icon={X} size={16} /></button></header>
               {["篮球版本1评估已完成", "finance-sft-lora-07 已运行至 68%", "安全评测门禁已通过"].map((message, index) => (
                 <button className="message-item" key={message} onClick={() => notify(message)}><i className={messagesRead ? "read" : ""} /><div><strong>{message}</strong><small>{["2 分钟前", "8 分钟前", "26 分钟前"][index]}</small></div></button>
               ))}
@@ -1961,7 +2009,7 @@ export default function Home() {
                     closeTab(tab.id);
                   }
                 }}
-              >×</span>
+              ><UiIcon icon={X} size={12} /></span>
             )}
           </button>
         ))}
@@ -2017,10 +2065,10 @@ export default function Home() {
         )}
       </main>
 
-      <button className="reuse-assistant-button" onClick={() => setAssistant(!assistant)} aria-label="打开质量助手">✦</button>
+      <button className="reuse-assistant-button" onClick={() => setAssistant(!assistant)} aria-label="打开质量助手"><UiIcon icon={Sparkles} size={21} /></button>
       {assistant && (
         <aside className="reuse-assistant">
-          <header><strong>质量助手</strong><button onClick={() => setAssistant(false)}>×</button></header>
+          <header><strong>质量助手</strong><button aria-label="关闭质量助手" onClick={() => setAssistant(false)}><UiIcon icon={X} size={16} /></button></header>
           <p>当前项目包含 12 个数据集、20 个治理 Recipe 和 {jobs.length} 个模型开发任务。</p>
           <div className="assistant-suggestion">建议先处理 1 个等待评估的模型任务，再生成项目报告。</div>
           <button onClick={() => openModule("assessment")}>查看数据评估</button>
@@ -2038,7 +2086,7 @@ export default function Home() {
         />
       )}
       {logJob && <LogDrawer job={logJob} onClose={() => setLogJob(null)} />}
-      {toast && <div className="reuse-toast" role="status">✓ {toast}</div>}
+      {toast && <div className="reuse-toast" role="status"><UiIcon icon={CircleCheck} size={15} />{toast}</div>}
     </div>
   );
 }
