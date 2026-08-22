@@ -2787,6 +2787,38 @@ button.test-row:hover {
   margin: 0 13px;
 }
 
+.selection-cell {
+  width: 48px;
+  text-align: center !important;
+}
+
+.selection-cell input {
+  width: 14px;
+  height: 14px;
+  accent-color: #2d7ff9;
+}
+
+.exploration-issue-panel {
+  margin-top: 12px;
+}
+
+.exploration-issue-panel > header > div:last-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.exploration-issue-panel > header > div:last-child > span {
+  color: #74859a;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.exploration-issue-panel .reuse-primary {
+  height: 30px;
+  padding: 0 11px;
+}
+
 .sample-panel {
   margin-top: 12px;
 }
@@ -3044,6 +3076,30 @@ button.test-row:hover {
 .cleaning-kpis {
   grid-template-columns: repeat(5, 1fr);
 }
+
+.cleaning-task-context {
+  min-height: 51px;
+  margin: 14px 0 0;
+  display: grid;
+  grid-template-columns: 1.1fr 1.25fr 0.65fr 0.65fr auto;
+  align-items: stretch;
+  background: #f8fafc;
+  border: 1px solid #dfe6ee;
+}
+
+.cleaning-task-context > span {
+  min-width: 0;
+  padding: 8px 11px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  border-right: 1px solid #e4e9ef;
+}
+
+.cleaning-task-context small { color: #8794a5; font-size: 8px; }
+.cleaning-task-context strong { overflow: hidden; color: #3e536b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.cleaning-task-context > .reuse-status { align-self: center; margin: 0 11px; white-space: nowrap; }
 
 .cleaning-kpis > div {
   min-height: 80px;

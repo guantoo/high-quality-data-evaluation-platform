@@ -96,6 +96,33 @@ type SourceRow = {
   syncResult: string;
 };
 
+type CleaningIssueSample = {
+  id: string;
+  field: string;
+  problem: string;
+  original: string;
+  suggestion: string;
+  rule: string;
+  confidence: string;
+};
+
+type CleaningTaskRow = {
+  id: string;
+  name: string;
+  dataset: string;
+  source: string;
+  table: string;
+  fields: string[];
+  issueCount: number;
+  rules: string[];
+  samples: CleaningIssueSample[];
+  status: "待执行" | "运行中" | "已完成" | "失败";
+  progress: number;
+  sourceVersion: string;
+  outputVersion: string;
+  created: string;
+};
+
 type JobRow = {
   name: string;
   type: string;
@@ -244,6 +271,32 @@ const initialSources: SourceRow[] = [
     status: "正常",
     progress: 100,
     syncResult: "实时消费正常，当前 2.4M 条/日",
+  },
+];
+
+const defaultCleaningSamples: CleaningIssueSample[] = [
+  { id: "issue-3812", field: "customer_name", problem: "空值", original: "(空)", suggestion: "根据关联账户补全", rule: "空值智能填充", confidence: "96%" },
+  { id: "issue-9218", field: "mobile_phone", problem: "格式异常", original: "138-0066-218", suggestion: "13800662180", rule: "格式标准化", confidence: "99%" },
+  { id: "issue-186", field: "annual_value", problem: "异常值", original: "9,862,000,000", suggestion: "98,620.00", rule: "异常值处理", confidence: "92%" },
+  { id: "issue-4207", field: "register_date", problem: "日期异常", original: "2026-13-42", suggestion: "转人工确认", rule: "格式标准化", confidence: "88%" },
+];
+
+const initialCleaningTasks: CleaningTaskRow[] = [
+  {
+    id: "clean-finance-v21",
+    name: "金融年报问答集质量清洗-0822",
+    dataset: "金融年报问答集 v2.1",
+    source: "数据评估文件仓",
+    table: "annual_report_qa",
+    fields: ["question", "answer", "citation", "annual_value"],
+    issueCount: 3218,
+    rules: ["重复数据识别", "空值智能填充", "格式标准化", "异常值处理"],
+    samples: defaultCleaningSamples,
+    status: "待执行",
+    progress: 0,
+    sourceVersion: "v2.1",
+    outputVersion: "--",
+    created: "2026-08-22 18:32",
   },
 ];
 
@@ -599,7 +652,15 @@ function HomeDashboard({ filters, notify }: { filters: FilterValues; notify: Not
   );
 }
 
-function DataExploration({ sources, notify }: { sources: SourceRow[]; notify: Notify }) {
+function DataExploration({
+  sources,
+  notify,
+  createCleaningTask,
+}: {
+  sources: SourceRow[];
+  notify: Notify;
+  createCleaningTask: (task: Omit<CleaningTaskRow, "id" | "status" | "progress" | "outputVersion" | "created">) => void;
+}) {
   const columns = [
     { name: "customer_id", type: "BIGINT", completeness: 100, unique: "1,256,842", issue: "无" },
     { name: "customer_name", type: "VARCHAR", completeness: 99.8, unique: "1,238,407", issue: "2,516 个空值" },
@@ -613,6 +674,9 @@ function DataExploration({ sources, notify }: { sources: SourceRow[]; notify: No
   const [selectedField, setSelectedField] = useState(columns[0].name);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(100);
+  const issueColumns = columns.filter((column) => column.issue !== "无");
+  const [selectedIssueFields, setSelectedIssueFields] = useState(issueColumns.map((column) => column.name));
+  const [selectedSampleIds, setSelectedSampleIds] = useState(defaultCleaningSamples.map((sample) => sample.id));
 
   useEffect(() => {
     if (!scanning) return;
@@ -634,6 +698,39 @@ function DataExploration({ sources, notify }: { sources: SourceRow[]; notify: No
   const distribution = selectedField === "customer_level"
     ? [["战略客户", 18], ["重点客户", 31], ["普通客户", 42], ["潜在客户", 9]]
     : [["有效值", Math.round(selected.completeness)], ["空值", Math.max(1, Math.round(100 - selected.completeness))], ["异常值", selected.issue === "无" ? 0 : 3]];
+  const selectedIssueCount = issueColumns.filter((column) => selectedIssueFields.includes(column.name)).reduce((total, column) => {
+    const count = Number(column.issue.match(/[\d,]+/)?.[0].replaceAll(",", "") || 0);
+    return total + count;
+  }, 0);
+  const visibleProblemSamples = defaultCleaningSamples.filter((sample) => selectedIssueFields.includes(sample.field));
+
+  function toggleIssueField(field: string) {
+    setSelectedIssueFields((current) => current.includes(field) ? current.filter((item) => item !== field) : [...current, field]);
+  }
+
+  function toggleProblemSample(id: string) {
+    setSelectedSampleIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function submitCleaningTask() {
+    const selectedSamples = defaultCleaningSamples.filter((sample) => selectedSampleIds.includes(sample.id) && selectedIssueFields.includes(sample.field));
+    if (!selectedIssueFields.length || !selectedSamples.length) {
+      notify("请至少选择一个异常字段和一个问题样本");
+      return;
+    }
+    const rules = Array.from(new Set(selectedSamples.map((sample) => sample.rule)));
+    createCleaningTask({
+      name: `${table} 探查问题清洗-${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).replace(":", "")}`,
+      dataset: `${table} 探查数据集`,
+      source,
+      table,
+      fields: selectedIssueFields,
+      issueCount: selectedIssueCount,
+      rules,
+      samples: selectedSamples,
+      sourceVersion: "探查快照 v1",
+    });
+  }
 
   return (
     <article className="white-panel inventory-workspace exploration-workspace">
@@ -656,9 +753,10 @@ function DataExploration({ sources, notify }: { sources: SourceRow[]; notify: No
           <header><div><h3>字段画像</h3><p>点击字段查看分布与质量问题</p></div><span>{columns.length} / 24 个重点字段</span></header>
           <div className="reuse-table-wrap">
             <table className="reuse-table compact-table">
-              <thead><tr><th>字段名称</th><th>类型</th><th>完整度</th><th>唯一值</th><th>问题</th></tr></thead>
+              <thead><tr><th className="selection-cell">清洗</th><th>字段名称</th><th>类型</th><th>完整度</th><th>唯一值</th><th>问题</th></tr></thead>
               <tbody>{columns.map((column) => (
                 <tr key={column.name} className={selectedField === column.name ? "selected-row" : ""}>
+                  <td className="selection-cell"><input type="checkbox" aria-label={`选择${column.name}进入清洗`} disabled={column.issue === "无"} checked={selectedIssueFields.includes(column.name)} onChange={() => toggleIssueField(column.name)} /></td>
                   <td><button className="reuse-link field-button" onClick={() => setSelectedField(column.name)}>{column.name}</button></td>
                   <td><span className="field-type-tag">{column.type}</span></td><td><div className="inline-score"><Progress value={column.completeness} /><span>{column.completeness}%</span></div></td>
                   <td>{column.unique}</td><td className={column.issue === "无" ? "good-text" : "warning-text"}>{column.issue}</td>
@@ -673,9 +771,13 @@ function DataExploration({ sources, notify }: { sources: SourceRow[]; notify: No
           <div className="distribution-list">{distribution.map((item) => (
             <div key={item[0]}><span>{item[0]}</span><div><i style={{ width: `${item[1]}%` }} /></div><b>{item[1]}%</b></div>
           ))}</div>
-          <button className="reuse-secondary" onClick={() => notify(`${selected.name} 已加入清洗规则建议`)}>生成清洗建议</button>
+          <button className="reuse-secondary" disabled={selected.issue === "无"} onClick={() => { if (!selectedIssueFields.includes(selected.name)) toggleIssueField(selected.name); notify(`${selected.name} 已加入待清洗字段`); }}><UiIcon icon={Plus} />{selectedIssueFields.includes(selected.name) ? "已加入清洗范围" : "加入清洗范围"}</button>
         </section>
       </div>
+      <section className="sub-panel exploration-issue-panel">
+        <header><div><h3>问题样本</h3><p>从探查结果中选择要进入清洗任务的问题记录</p></div><div><span>已选 {selectedSampleIds.filter((id) => visibleProblemSamples.some((sample) => sample.id === id)).length} 条样本 · {selectedIssueFields.length} 个字段 · {selectedIssueCount.toLocaleString()} 个问题</span><button className="reuse-primary" disabled={progress < 100 || !selectedIssueFields.length} onClick={submitCleaningTask}><UiIcon icon={Workflow} />生成清洗任务</button></div></header>
+        <div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th className="selection-cell">选择</th><th>字段 / 记录</th><th>问题类型</th><th>原始值</th><th>建议修复</th><th>推荐规则</th><th>置信度</th></tr></thead><tbody>{visibleProblemSamples.map((sample) => <tr key={sample.id}><td className="selection-cell"><input type="checkbox" aria-label={`选择问题样本${sample.id}`} checked={selectedSampleIds.includes(sample.id)} onChange={() => toggleProblemSample(sample.id)} /></td><td><strong>{sample.field}</strong> #{sample.id.replace("issue-", "")}</td><td className="warning-text">{sample.problem}</td><td className="before-value">{sample.original}</td><td className="after-value">{sample.suggestion}</td><td>{sample.rule}</td><td>{sample.confidence}</td></tr>)}</tbody></table>{visibleProblemSamples.length === 0 && <div className="table-empty">请选择包含质量问题的字段</div>}</div>
+      </section>
       <section className="sub-panel sample-panel">
         <header><div><h3>样例数据</h3><p>展示前 5 条脱敏记录</p></div><button className="reuse-link" onClick={() => notify("样例数据已重新抽样")}>换一批样例</button></header>
         <div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>customer_id</th><th>customer_name</th><th>mobile_phone</th><th>customer_level</th><th>register_date</th><th>annual_value</th></tr></thead><tbody>
@@ -782,57 +884,106 @@ function SmartInventory({ notify }: { notify: Notify }) {
   );
 }
 
-function SmartCleaning({ notify }: { notify: Notify }) {
-  const [dataset, setDataset] = useState("金融年报问答集 v2.1");
-  const [rules, setRules] = useState([
-    { name: "重复数据识别", desc: "基于主键与语义相似度去重", enabled: true },
-    { name: "空值智能填充", desc: "按字段类型和上下文推荐填充值", enabled: true },
-    { name: "格式标准化", desc: "统一日期、电话、证件与金额格式", enabled: true },
-    { name: "异常值处理", desc: "识别极值、离群点和不合理范围", enabled: true },
-    { name: "敏感信息脱敏", desc: "对手机号、证件号、姓名进行脱敏", enabled: false },
-  ]);
+function SmartCleaning({
+  tasks,
+  initialTaskId,
+  updateTask,
+  notify,
+}: {
+  tasks: CleaningTaskRow[];
+  initialTaskId: string;
+  updateTask: (id: string, patch: Partial<CleaningTaskRow>) => void;
+  notify: Notify;
+}) {
+  const ruleCatalog = [
+    { name: "重复数据识别", desc: "基于主键与语义相似度去重" },
+    { name: "空值智能填充", desc: "按字段类型和上下文推荐填充值" },
+    { name: "格式标准化", desc: "统一日期、电话、证件与金额格式" },
+    { name: "异常值处理", desc: "识别极值、离群点和不合理范围" },
+    { name: "敏感信息脱敏", desc: "对手机号、证件号、姓名进行脱敏" },
+  ];
+  const firstTask = tasks.find((task) => task.id === initialTaskId) ?? tasks[0];
+  const [taskId, setTaskId] = useState(firstTask?.id ?? "");
+  const [rules, setRules] = useState(() => ruleCatalog.map((rule) => ({ ...rule, enabled: firstTask?.rules.includes(rule.name) ?? false })));
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState(firstTask?.progress ?? 0);
+  const selectedTask = tasks.find((task) => task.id === taskId) ?? tasks[0];
 
   useEffect(() => {
-    if (!running) return;
+    if (!running || !selectedTask) return;
     const timer = window.setInterval(() => {
       setProgress((current) => {
         const next = Math.min(100, current + 6);
+        updateTask(selectedTask.id, { progress: next, status: next === 100 ? "已完成" : "运行中" });
         if (next === 100) {
           window.clearInterval(timer);
           setRunning(false);
-          notify(`${dataset} 智能清洗完成，已生成新版本 v2.2`);
+          const outputVersion = selectedTask.sourceVersion.includes("v2.1") ? "v2.2" : "clean-v1.1";
+          updateTask(selectedTask.id, { progress: 100, status: "已完成", outputVersion });
+          notify(`${selectedTask.name} 清洗完成，已生成版本 ${outputVersion}`);
         }
         return next;
       });
     }, 250);
     return () => window.clearInterval(timer);
-  }, [dataset, notify, running]);
+  }, [notify, running, selectedTask, updateTask]);
+
+  if (!selectedTask) return <article className="white-panel inventory-workspace"><div className="table-empty">暂无清洗任务，请先从数据探查创建任务</div></article>;
 
   const enabledCount = rules.filter((rule) => rule.enabled).length;
+  const emptyCount = selectedTask.samples.filter((sample) => sample.problem === "空值").length;
+  const formatCount = selectedTask.samples.filter((sample) => sample.problem.includes("格式") || sample.problem.includes("日期")).length;
+
+  function selectCleaningTask(id: string) {
+    const task = tasks.find((item) => item.id === id);
+    if (!task) return;
+    setTaskId(id);
+    setProgress(task.progress);
+    setRunning(task.status === "运行中");
+    setRules(ruleCatalog.map((rule) => ({ ...rule, enabled: task.rules.includes(rule.name) })));
+  }
+
+  function applyRules(nextRules: typeof rules) {
+    setRules(nextRules);
+    updateTask(selectedTask.id, { rules: nextRules.filter((rule) => rule.enabled).map((rule) => rule.name) });
+  }
+
+  function startCleaning() {
+    setProgress(0);
+    setRunning(true);
+    updateTask(selectedTask.id, { progress: 0, status: "运行中", outputVersion: "--" });
+    notify(`${selectedTask.name} 已开始执行 ${enabledCount} 条清洗规则`);
+  }
+
   return (
     <article className="white-panel inventory-workspace cleaning-workspace">
-      <div className="reuse-panel-head inventory-head"><div><h2>智能数据清洗</h2><p>基于探查结果编排清洗规则，预览影响并生成可追溯的新版本</p></div><div><label className="inventory-select">目标数据集<select value={dataset} onChange={(event) => { setDataset(event.target.value); setProgress(0); }}><option>金融年报问答集 v2.1</option><option>篮球图像数据集 v1.3</option><option>客服知识向量集 v3.4</option></select></label><button className="reuse-primary" disabled={running || enabledCount === 0} onClick={() => { setProgress(0); setRunning(true); }}>{running ? `清洗中 ${progress}%` : "✦ 开始智能清洗"}</button></div></div>
-      <div className="cleaning-kpis">{[['待处理问题', '3,218', '涉及 6 个字段'], ['重复记录', '842', '占比 0.67%'], ['空值记录', '2,516', '占比 0.20%'], ['格式异常', '186', '占比 0.01%'], ['预计质量提升', '+4.8', '从 93.7 到 98.5']].map((item, index) => <div key={item[0]} className={index === 4 ? "highlight" : ""}><span>{item[0]}</span><strong>{item[1]}</strong><small>{item[2]}</small></div>)}</div>
+      <div className="reuse-panel-head inventory-head"><div><h2>智能数据清洗</h2><p>基于探查结果编排清洗规则，预览影响并生成可追溯的新版本</p></div><div><label className="inventory-select">清洗任务<select value={selectedTask.id} disabled={running} onChange={(event) => selectCleaningTask(event.target.value)}>{tasks.map((task) => <option key={task.id} value={task.id}>{task.name}</option>)}</select></label><button className="reuse-primary" disabled={running || enabledCount === 0} onClick={startCleaning}><UiIcon icon={running ? RefreshCw : Play} />{running ? `清洗中 ${progress}%` : selectedTask.status === "已完成" ? "重新执行" : "开始智能清洗"}</button></div></div>
+      <div className="cleaning-task-context"><span><small>目标数据集</small><strong>{selectedTask.dataset}</strong></span><span><small>来源</small><strong>{selectedTask.source} / {selectedTask.table}</strong></span><span><small>源版本</small><strong>{selectedTask.sourceVersion}</strong></span><span><small>输出版本</small><strong>{selectedTask.outputVersion}</strong></span><Status tone={selectedTask.status === "已完成" ? "green" : running ? "blue" : "gray"}>{running ? "运行中" : selectedTask.status}</Status></div>
+      <div className="cleaning-kpis">{[["待处理问题", selectedTask.issueCount.toLocaleString(), `涉及 ${selectedTask.fields.length} 个字段`], ["问题样本", selectedTask.samples.length.toString(), "已从探查结果保留"], ["空值样本", emptyCount.toString(), "已匹配填充规则"], ["格式异常", formatCount.toString(), "已匹配标准化规则"], ["预计质量提升", "+4.8", "从 93.7 到 98.5"]].map((item, index) => <div key={item[0]} className={index === 4 ? "highlight" : ""}><span>{item[0]}</span><strong>{item[1]}</strong><small>{item[2]}</small></div>)}</div>
       <div className="cleaning-grid">
-        <section className="sub-panel rule-panel"><header><div><h3>清洗规则</h3><p>已启用 {enabledCount} / {rules.length} 项</p></div><button className="reuse-link" onClick={() => setRules((current) => current.map((rule) => ({ ...rule, enabled: true })))}>全部启用</button></header><div className="rule-list">{rules.map((rule, index) => <div key={rule.name}><span className={`rule-icon r${index}`}>{['重', '空', '格', '异', '敏'][index]}</span><div><strong>{rule.name}</strong><small>{rule.desc}</small></div><button className={`toggle-switch ${rule.enabled ? "on" : ""}`} aria-label={`${rule.enabled ? '关闭' : '启用'}${rule.name}`} onClick={() => setRules((current) => current.map((item) => item.name === rule.name ? { ...item, enabled: !item.enabled } : item))}><i /></button></div>)}</div></section>
-        <section className="sub-panel cleaning-run-panel"><header><div><h3>执行流程</h3><p>{running ? '正在处理数据' : progress === 100 ? '最近一次执行已完成' : '等待开始'}</p></div><Status tone={running ? "blue" : progress === 100 ? "green" : "gray"}>{running ? "运行中" : progress === 100 ? "已完成" : "未运行"}</Status></header><div className="cleaning-progress-ring" style={{ "--score": `${progress * 3.6}deg` } as React.CSSProperties}><strong>{progress}%</strong><span>当前进度</span></div><div className="cleaning-steps">{[['数据备份', 10], ['规则校验', 25], ['执行清洗', 70], ['质量复检', 90], ['生成版本', 100]].map((step, index) => <div key={step[0]} className={progress >= step[1] ? "done" : running && progress < step[1] && (index === 0 || progress >= ([0, 10, 25, 70, 90][index])) ? "active" : ""}><i>{progress >= step[1] ? '✓' : index + 1}</i><span>{step[0]}</span></div>)}</div><p className="cleaning-note">清洗过程将保留原始版本，可随时回滚，不会覆盖源数据。</p></section>
+        <section className="sub-panel rule-panel"><header><div><h3>清洗规则</h3><p>已启用 {enabledCount} / {rules.length} 项</p></div><button className="reuse-link" onClick={() => applyRules(rules.map((rule) => ({ ...rule, enabled: true })))}>全部启用</button></header><div className="rule-list">{rules.map((rule, index) => <div key={rule.name}><span className={`rule-icon r${index}`}>{["重", "空", "格", "异", "敏"][index]}</span><div><strong>{rule.name}</strong><small>{rule.desc}</small></div><button className={`toggle-switch ${rule.enabled ? "on" : ""}`} aria-label={`${rule.enabled ? "关闭" : "启用"}${rule.name}`} onClick={() => applyRules(rules.map((item) => item.name === rule.name ? { ...item, enabled: !item.enabled } : item))}><i /></button></div>)}</div></section>
+        <section className="sub-panel cleaning-run-panel"><header><div><h3>执行流程</h3><p>{running ? "正在处理数据" : progress === 100 ? `已生成 ${selectedTask.outputVersion}` : "等待开始"}</p></div><Status tone={running ? "blue" : progress === 100 ? "green" : "gray"}>{running ? "运行中" : progress === 100 ? "已完成" : "未运行"}</Status></header><div className="cleaning-progress-ring" style={{ "--score": `${progress * 3.6}deg` } as React.CSSProperties}><strong>{progress}%</strong><span>当前进度</span></div><div className="cleaning-steps">{[["数据备份", 10], ["规则校验", 25], ["执行清洗", 70], ["质量复检", 90], ["生成版本", 100]].map((step, index) => <div key={step[0]} className={progress >= step[1] ? "done" : running && progress < step[1] && (index === 0 || progress >= ([0, 10, 25, 70, 90][index])) ? "active" : ""}><i>{progress >= step[1] ? "✓" : index + 1}</i><span>{step[0]}</span></div>)}</div><p className="cleaning-note">清洗过程保留 {selectedTask.sourceVersion}，不会覆盖源数据；完成后生成独立版本。</p></section>
       </div>
-      <section className="sub-panel cleaning-preview"><header><div><h3>问题与修复预览</h3><p>执行前抽样展示规则命中结果</p></div><button className="reuse-link" onClick={() => notify("已重新生成清洗预览")}>重新预览</button></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>字段 / 记录</th><th>问题类型</th><th>原始值</th><th>建议修复</th><th>命中规则</th><th>置信度</th></tr></thead><tbody>{[['customer_name #3812', '空值', '(空)', '根据关联账户补全', '空值智能填充', '96%'], ['mobile_phone #9218', '格式异常', '138-0066-218', '13800662180', '格式标准化', '99%'], ['annual_value #186', '异常值', '9,862,000,000', '98,620.00', '异常值处理', '92%'], ['record #11028', '重复记录', '与 #10982 相似', '合并并保留最新值', '重复数据识别', '98%']].map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={cell} className={index === 2 ? 'before-value' : index === 3 ? 'after-value' : ''}>{cell}</td>)}</tr>)}</tbody></table></div></section>
+      <section className="sub-panel cleaning-preview"><header><div><h3>问题与修复预览</h3><p>{selectedTask.samples.length} 条探查问题样本已随任务保留</p></div><button className="reuse-link" onClick={() => notify(`${selectedTask.name} 修复预览已重新计算`)}>重新预览</button></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>字段 / 记录</th><th>问题类型</th><th>原始值</th><th>建议修复</th><th>命中规则</th><th>置信度</th></tr></thead><tbody>{selectedTask.samples.map((sample) => <tr key={sample.id}><td><strong>{sample.field}</strong> #{sample.id.replace("issue-", "")}</td><td>{sample.problem}</td><td className="before-value">{sample.original}</td><td className="after-value">{sample.suggestion}</td><td>{sample.rule}</td><td>{sample.confidence}</td></tr>)}</tbody></table>{selectedTask.samples.length === 0 && <div className="table-empty">当前任务没有保留问题样本</div>}</div></section>
     </article>
   );
 }
 
 function InventoryPage({
   sources,
+  cleaningTasks,
   openDialog,
   updateSource,
+  createCleaningTask,
+  updateCleaningTask,
   notify,
 }: {
   sources: SourceRow[];
+  cleaningTasks: CleaningTaskRow[];
   openDialog: () => void;
   updateSource: (name: string, patch: Partial<SourceRow>) => void;
+  createCleaningTask: (task: Omit<CleaningTaskRow, "id" | "status" | "progress" | "outputVersion" | "created">) => string;
+  updateCleaningTask: (id: string, patch: Partial<CleaningTaskRow>) => void;
   notify: Notify;
 }) {
   const [section, setSection] = useState("数据库管理");
@@ -841,6 +992,7 @@ function InventoryPage({
   const [editingSourceName, setEditingSourceName] = useState<string | null>(null);
   const [endpointDraft, setEndpointDraft] = useState("");
   const [strategyDraft, setStrategyDraft] = useState("");
+  const [initialCleaningTaskId, setInitialCleaningTaskId] = useState(cleaningTasks[0]?.id ?? "");
   const timers = useRef<number[]>([]);
   const previousSourceCount = useRef(sources.length);
   const filtered = sources.filter((source) => source.name.toLowerCase().includes(search.toLowerCase()));
@@ -928,6 +1080,13 @@ function InventoryPage({
       notify(failed ? `${editingSource.name} 新配置验证失败` : `${editingSource.name} 新配置验证通过`);
     }, 900);
     timers.current.push(timer);
+  }
+
+  function createTaskFromExploration(task: Omit<CleaningTaskRow, "id" | "status" | "progress" | "outputVersion" | "created">) {
+    const id = createCleaningTask(task);
+    setInitialCleaningTaskId(id);
+    setSection("智能数据清洗");
+    notify(`${task.name} 已创建并进入智能数据清洗`);
   }
 
   return (
@@ -1020,10 +1179,10 @@ function InventoryPage({
           {filtered.length === 0 && <div className="table-empty">未找到匹配的数据连接</div>}
         </div>
       </article>}
-      {section === "数据探查" && <DataExploration sources={sources} notify={notify} />}
+      {section === "数据探查" && <DataExploration sources={sources} createCleaningTask={createTaskFromExploration} notify={notify} />}
       {section === "本地数据管理" && <LocalDataManager notify={notify} />}
       {section === "智能数据盘点" && <SmartInventory notify={notify} />}
-      {section === "智能数据清洗" && <SmartCleaning notify={notify} />}
+      {section === "智能数据清洗" && <SmartCleaning tasks={cleaningTasks} initialTaskId={initialCleaningTaskId} updateTask={updateCleaningTask} notify={notify} />}
       {editingSource && <div className="dialog-backdrop connection-editor-backdrop"><button className="dialog-dismiss" aria-label="关闭连接配置" onClick={() => setEditingSourceName(null)} /><form className="reuse-dialog connection-editor" onSubmit={saveSourceConfiguration}><header><div><h2>配置数据连接</h2><p>{editingSource.name} · 修改后将自动重新验证</p></div><button type="button" aria-label="关闭连接配置" onClick={() => setEditingSourceName(null)}><UiIcon icon={X} /></button></header><label>连接类型<input value={editingSource.type} readOnly /></label><label>连接地址<input required value={endpointDraft} onChange={(event) => setEndpointDraft(event.target.value)} /></label><label>同步策略<select value={strategyDraft} onChange={(event) => setStrategyDraft(event.target.value)}><option>手动触发</option><option>每 30 分钟</option><option>每日 02:00</option><option>准实时</option></select></label><div className="connection-config-summary"><span><small>当前状态</small><Status tone={statusTone(editingSource.status)}>{editingSource.status}</Status></span><span><small>最近结果</small><strong>{editingSource.syncResult}</strong></span></div><footer><button type="button" className="reuse-secondary" onClick={() => setEditingSourceName(null)}>取消</button><button className="reuse-primary"><UiIcon icon={Save} />保存并验证</button></footer></form></div>}
     </section>
   );
@@ -2139,6 +2298,7 @@ export default function Home() {
   const [workspaceProject, setWorkspaceProject] = useState<ProjectRow | null>(null);
   const [governanceView, setGovernanceView] = useState<GovernanceView>("projects");
   const [sources, setSources] = useState(initialSources);
+  const [cleaningTasks, setCleaningTasks] = useState(initialCleaningTasks);
   const [reviewTasks, setReviewTasks] = useState(initialReviewTasks);
   const [jobs, setJobs] = useState(initialJobs);
   const [evaluations, setEvaluations] = useState(initialEvaluations);
@@ -2303,6 +2463,16 @@ export default function Home() {
     setSources((current) => current.map((source) => source.name === name ? { ...source, ...patch } : source));
   }
 
+  const createCleaningTask = useCallback((task: Omit<CleaningTaskRow, "id" | "status" | "progress" | "outputVersion" | "created">) => {
+    const id = `clean-${Date.now()}`;
+    setCleaningTasks((current) => [{ ...task, id, status: "待执行", progress: 0, outputVersion: "--", created: "刚刚" }, ...current]);
+    return id;
+  }, []);
+
+  const updateCleaningTask = useCallback((id: string, patch: Partial<CleaningTaskRow>) => {
+    setCleaningTasks((current) => current.map((task) => task.id === id ? { ...task, ...patch } : task));
+  }, []);
+
   if (!loggedIn) return <Login onLogin={() => { setLoggedIn(true); notify("登录成功，欢迎回来"); }} />;
 
   const currentModule = modules.find((item) => item.id === active)!;
@@ -2419,7 +2589,7 @@ export default function Home() {
       <main className="reuse-main">
         <ProjectToolbar project={project} setProject={setProject} notify={notify} />
         {active === "home" && <HomeDashboard filters={filters} notify={notify} />}
-        {active === "inventory" && <InventoryPage sources={sources} openDialog={() => openCreate("connection")} updateSource={updateSource} notify={notify} />}
+        {active === "inventory" && <InventoryPage sources={sources} cleaningTasks={cleaningTasks} openDialog={() => openCreate("connection")} updateSource={updateSource} createCleaningTask={createCleaningTask} updateCleaningTask={updateCleaningTask} notify={notify} />}
         {active === "governance" && governanceView === "workspace" && workspaceProject && (
           <GovernanceWorkbench
             project={workspaceProject}
