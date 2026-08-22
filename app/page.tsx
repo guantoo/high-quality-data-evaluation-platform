@@ -1869,6 +1869,8 @@ export default function Home() {
               className={active === item.id ? "active" : ""}
               onClick={() => item.children.length ? setMenuOpen(menuOpen === item.id ? null : item.id) : openModule(item.id)}
               title={item.label}
+              aria-current={active === item.id ? "page" : undefined}
+              aria-expanded={item.children.length ? menuOpen === item.id : undefined}
             >
               <span>{item.icon}</span><small>{item.short}</small>
             </button>
@@ -1891,7 +1893,12 @@ export default function Home() {
         <aside className="rail-flyout">
           <header><strong>{modules.find((item) => item.id === menuOpen)?.label}</strong><button onClick={() => setMenuOpen(null)}>×</button></header>
           {modules.find((item) => item.id === menuOpen)?.children.map((child, index) => (
-            <button key={child} onClick={() => openModule(menuOpen, child)}><span>{index + 1}</span>{child}<b>›</b></button>
+            <button
+              key={child}
+              className={tabs.find((tab) => tab.id === menuOpen)?.label === child ? "active" : ""}
+              aria-current={tabs.find((tab) => tab.id === menuOpen)?.label === child ? "page" : undefined}
+              onClick={() => openModule(menuOpen, child)}
+            ><span>{index + 1}</span>{child}<b>›</b></button>
           ))}
         </aside>
       )}
@@ -1938,9 +1945,9 @@ export default function Home() {
         </aside>
       )}
 
-      <div className="open-tabs">
+      <div className="open-tabs" role="tablist" aria-label="已打开页面">
         {tabs.map((tab) => (
-          <button key={tab.id} className={active === tab.id ? "active" : ""} onClick={() => setActive(tab.id)}>
+          <button key={tab.id} role="tab" aria-selected={active === tab.id} className={active === tab.id ? "active" : ""} onClick={() => setActive(tab.id)}>
             <i />{tab.label}
             {tab.id !== "home" && (
               <span
