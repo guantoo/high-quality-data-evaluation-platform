@@ -146,13 +146,34 @@ type CleaningTaskDraft = Omit<
   "id" | "status" | "progress" | "outputVersion" | "activeVersion" | "versions" | "created"
 >;
 
+type ModelJobConfig = {
+  learningRate: string;
+  epochs: number;
+  batchSize: number;
+  precision: string;
+  maxSequence: number;
+  compute: string;
+};
+
+type ModelVersionRow = {
+  version: string;
+  created: string;
+  loss: string;
+  accuracy: string;
+  size: string;
+  status: "待注册" | "已注册" | "已归档";
+};
+
 type JobRow = {
   name: string;
   type: string;
   model: string;
   dataset: string;
   progress: number;
-  status: string;
+  status: "排队中" | "训练中" | "已暂停" | "已完成" | "失败";
+  config: ModelJobConfig;
+  versions: ModelVersionRow[];
+  registeredVersion: string;
 };
 
 type EvaluationRow = {
@@ -349,6 +370,15 @@ const initialReviewTasks = [
   "数据日期格式规范性",
 ];
 
+const defaultModelJobConfig: ModelJobConfig = {
+  learningRate: "2e-5",
+  epochs: 3,
+  batchSize: 16,
+  precision: "BF16",
+  maxSequence: 4096,
+  compute: "4 × A100 80GB",
+};
+
 const initialJobs: JobRow[] = [
   {
     name: "finance-sft-lora-07",
@@ -357,6 +387,9 @@ const initialJobs: JobRow[] = [
     dataset: "金融年报问答集 v2.1",
     progress: 68,
     status: "训练中",
+    config: { ...defaultModelJobConfig },
+    versions: [],
+    registeredVersion: "--",
   },
   {
     name: "service-rag-index-12",
@@ -365,6 +398,9 @@ const initialJobs: JobRow[] = [
     dataset: "客服知识向量集 v3.4",
     progress: 100,
     status: "已完成",
+    config: { ...defaultModelJobConfig, learningRate: "1e-5", epochs: 1, compute: "2 × A100 80GB" },
+    versions: [{ version: "service-rag-v3.4.1", created: "2026-08-22 18:46", loss: "0.312", accuracy: "93.8%", size: "4.8 GB", status: "已注册" }],
+    registeredVersion: "service-rag-v3.4.1",
   },
   {
     name: "vision-quant-int4-03",
@@ -373,6 +409,9 @@ const initialJobs: JobRow[] = [
     dataset: "篮球图像数据集 v1.3",
     progress: 24,
     status: "排队中",
+    config: { ...defaultModelJobConfig, precision: "INT4", batchSize: 8, compute: "2 × A100 80GB" },
+    versions: [],
+    registeredVersion: "--",
   },
 ];
 
@@ -2401,27 +2440,88 @@ function AssessmentPage({
   );
 }
 
+function nextModelVersion(job: JobRow) {
+  const base = job.name.replace(/-\d+$/, "");
+  return `${base}-v1.${job.versions.length + 1}`;
+}
+
 function ModelDevelopment({
   jobs,
   openDialog,
   notify,
   openLog,
   toggleJob,
+  updateJob,
 }: {
   jobs: JobRow[];
   openDialog: (preset?: string) => void;
   notify: Notify;
   openLog: (job: JobRow) => void;
   toggleJob: (name: string) => void;
+  updateJob: (name: string, patch: Partial<JobRow>) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [selectedJobName, setSelectedJobName] = useState(jobs[0]?.name ?? "");
+  const [detailView, setDetailView] = useState<"运行指标" | "模型版本">("运行指标");
+  const [configJobName, setConfigJobName] = useState<string | null>(null);
+  const [configDraft, setConfigDraft] = useState<ModelJobConfig>(defaultModelJobConfig);
   const filtered = jobs.filter((job) => job.name.toLowerCase().includes(search.toLowerCase()));
+  const selectedJob = jobs.find((job) => job.name === selectedJobName) ?? jobs[0];
+  const configJob = jobs.find((job) => job.name === configJobName);
+  const metricSteps = Array.from({ length: 10 }, (_, index) => (index + 1) * 10).filter((step) => step <= Math.max(10, selectedJob?.progress ?? 0));
   const capabilities = [
     ["大模型训练工具链", "微调训练", "LoRA、QLoRA、全量 SFT"],
     ["大模型蒸馏轻量化", "蒸馏量化", "INT8 / INT4 与知识蒸馏"],
     ["大模型 RAG 增强", "RAG 增强", "切片、索引、检索、重排"],
     ["模型注册与推理", "模型注册", "版本、审批、回滚、服务发布"],
   ];
+
+  useEffect(() => {
+    const runningJobs = jobs.filter((job) => job.status === "训练中");
+    if (!runningJobs.length) return;
+    const timer = window.setInterval(() => {
+      runningJobs.forEach((job) => {
+        const next = Math.min(100, job.progress + 4);
+        if (next < 100) {
+          updateJob(job.name, { progress: next });
+          return;
+        }
+        const version: ModelVersionRow = {
+          version: nextModelVersion(job),
+          created: "刚刚",
+          loss: "0.384",
+          accuracy: "94.6%",
+          size: job.type.includes("蒸馏") ? "3.2 GB" : "15.8 GB",
+          status: "待注册",
+        };
+        updateJob(job.name, { progress: 100, status: "已完成", versions: [version, ...job.versions] });
+        notify(`${job.name} 运行完成，已生成模型版本 ${version.version}`);
+      });
+    }, 520);
+    return () => window.clearInterval(timer);
+  }, [jobs, notify, updateJob]);
+
+  function openModelJobConfig(job: JobRow) {
+    setConfigJobName(job.name);
+    setConfigDraft({ ...job.config });
+  }
+
+  function saveModelJobConfig(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!configJob) return;
+    updateJob(configJob.name, { config: { ...configDraft }, progress: configJob.status === "已完成" ? 0 : configJob.progress, status: configJob.status === "已完成" ? "已暂停" : configJob.status });
+    setConfigJobName(null);
+    notify(`${configJob.name} 的运行参数已保存`);
+  }
+
+  function registerModelVersion(version: ModelVersionRow) {
+    if (!selectedJob) return;
+    updateJob(selectedJob.name, {
+      registeredVersion: version.version,
+      versions: selectedJob.versions.map((item) => ({ ...item, status: item.version === version.version ? "已注册" : item.status === "已注册" ? "已归档" : item.status })),
+    });
+    notify(`${version.version} 已写入模型注册表并设为当前版本`);
+  }
 
   return (
     <section className="reuse-content-page">
@@ -2457,13 +2557,15 @@ function ModelDevelopment({
             </thead>
             <tbody>
               {filtered.map((job) => (
-                <tr key={job.name}>
-                  <td><strong>{job.name}</strong></td><td>{job.type}</td><td>{job.model}</td><td>{job.dataset}</td>
+                <tr key={job.name} className={selectedJob?.name === job.name ? "selected-row" : ""}>
+                  <td><button className="reuse-link model-job-name" onClick={() => { setSelectedJobName(job.name); setDetailView("运行指标"); }}>{job.name}</button></td><td>{job.type}</td><td>{job.model}</td><td>{job.dataset}</td>
                   <td><div className="job-progress"><Progress value={job.progress} /><span>{job.progress}%</span></div></td>
                   <td><span className="secure-tag">可用不可见</span></td>
-                  <td><Status tone={job.status === "已完成" ? "green" : job.status === "训练中" ? "blue" : job.status === "已暂停" ? "gray" : "orange"}>{job.status}</Status></td>
+                  <td><Status tone={job.status === "已完成" ? "green" : job.status === "训练中" ? "blue" : job.status === "已暂停" ? "gray" : job.status === "失败" ? "orange" : "orange"}>{job.status}</Status></td>
                   <td>
-                    <button className="reuse-link" onClick={() => openLog(job)}>查看日志</button>{" "}
+                    <button className="reuse-link" onClick={() => { setSelectedJobName(job.name); setDetailView("运行指标"); }}>详情</button>{" "}
+                    <button className="reuse-link" onClick={() => openLog(job)}>日志</button>{" "}
+                    <button className="reuse-link" onClick={() => openModelJobConfig(job)}>配置</button>{" "}
                     {job.status !== "已完成" && (
                       <button className="reuse-link" onClick={() => { toggleJob(job.name); notify(`${job.name} 状态已更新`); }}>
                         {job.status === "训练中" ? "暂停" : "运行"}
@@ -2476,6 +2578,18 @@ function ModelDevelopment({
           </table>
         </div>
       </article>
+      {selectedJob && <article className="white-panel model-job-workspace">
+        <header className="model-job-head"><div><span><UiIcon icon={Gauge} size={17} /></span><div><h2>{selectedJob.name}</h2><p>{selectedJob.type} · {selectedJob.model} · {selectedJob.dataset}</p></div></div><div><Status tone={selectedJob.status === "已完成" ? "green" : selectedJob.status === "训练中" ? "blue" : "gray"}>{selectedJob.status}</Status><button className="reuse-secondary" onClick={() => openModelJobConfig(selectedJob)}><UiIcon icon={Settings2} />参数配置</button><button className="reuse-secondary" onClick={() => openLog(selectedJob)}><UiIcon icon={Rows3} />实时日志</button>{selectedJob.status !== "已完成" && <button className="reuse-primary" onClick={() => { toggleJob(selectedJob.name); notify(`${selectedJob.name} 状态已更新`); }}><UiIcon icon={selectedJob.status === "训练中" ? Minus : Play} />{selectedJob.status === "训练中" ? "暂停任务" : "运行任务"}</button>}</div></header>
+        <div className="model-config-strip"><span><small>学习率</small><strong>{selectedJob.config.learningRate}</strong></span><span><small>训练轮次</small><strong>{selectedJob.config.epochs}</strong></span><span><small>批次大小</small><strong>{selectedJob.config.batchSize}</strong></span><span><small>计算精度</small><strong>{selectedJob.config.precision}</strong></span><span><small>序列长度</small><strong>{selectedJob.config.maxSequence}</strong></span><span><small>计算资源</small><strong>{selectedJob.config.compute}</strong></span></div>
+        <nav className="model-job-tabs"><button className={detailView === "运行指标" ? "active" : ""} onClick={() => setDetailView("运行指标")}><UiIcon icon={Gauge} />运行指标</button><button className={detailView === "模型版本" ? "active" : ""} onClick={() => setDetailView("模型版本")}><UiIcon icon={PackageCheck} />模型版本 <b>{selectedJob.versions.length}</b></button></nav>
+        {detailView === "运行指标" && <section className="model-metrics-workspace">
+          <div className="model-metric-summary"><span><small>运行进度</small><strong>{selectedJob.progress}%</strong></span><span><small>训练损失</small><strong>{Math.max(0.31, 2.48 - selectedJob.progress * 0.021).toFixed(3)}</strong></span><span><small>验证准确率</small><strong>{Math.min(94.6, 56 + selectedJob.progress * 0.386).toFixed(1)}%</strong></span><span><small>吞吐量</small><strong>{Math.round(1380 + selectedJob.progress * 6.4)} tok/s</strong></span><span><small>预计剩余</small><strong>{selectedJob.progress >= 100 ? "已完成" : `${Math.ceil((100 - selectedJob.progress) * 0.7)} 分钟`}</strong></span></div>
+          <div className="model-metric-grid"><section><header><div><h3>训练损失趋势</h3><p>按训练进度采样，数值持续收敛</p></div><strong>{Math.max(0.31, 2.48 - selectedJob.progress * 0.021).toFixed(3)}</strong></header><div className="model-metric-bars loss">{metricSteps.map((step) => { const value = Math.max(0.31, 2.48 - step * 0.021); return <i key={step} style={{ height: `${Math.max(12, value / 2.48 * 100)}%` }} title={`${step}% · loss ${value.toFixed(3)}`}><small>{step}</small></i>; })}</div></section><section><header><div><h3>验证准确率</h3><p>验证集准确率与门禁阈值</p></div><strong>{Math.min(94.6, 56 + selectedJob.progress * 0.386).toFixed(1)}%</strong></header><div className="model-metric-bars accuracy">{metricSteps.map((step) => { const value = Math.min(94.6, 56 + step * 0.386); return <i key={step} style={{ height: `${value}%` }} title={`${step}% · accuracy ${value.toFixed(1)}%`}><small>{step}</small></i>; })}</div></section></div>
+          <div className="model-checkpoint-table"><header><div><h3>训练检查点</h3><p>最近指标已同步到安全域任务记录</p></div><span>自动保存间隔：500 steps</span></header><table className="reuse-table compact-table"><thead><tr><th>检查点</th><th>训练进度</th><th>Loss</th><th>准确率</th><th>吞吐量</th><th>状态</th></tr></thead><tbody>{metricSteps.slice(-5).reverse().map((step) => <tr key={step}><td><strong>checkpoint-{step * 50}</strong></td><td>{step}%</td><td>{Math.max(0.31, 2.48 - step * 0.021).toFixed(3)}</td><td>{Math.min(94.6, 56 + step * 0.386).toFixed(1)}%</td><td>{Math.round(1380 + step * 6.4)} tok/s</td><td><Status tone={step <= selectedJob.progress ? "green" : "gray"}>已保存</Status></td></tr>)}</tbody></table></div>
+        </section>}
+        {detailView === "模型版本" && <section className="model-version-workspace"><div className="model-version-current"><span><UiIcon icon={PackageCheck} size={18} /></span><div><small>当前注册版本</small><strong>{selectedJob.registeredVersion}</strong><p>{selectedJob.registeredVersion === "--" ? "任务完成后选择一个模型产物注册" : "已进入模型注册表，可用于后续评测与发布门禁"}</p></div><Status tone={selectedJob.registeredVersion === "--" ? "gray" : "green"}>{selectedJob.registeredVersion === "--" ? "未注册" : "已注册"}</Status></div><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>模型版本</th><th>生成时间</th><th>最终 Loss</th><th>验证准确率</th><th>产物大小</th><th>状态</th><th>操作</th></tr></thead><tbody>{selectedJob.versions.map((version) => <tr key={version.version} className={version.status === "已注册" ? "selected-row" : ""}><td><strong>{version.version}</strong></td><td>{version.created}</td><td>{version.loss}</td><td>{version.accuracy}</td><td>{version.size}</td><td><Status tone={version.status === "已注册" ? "green" : version.status === "待注册" ? "blue" : "gray"}>{version.status}</Status></td><td>{version.status === "已注册" ? <button className="reuse-link" onClick={() => notify(`${version.version} 已是当前注册版本`)}>当前版本</button> : <button className="reuse-link" onClick={() => registerModelVersion(version)}>注册此版本</button>}</td></tr>)}</tbody></table>{selectedJob.versions.length === 0 && <div className="table-empty">当前任务尚未生成模型产物，运行完成后将自动创建版本</div>}</div></section>}
+      </article>}
+      {configJob && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭参数配置" onClick={() => setConfigJobName(null)} /><form className="reuse-dialog model-job-config-dialog" onSubmit={saveModelJobConfig}><header><div><h2>模型任务参数配置</h2><p>{configJob.name} · 修改已完成任务会创建新的运行</p></div><button type="button" aria-label="关闭参数配置" onClick={() => setConfigJobName(null)}><UiIcon icon={X} /></button></header><label>学习率<select value={configDraft.learningRate} onChange={(event) => setConfigDraft((current) => ({ ...current, learningRate: event.target.value }))}><option>1e-5</option><option>2e-5</option><option>5e-5</option><option>1e-4</option></select></label><label>训练轮次<input type="number" min="1" max="12" value={configDraft.epochs} onChange={(event) => setConfigDraft((current) => ({ ...current, epochs: Number(event.target.value) }))} /></label><label>批次大小<select value={configDraft.batchSize} onChange={(event) => setConfigDraft((current) => ({ ...current, batchSize: Number(event.target.value) }))}><option value="4">4</option><option value="8">8</option><option value="16">16</option><option value="32">32</option></select></label><label>计算精度<select value={configDraft.precision} onChange={(event) => setConfigDraft((current) => ({ ...current, precision: event.target.value }))}><option>BF16</option><option>FP16</option><option>INT8</option><option>INT4</option></select></label><label>最大序列长度<select value={configDraft.maxSequence} onChange={(event) => setConfigDraft((current) => ({ ...current, maxSequence: Number(event.target.value) }))}><option value="2048">2048</option><option value="4096">4096</option><option value="8192">8192</option><option value="16384">16384</option></select></label><label>计算资源<select value={configDraft.compute} onChange={(event) => setConfigDraft((current) => ({ ...current, compute: event.target.value }))}><option>2 × A100 80GB</option><option>4 × A100 80GB</option><option>8 × H800 80GB</option></select></label><div className="model-config-security"><UiIcon icon={ShieldCheck} /><span><strong>安全域策略</strong> 参数可见可编辑，训练数据和模型权重不可下载。</span></div><footer><button type="button" className="reuse-secondary" onClick={() => setConfigJobName(null)}>取消</button><button className="reuse-primary"><UiIcon icon={Save} />保存参数</button></footer></form></div>}
     </section>
   );
 }
@@ -2837,7 +2951,7 @@ export default function Home() {
     }
     if (payload.kind === "model") {
       setJobs((current) => [
-        { name: payload.name, type: payload.option, model: payload.model, dataset: payload.dataset, progress: 0, status: "排队中" },
+        { name: payload.name, type: payload.option, model: payload.model, dataset: payload.dataset, progress: 0, status: "排队中", config: { ...defaultModelJobConfig }, versions: [], registeredVersion: "--" },
         ...current,
       ]);
     }
@@ -2882,6 +2996,10 @@ export default function Home() {
       return { ...job, status: "训练中", progress: Math.max(job.progress, 8) };
     }));
   }
+
+  const updateModelJob = useCallback((name: string, patch: Partial<JobRow>) => {
+    setJobs((current) => current.map((job) => job.name === name ? { ...job, ...patch } : job));
+  }, []);
 
   function runEvaluation(name: string) {
     setEvaluations((current) => current.map((item) => item.name === name ? { ...item, status: "评测中" } : item));
@@ -3069,6 +3187,7 @@ export default function Home() {
             notify={notify}
             openLog={setLogJob}
             toggleJob={toggleJob}
+            updateJob={updateModelJob}
           />
         )}
         {active === "modelEval" && (

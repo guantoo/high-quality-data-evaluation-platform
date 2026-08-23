@@ -1348,6 +1348,72 @@ button:disabled {
   font-size: 10px;
 }
 
+.model-job-name { font-weight: 600; }
+.model-job-workspace { margin-top: 13px; padding: 0 14px 14px; }
+.model-job-head { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #e1e7ee; }
+.model-job-head > div { display: flex; align-items: center; gap: 8px; }
+.model-job-head > div:first-child > span { width: 34px; height: 34px; display: grid; place-items: center; color: #fff; background: #2c78c8; border-radius: 2px; }
+.model-job-head h2,
+.model-job-head p { margin: 0; }
+.model-job-head h2 { color: #2f455f; font-size: 14px; }
+.model-job-head p { margin-top: 4px; color: #8592a2; font-size: 9px; }
+.model-job-head button { height: 29px; display: inline-flex; align-items: center; gap: 5px; }
+
+.model-config-strip { display: grid; grid-template-columns: repeat(6, 1fr); background: #f8fafc; border: 1px solid #dfe6ee; border-top: 0; }
+.model-config-strip > span { min-height: 49px; padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border-right: 1px solid #e5eaf0; }
+.model-config-strip > span:last-child { border-right: 0; }
+.model-config-strip small { color: #8995a4; font-size: 8px; }
+.model-config-strip strong { overflow: hidden; color: #40566f; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+.model-job-tabs { height: 39px; display: flex; align-items: flex-end; gap: 22px; border-bottom: 1px solid #dfe6ee; }
+.model-job-tabs button { height: 39px; padding: 0 2px; display: inline-flex; align-items: center; gap: 6px; color: #65768a; font-size: 10px; font-weight: 600; background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+.model-job-tabs button.active { color: #175da8; border-bottom-color: #2d7ff9; }
+.model-job-tabs b { min-width: 17px; height: 17px; display: inline-grid; place-items: center; color: #53718f; font-size: 8px; background: #edf2f7; border-radius: 9px; }
+
+.model-metrics-workspace,
+.model-version-workspace { padding-top: 12px; }
+.model-metric-summary { display: grid; grid-template-columns: repeat(5, 1fr); background: #fff; border: 1px solid #dfe6ee; }
+.model-metric-summary > span { min-height: 64px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; gap: 5px; border-right: 1px solid #e5eaf0; }
+.model-metric-summary > span:last-child { border-right: 0; }
+.model-metric-summary small { color: #8391a1; font-size: 8px; }
+.model-metric-summary strong { color: #304a65; font-size: 17px; }
+
+.model-metric-grid { margin-top: 11px; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #dfe6ee; }
+.model-metric-grid > section { min-width: 0; padding: 11px 12px 9px; border-right: 1px solid #e1e7ee; }
+.model-metric-grid > section:last-child { border-right: 0; }
+.model-metric-grid header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.model-metric-grid h3,
+.model-metric-grid p { margin: 0; }
+.model-metric-grid h3 { color: #394f67; font-size: 11px; }
+.model-metric-grid p { margin-top: 3px; color: #8b97a6; font-size: 8px; }
+.model-metric-grid header > strong { color: #236dae; font-size: 15px; }
+.model-metric-bars { height: 115px; margin-top: 8px; padding: 8px 6px 18px; display: flex; align-items: flex-end; gap: 6px; background-image: linear-gradient(#eef2f6 1px, transparent 1px); background-size: 100% 25%; border-left: 1px solid #dfe5ec; border-bottom: 1px solid #dfe5ec; }
+.model-metric-bars i { position: relative; min-width: 10px; flex: 1; max-width: 30px; display: block; background: #5b91c9; border-radius: 1px 1px 0 0; }
+.model-metric-bars.accuracy i { background: #29a37a; }
+.model-metric-bars i small { position: absolute; left: 50%; bottom: -15px; color: #8e9aa8; font-size: 7px; font-style: normal; transform: translateX(-50%); }
+
+.model-checkpoint-table { margin-top: 11px; border: 1px solid #dfe6ee; }
+.model-checkpoint-table > header { min-height: 49px; padding: 8px 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #e5eaf0; }
+.model-checkpoint-table h3,
+.model-checkpoint-table p { margin: 0; }
+.model-checkpoint-table h3 { color: #384e67; font-size: 11px; }
+.model-checkpoint-table p { margin-top: 3px; color: #8d98a6; font-size: 8px; }
+.model-checkpoint-table > header > span { color: #6d8094; font-size: 8px; }
+
+.model-version-current { min-height: 68px; padding: 10px 12px; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 10px; background: #f5f9fd; border: 1px solid #d8e4ef; }
+.model-version-current > span { width: 34px; height: 34px; display: grid; place-items: center; color: #2472bb; background: #e2effc; border: 1px solid #c9dff5; }
+.model-version-current small,
+.model-version-current strong,
+.model-version-current p { display: block; margin: 0; }
+.model-version-current small { color: #8593a3; font-size: 8px; }
+.model-version-current strong { margin-top: 3px; color: #36516d; font-size: 12px; }
+.model-version-current p { margin-top: 3px; color: #8391a1; font-size: 8px; }
+.model-version-workspace > .reuse-table-wrap { border: 1px solid #dfe6ee; border-top: 0; }
+
+.model-job-config-dialog { width: 600px; }
+.model-config-security { margin: 15px 0 0 105px; padding: 9px 10px; display: flex; align-items: center; gap: 7px; color: #4a7096; font-size: 9px; line-height: 1.6; background: #f1f7fd; border-left: 2px solid #4a8bc9; }
+.model-config-security strong { color: #2f5f8d; }
+
 .model-eval-page {
   display: grid;
   gap: 13px;
@@ -1916,6 +1982,15 @@ button:disabled {
   .assessment-config-dialog fieldset { margin-left: 0; }
   .model-banner { grid-template-columns: 1fr auto; }
   .secure-orbit { display: none; }
+  .model-job-head { align-items: flex-start; padding: 9px 0; flex-direction: column; }
+  .model-job-head > div:last-child { flex-wrap: wrap; }
+  .model-config-strip { grid-template-columns: repeat(3, 1fr); }
+  .model-metric-summary { grid-template-columns: repeat(2, 1fr); }
+  .model-metric-grid { grid-template-columns: 1fr; }
+  .model-metric-grid > section { border-right: 0; border-bottom: 1px solid #e1e7ee; }
+  .model-metric-grid > section:last-child { border-bottom: 0; }
+  .model-job-config-dialog { width: min(600px, calc(100vw - 24px)); }
+  .model-config-security { margin-left: 0; }
   .model-eval-grid { grid-template-columns: 1fr; }
   .login-page { grid-template-columns: 1fr; }
   .login-art { display: none; }
