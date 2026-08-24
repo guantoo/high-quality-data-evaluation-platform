@@ -176,13 +176,40 @@ type JobRow = {
   registeredVersion: string;
 };
 
+type EvaluationStatus = "待评测" | "评测中" | "通过" | "未通过";
+
+type EvaluationConfig = {
+  standard: string;
+  baseline: string;
+  sampleSize: number;
+  scoreThreshold: number;
+  safetyThreshold: number;
+  latencyThreshold: number;
+  mode: string;
+};
+
+type EvaluationResult = {
+  overall: number;
+  quality: number;
+  safety: number;
+  performance: number;
+  latency: number;
+  testsPassed: number;
+  testsTotal: number;
+  coverage: number;
+  completedAt: string;
+};
+
 type EvaluationRow = {
   name: string;
   model: string;
   dataset: string;
   score: string;
   date: string;
-  status: string;
+  status: EvaluationStatus;
+  progress: number;
+  config: EvaluationConfig;
+  result: EvaluationResult | null;
 };
 
 type CreatePayload = {
@@ -379,6 +406,71 @@ const defaultModelJobConfig: ModelJobConfig = {
   compute: "4 × A100 80GB",
 };
 
+const defaultEvaluationConfig: EvaluationConfig = {
+  standard: "模型上线标准 v3.2",
+  baseline: "qwen3-8b-base",
+  sampleSize: 2000,
+  scoreThreshold: 90,
+  safetyThreshold: 98,
+  latencyThreshold: 700,
+  mode: "双盲评测",
+};
+
+function buildEvaluationResult(row: EvaluationRow): EvaluationResult {
+  const seed = Array.from(`${row.name}${row.model}`).reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  const quality = Number((90.8 + (seed % 34) / 10).toFixed(1));
+  const safety = Number((98.1 + (seed % 17) / 10).toFixed(1));
+  const performance = Number((87.4 + (seed % 41) / 10).toFixed(1));
+  const overall = Number((quality * 0.5 + safety * 0.3 + performance * 0.2).toFixed(1));
+  return {
+    overall,
+    quality,
+    safety,
+    performance,
+    latency: 510 + (seed % 17) * 11,
+    testsPassed: 48,
+    testsTotal: 48,
+    coverage: 100,
+    completedAt: new Date().toLocaleString("zh-CN", { hour12: false }),
+  };
+}
+
+function getEvaluationGateChecks(row: EvaluationRow) {
+  const result = row.result;
+  return [
+    {
+      name: "综合能力得分",
+      required: `≥ ${row.config.scoreThreshold.toFixed(1)}`,
+      actual: result ? result.overall.toFixed(1) : "--",
+      passed: Boolean(result && result.overall >= row.config.scoreThreshold),
+    },
+    {
+      name: "安全通过率",
+      required: `≥ ${row.config.safetyThreshold.toFixed(1)}%`,
+      actual: result ? `${result.safety.toFixed(1)}%` : "--",
+      passed: Boolean(result && result.safety >= row.config.safetyThreshold),
+    },
+    {
+      name: "P95 响应延迟",
+      required: `≤ ${row.config.latencyThreshold}ms`,
+      actual: result ? `${result.latency}ms` : "--",
+      passed: Boolean(result && result.latency <= row.config.latencyThreshold),
+    },
+    {
+      name: "自动化测试",
+      required: "48 / 48",
+      actual: result ? `${result.testsPassed} / ${result.testsTotal}` : "--",
+      passed: Boolean(result && result.testsPassed === result.testsTotal),
+    },
+    {
+      name: "评测样本覆盖",
+      required: "≥ 99.0%",
+      actual: result ? `${result.coverage.toFixed(1)}%` : "--",
+      passed: Boolean(result && result.coverage >= 99),
+    },
+  ];
+}
+
 const initialJobs: JobRow[] = [
   {
     name: "finance-sft-lora-07",
@@ -423,6 +515,9 @@ const initialEvaluations: EvaluationRow[] = [
     score: "90.7",
     date: "2026-08-22",
     status: "通过",
+    progress: 100,
+    config: { ...defaultEvaluationConfig },
+    result: { overall: 90.7, quality: 91.8, safety: 99.4, performance: 88.1, latency: 620, testsPassed: 48, testsTotal: 48, coverage: 100, completedAt: "2026-08-22 17:36:20" },
   },
   {
     name: "RAG 召回质量评测",
@@ -431,6 +526,9 @@ const initialEvaluations: EvaluationRow[] = [
     score: "91.2",
     date: "2026-08-22",
     status: "通过",
+    progress: 100,
+    config: { ...defaultEvaluationConfig, standard: "RAG 效果标准 v2.4", baseline: "service-rag-v3.2", scoreThreshold: 89, sampleSize: 3000 },
+    result: { overall: 91.2, quality: 92.4, safety: 98.9, performance: 87.6, latency: 674, testsPassed: 48, testsTotal: 48, coverage: 99.8, completedAt: "2026-08-22 18:12:45" },
   },
   {
     name: "图像理解安全评测",
@@ -439,6 +537,9 @@ const initialEvaluations: EvaluationRow[] = [
     score: "96.8",
     date: "2026-08-22",
     status: "通过",
+    progress: 100,
+    config: { ...defaultEvaluationConfig, standard: "多模态安全标准 v1.8", baseline: "qwen2.5-vl-7b", sampleSize: 1600, scoreThreshold: 94, safetyThreshold: 99 },
+    result: { overall: 96.8, quality: 96.2, safety: 99.7, performance: 93.5, latency: 586, testsPassed: 48, testsTotal: 48, coverage: 100, completedAt: "2026-08-22 19:08:16" },
   },
 ];
 
@@ -2599,39 +2700,131 @@ function ModelEvaluation({
   openDialog,
   notify,
   runEvaluation,
+  updateEvaluation,
 }: {
   evaluations: EvaluationRow[];
   openDialog: () => void;
   notify: Notify;
   runEvaluation: (name: string) => void;
+  updateEvaluation: (name: string, patch: Partial<EvaluationRow>) => void;
 }) {
   const [view, setView] = useState<"综合" | "安全" | "性能">("综合");
   const [selectedName, setSelectedName] = useState(evaluations[0]?.name ?? "");
+  const [configOpen, setConfigOpen] = useState(false);
+  const [configDraft, setConfigDraft] = useState<EvaluationConfig>(defaultEvaluationConfig);
   const selected = evaluations.find((item) => item.name === selectedName) ?? evaluations[0];
+  const gateChecks = selected ? getEvaluationGateChecks(selected) : [];
+  const gatePassed = gateChecks.filter((check) => check.passed).length;
   const metrics = useMemo(() => {
-    const base = [["准确率", 83.4, 91.8], ["召回率", 78.6, 89.7], ["F1 值", 80.9, 90.7], ["事实忠实度", 86.2, 94.1], ["安全通过率", 98.1, 99.4]];
-    if (view === "安全") return [["越权防护", 91.2, 98.7], ["敏感内容", 95.3, 99.4], ["提示注入", 88.6, 97.8], ["隐私保护", 94.2, 99.1], ["内容合规", 96.1, 99.6]];
-    if (view === "性能") return [["首字延迟", 72.4, 88.1], ["吞吐量", 68.7, 91.4], ["并发稳定", 81.2, 93.5], ["长文本", 79.8, 90.2], ["资源效率", 75.6, 89.7]];
-    return base;
-  }, [view]);
+    const result = selected?.result;
+    const candidate = (value: number) => result ? Math.max(0, Math.min(100, value)) : null;
+    if (view === "安全") return [
+      { name: "越权防护", baseline: 91.2, candidate: candidate((result?.safety ?? 0) - 1.2) },
+      { name: "敏感内容", baseline: 95.3, candidate: candidate(result?.safety ?? 0) },
+      { name: "提示注入", baseline: 88.6, candidate: candidate((result?.safety ?? 0) - 2.1) },
+      { name: "隐私保护", baseline: 94.2, candidate: candidate((result?.safety ?? 0) - 0.5) },
+      { name: "内容合规", baseline: 96.1, candidate: candidate((result?.safety ?? 0) + 0.2) },
+    ];
+    if (view === "性能") return [
+      { name: "响应效率", baseline: 72.4, candidate: candidate(result?.performance ?? 0) },
+      { name: "吞吐能力", baseline: 68.7, candidate: candidate((result?.performance ?? 0) + 2.6) },
+      { name: "并发稳定", baseline: 81.2, candidate: candidate((result?.performance ?? 0) + 1.3) },
+      { name: "长文本处理", baseline: 79.8, candidate: candidate((result?.performance ?? 0) - 0.8) },
+      { name: "资源效率", baseline: 75.6, candidate: candidate((result?.performance ?? 0) + 0.7) },
+    ];
+    return [
+      { name: "准确率", baseline: 83.4, candidate: candidate((result?.quality ?? 0) - 0.4) },
+      { name: "召回率", baseline: 78.6, candidate: candidate((result?.quality ?? 0) - 2.1) },
+      { name: "F1 值", baseline: 80.9, candidate: candidate(result?.overall ?? 0) },
+      { name: "事实忠实度", baseline: 86.2, candidate: candidate((result?.quality ?? 0) + 2.3) },
+      { name: "安全通过率", baseline: 98.1, candidate: candidate(result?.safety ?? 0) },
+    ];
+  }, [selected, view]);
+
+  function openEvaluationConfig(row: EvaluationRow) {
+    setSelectedName(row.name);
+    setConfigDraft({ ...row.config });
+    setConfigOpen(true);
+  }
+
+  function saveEvaluationConfig(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) return;
+    updateEvaluation(selected.name, { config: { ...configDraft }, status: "待评测", progress: 0, score: "--", result: null });
+    setConfigOpen(false);
+    notify(`${selected.name} 的评测标准已保存，请重新执行评测`);
+  }
+
+  function startEvaluation(row: EvaluationRow) {
+    setSelectedName(row.name);
+    runEvaluation(row.name);
+  }
+
+  function exportEvaluationReport(row: EvaluationRow) {
+    if (!row.result) {
+      notify("评测完成后才能导出对比报告");
+      return;
+    }
+    const checks = getEvaluationGateChecks(row);
+    const lines = [
+      ["评测任务", row.name],
+      ["候选模型", row.model],
+      ["基线模型", row.config.baseline],
+      ["评测标准", row.config.standard],
+      ["评测数据", row.dataset],
+      ["样本数量", row.config.sampleSize],
+      ["综合得分", row.result.overall],
+      ["质量得分", row.result.quality],
+      ["安全通过率", `${row.result.safety}%`],
+      ["性能得分", row.result.performance],
+      ["P95 延迟", `${row.result.latency}ms`],
+      ["门禁结果", row.status],
+      ["完成时间", row.result.completedAt],
+      [],
+      ["门禁检查项", "要求", "实际", "结果"],
+      ...checks.map((check) => [check.name, check.required, check.actual, check.passed ? "通过" : "未通过"]),
+    ];
+    const csv = `\uFEFF${lines.map((line) => line.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${row.name}-模型评测对比报告.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    notify(`${row.name} 对比报告已导出`);
+  }
 
   return (
     <section className="reuse-content-page model-eval-page">
       <article className="white-panel evaluation-overview">
-        <div>
-          <p>评测任务 · {selected?.date}</p>
-          <h2>{selected?.model} <span>对比</span> qwen3-8b-base</h2>
-          <small>{selected?.dataset} · 2,000 条样本 · 双盲评测</small>
+        <div className="evaluation-overview-main">
+          <div>
+            <p>评测任务 · {selected?.date}</p>
+            <h2>{selected?.model} <span>对比</span> {selected?.config.baseline}</h2>
+            <small>{selected?.dataset} · {selected?.config.sampleSize.toLocaleString()} 条样本 · {selected?.config.mode}</small>
+          </div>
+          {selected && <div className="evaluation-overview-actions">
+            <button className="reuse-secondary" onClick={() => openEvaluationConfig(selected)}><UiIcon icon={Settings2} />评测标准</button>
+            <button className="reuse-secondary" disabled={!selected.result} onClick={() => exportEvaluationReport(selected)}><UiIcon icon={Download} />导出报告</button>
+            <button className="reuse-primary" disabled={selected.status === "评测中"} onClick={() => startEvaluation(selected)}><UiIcon icon={Play} />{selected.status === "评测中" ? "评测执行中" : selected.result ? "重新评测" : "开始评测"}</button>
+          </div>}
         </div>
-        <div className={`gate-pass ${selected?.status !== "通过" ? "waiting" : ""}`}>
-          <span>发布门禁</span><strong>{selected?.status === "通过" ? "通过" : "待评测"}</strong>
-          <small>{selected?.status === "通过" ? "5 / 5 核心指标达标" : "等待评测任务完成"}</small>
-        </div>
+        {selected && <div className="evaluation-standard-strip">
+          <span><small>执行标准</small><strong>{selected.config.standard}</strong></span>
+          <span><small>综合阈值</small><strong>≥ {selected.config.scoreThreshold.toFixed(1)}</strong></span>
+          <span><small>安全阈值</small><strong>≥ {selected.config.safetyThreshold.toFixed(1)}%</strong></span>
+          <span><small>延迟阈值</small><strong>≤ {selected.config.latencyThreshold}ms</strong></span>
+          <span><small>当前得分</small><strong>{selected.score}</strong></span>
+          <div className={`gate-pass ${selected.status !== "通过" ? "waiting" : ""}`}>
+            <span>发布门禁</span><strong>{selected.status}</strong><small>{selected.result ? `${gatePassed} / 5 检查项通过` : "等待评测任务完成"}</small>
+          </div>
+        </div>}
+        {selected?.status === "评测中" && <div className="evaluation-progress-strip"><span>正在执行评测用例</span><Progress value={selected.progress} /><strong>{selected.progress}%</strong><small>完成后自动判定发布门禁</small></div>}
       </article>
       <div className="model-eval-grid">
         <article className="white-panel metric-panel">
           <div className="reuse-panel-head small">
-            <div><h2>能力指标对比</h2><p>基线模型 / 候选模型</p></div>
+            <div><h2>能力指标对比</h2><p>灰色为基线模型，蓝色为候选模型</p></div>
             <div className="eval-switch">
               {(["综合", "安全", "性能"] as const).map((item) => (
                 <button className={view === item ? "active" : ""} key={item} onClick={() => setView(item)}>{item}</button>
@@ -2639,20 +2832,21 @@ function ModelEvaluation({
             </div>
           </div>
           {metrics.map((metric) => (
-            <div className="eval-metric-row" key={metric[0] as string}>
-              <strong>{metric[0]}</strong>
-              <div><i className="base" style={{ width: `${metric[1]}%` }} /><i className="candidate" style={{ width: `${metric[2]}%` }} /></div>
-              <span>{metric[1]}</span><b>{metric[2]}</b>
+            <div className="eval-metric-row" key={metric.name}>
+              <strong>{metric.name}</strong>
+              <div><i className="base" style={{ width: `${metric.baseline}%` }} /><i className="candidate" style={{ width: `${metric.candidate ?? 0}%` }} /></div>
+              <span>{metric.baseline.toFixed(1)}</span><b>{metric.candidate?.toFixed(1) ?? "--"}</b>
             </div>
           ))}
         </article>
-        <article className="white-panel test-panel">
-          <div className="reuse-panel-head small"><div><h2>评测工具</h2><p>功能、性能与安全</p></div></div>
-          {["功能测试", "性能测试", "安全测试", "鲁棒性测试"].map((name, index) => (
-            <button className="test-row" key={name} onClick={() => notify(`${name}详情已更新到当前评测上下文`)}>
-              <span>✓</span><div><strong>{name}</strong><small>{["48 / 48", "P95 620ms", "1,000 条", "92.4 分"][index]}</small></div><Status>通过</Status>
-            </button>
-          ))}
+        <article className="white-panel gate-panel">
+          <div className="reuse-panel-head small"><div><h2>发布门禁判定</h2><p>{selected?.config.standard}</p></div><Status tone={selected?.status === "通过" ? "green" : selected?.status === "未通过" ? "orange" : selected?.status === "评测中" ? "blue" : "gray"}>{selected?.status ?? "待评测"}</Status></div>
+          <div className="gate-check-list">
+            {gateChecks.map((check) => <div className={`gate-check-row ${selected?.result ? check.passed ? "passed" : "failed" : "pending"}`} key={check.name}><span><UiIcon icon={selected?.result ? check.passed ? CircleCheck : TriangleAlert : CalendarClock} /></span><div><strong>{check.name}</strong><small>要求 {check.required}</small></div><b>{check.actual}</b></div>)}
+          </div>
+          <div className="evaluation-test-summary">
+            {["功能测试", "性能测试", "安全测试", "鲁棒性测试"].map((name, index) => <button key={name} onClick={() => notify(`${name}详情已定位到当前评测记录`)}><UiIcon icon={[ClipboardCheck, Gauge, ShieldCheck, CircleCheck][index]} /><span>{name}<small>{selected?.result ? ["48 / 48", `P95 ${selected.result.latency}ms`, `${selected.config.sampleSize.toLocaleString()} 条`, `${selected.result.quality.toFixed(1)} 分`][index] : "等待执行"}</small></span></button>)}
+          </div>
         </article>
       </div>
       <article className="white-panel reuse-list-panel">
@@ -2667,10 +2861,12 @@ function ModelEvaluation({
               {evaluations.map((row) => (
                 <tr key={row.name} className={selected?.name === row.name ? "selected-row" : ""}>
                   <td><strong>{row.name}</strong></td><td>{row.model}</td><td>{row.dataset}</td><td><strong>{row.score}</strong></td><td>{row.date}</td>
-                  <td><Status tone={row.status === "通过" ? "green" : row.status === "评测中" ? "blue" : "gray"}>{row.status}</Status></td>
+                  <td><Status tone={row.status === "通过" ? "green" : row.status === "未通过" ? "orange" : row.status === "评测中" ? "blue" : "gray"}>{row.status}</Status>{row.status === "评测中" && <small className="table-progress">{row.progress}%</small>}</td>
                   <td>
                     <button className="reuse-link" onClick={() => setSelectedName(row.name)}>查看详情</button>{" "}
-                    {row.status === "待评测" && <button className="reuse-link" onClick={() => runEvaluation(row.name)}>开始评测</button>}
+                    <button className="reuse-link" onClick={() => openEvaluationConfig(row)}>配置</button>{" "}
+                    {row.status !== "评测中" && <button className="reuse-link" onClick={() => startEvaluation(row)}>{row.result ? "重评" : "开始"}</button>}{" "}
+                    {row.result && <button className="reuse-link" onClick={() => exportEvaluationReport(row)}>报告</button>}
                   </td>
                 </tr>
               ))}
@@ -2678,6 +2874,7 @@ function ModelEvaluation({
           </table>
         </div>
       </article>
+      {configOpen && selected && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭评测标准配置" onClick={() => setConfigOpen(false)} /><form className="reuse-dialog evaluation-config-dialog" onSubmit={saveEvaluationConfig}><header><div><h2>评测标准配置</h2><p>{selected.name} · 保存后需要重新执行评测</p></div><button type="button" aria-label="关闭评测标准配置" onClick={() => setConfigOpen(false)}><UiIcon icon={X} /></button></header><label>标准模板<select value={configDraft.standard} onChange={(event) => setConfigDraft((current) => ({ ...current, standard: event.target.value }))}><option>模型上线标准 v3.2</option><option>RAG 效果标准 v2.4</option><option>多模态安全标准 v1.8</option><option>高并发服务标准 v2.1</option></select></label><label>基线模型<select value={configDraft.baseline} onChange={(event) => setConfigDraft((current) => ({ ...current, baseline: event.target.value }))}><option>qwen3-8b-base</option><option>service-rag-v3.2</option><option>qwen2.5-vl-7b</option><option>finance-assistant-v2.1</option></select></label><label>评测样本量<input type="number" min="500" max="10000" step="100" value={configDraft.sampleSize} onChange={(event) => setConfigDraft((current) => ({ ...current, sampleSize: Number(event.target.value) }))} /></label><label>综合得分阈值<input type="number" min="60" max="100" step="0.1" value={configDraft.scoreThreshold} onChange={(event) => setConfigDraft((current) => ({ ...current, scoreThreshold: Number(event.target.value) }))} /></label><label>安全通过率阈值<input type="number" min="80" max="100" step="0.1" value={configDraft.safetyThreshold} onChange={(event) => setConfigDraft((current) => ({ ...current, safetyThreshold: Number(event.target.value) }))} /></label><label>P95 延迟阈值（ms）<input type="number" min="100" max="5000" step="10" value={configDraft.latencyThreshold} onChange={(event) => setConfigDraft((current) => ({ ...current, latencyThreshold: Number(event.target.value) }))} /></label><label>评测方式<select value={configDraft.mode} onChange={(event) => setConfigDraft((current) => ({ ...current, mode: event.target.value }))}><option>双盲评测</option><option>自动评测</option><option>自动 + 人工复核</option></select></label><div className="evaluation-config-note"><UiIcon icon={ShieldCheck} /><span><strong>门禁策略</strong> 所有检查项必须同时通过；任一指标未达阈值，候选模型将被阻止发布。</span></div><footer><button type="button" className="reuse-secondary" onClick={() => setConfigOpen(false)}>取消</button><button className="reuse-primary"><UiIcon icon={Save} />保存评测标准</button></footer></form></div>}
     </section>
   );
 }
@@ -2902,6 +3099,22 @@ export default function Home() {
     return () => document.removeEventListener("pointerdown", animateButtonPress, true);
   }, []);
 
+  useEffect(() => {
+    if (!evaluations.some((item) => item.status === "评测中")) return;
+    const timer = window.setInterval(() => {
+      setEvaluations((current) => current.map((item) => {
+        if (item.status !== "评测中") return item;
+        const progress = Math.min(100, item.progress + 7);
+        if (progress < 100) return { ...item, progress };
+        const result = buildEvaluationResult(item);
+        const completed = { ...item, result, progress: 100, score: result.overall.toFixed(1) };
+        const passed = getEvaluationGateChecks(completed).every((check) => check.passed);
+        return { ...completed, status: passed ? "通过" : "未通过" };
+      }));
+    }, 480);
+    return () => window.clearInterval(timer);
+  }, [evaluations]);
+
   function openModule(id: ModuleId, label?: string) {
     const moduleItem = modules.find((item) => item.id === id)!;
     if (id === "governance") {
@@ -2981,7 +3194,7 @@ export default function Home() {
     }
     if (payload.kind === "evaluation") {
       setEvaluations((current) => [
-        { name: payload.name, model: payload.model, dataset: payload.dataset, score: "--", date: today, status: "待评测" },
+        { name: payload.name, model: payload.model, dataset: payload.dataset, score: "--", date: today, status: "待评测", progress: 0, config: { ...defaultEvaluationConfig }, result: null },
         ...current,
       ]);
     }
@@ -3002,9 +3215,13 @@ export default function Home() {
   }, []);
 
   function runEvaluation(name: string) {
-    setEvaluations((current) => current.map((item) => item.name === name ? { ...item, status: "评测中" } : item));
+    setEvaluations((current) => current.map((item) => item.name === name ? { ...item, status: "评测中", progress: 3, score: "--", result: null } : item));
     notify(`${name} 已开始运行`);
   }
+
+  const updateEvaluation = useCallback((name: string, patch: Partial<EvaluationRow>) => {
+    setEvaluations((current) => current.map((item) => item.name === name ? { ...item, ...patch } : item));
+  }, []);
 
   function updateSource(name: string, patch: Partial<SourceRow>) {
     setSources((current) => current.map((source) => source.name === name ? { ...source, ...patch } : source));
@@ -3191,7 +3408,7 @@ export default function Home() {
           />
         )}
         {active === "modelEval" && (
-          <ModelEvaluation evaluations={evaluations} openDialog={() => openCreate("evaluation")} notify={notify} runEvaluation={runEvaluation} />
+          <ModelEvaluation evaluations={evaluations} openDialog={() => openCreate("evaluation")} notify={notify} runEvaluation={runEvaluation} updateEvaluation={updateEvaluation} />
         )}
       </main>
 

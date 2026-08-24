@@ -1532,6 +1532,141 @@ button:disabled {
 .test-row strong { color: #41546b; font-size: 12px; }
 .test-row small { margin-top: 3px; color: #8b98a9; font-size: 10px; }
 
+.evaluation-overview {
+  padding: 0;
+  display: block;
+}
+
+.evaluation-overview-main {
+  min-height: 88px;
+  padding: 14px 17px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.evaluation-overview-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.evaluation-standard-strip {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 1.45fr repeat(4, 0.72fr) 1.05fr;
+  align-items: stretch;
+  background: #f7f9fc;
+  border-top: 1px solid #dfe6ee;
+}
+
+.evaluation-standard-strip > span {
+  min-width: 0;
+  padding: 10px 13px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  border-right: 1px solid #e2e8ef;
+}
+
+.evaluation-standard-strip small,
+.evaluation-standard-strip strong { display: block; }
+.evaluation-standard-strip small { color: #8795a6; font-size: 8px; }
+.evaluation-standard-strip strong { overflow: hidden; color: #3f566f; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
+.evaluation-standard-strip .gate-pass {
+  min-width: 0;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: left;
+  background: #edf8f3;
+  border-left: 2px solid #1ba877;
+}
+
+.evaluation-standard-strip .gate-pass.waiting { background: #fff8e9; border-left-color: #d99a26; }
+.evaluation-standard-strip .gate-pass strong { margin: 2px 0; font-size: 17px; }
+
+.evaluation-progress-strip {
+  min-height: 38px;
+  padding: 0 14px;
+  display: grid;
+  grid-template-columns: 112px 1fr 40px 168px;
+  align-items: center;
+  gap: 10px;
+  color: #5d728a;
+  font-size: 9px;
+  background: #edf5ff;
+  border-top: 1px solid #d5e6f9;
+}
+
+.evaluation-progress-strip > span { color: #2d6eae; font-weight: 600; }
+.evaluation-progress-strip > strong { color: #2879cd; font-size: 11px; }
+.evaluation-progress-strip > small { color: #7a8ea3; }
+
+.gate-panel { padding: 0 15px 14px; }
+.gate-panel > .reuse-panel-head { border-bottom: 1px solid #e2e7ee; }
+
+.gate-check-list { border-bottom: 1px solid #e2e7ee; }
+
+.gate-check-row {
+  min-height: 47px;
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.gate-check-row:last-child { border-bottom: 0; }
+.gate-check-row > span { width: 24px; height: 24px; display: grid; place-items: center; color: #8191a3; background: #f0f3f6; }
+.gate-check-row strong,
+.gate-check-row small { display: block; }
+.gate-check-row strong { color: #42566d; font-size: 10px; }
+.gate-check-row small { margin-top: 3px; color: #8b98a7; font-size: 8px; }
+.gate-check-row > b { color: #51677f; font-size: 10px; }
+.gate-check-row.passed > span { color: #168d66; background: #e5f5ef; }
+.gate-check-row.passed > b { color: #168d66; }
+.gate-check-row.failed > span { color: #c17a1e; background: #fff2dc; }
+.gate-check-row.failed > b { color: #b36b13; }
+
+.evaluation-test-summary {
+  padding-top: 9px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: #e5eaf0;
+  border: 1px solid #e1e6ed;
+}
+
+.evaluation-test-summary button {
+  min-height: 46px;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  color: #3d78b5;
+  background: #fff;
+  border: 0;
+  cursor: pointer;
+}
+
+.evaluation-test-summary button:hover { background: #f5f9fd; }
+.evaluation-test-summary span,
+.evaluation-test-summary small { display: block; }
+.evaluation-test-summary span { color: #485d74; font-size: 9px; font-weight: 600; }
+.evaluation-test-summary small { margin-top: 3px; color: #8996a5; font-size: 8px; font-weight: 400; }
+.table-progress { margin-left: 6px; color: #2a78c6; font-size: 8px; }
+
+.evaluation-config-dialog { width: 600px; }
+.evaluation-config-note { margin: 15px 0 0 105px; padding: 9px 11px; display: flex; align-items: flex-start; gap: 8px; color: #587493; font-size: 9px; line-height: 1.6; background: #f1f6fb; border-left: 2px solid #3d82c8; }
+.evaluation-config-note > .ui-icon { flex: 0 0 auto; margin-top: 1px; color: #2f79bf; }
+.evaluation-config-note strong { color: #335d86; }
+
 .dialog-backdrop {
   position: fixed;
   z-index: 100;

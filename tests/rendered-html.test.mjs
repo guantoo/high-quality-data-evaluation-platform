@@ -108,6 +108,13 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /function registerModelVersion/);
   assert.match(page, /训练检查点/);
   assert.match(page, /function ModelEvaluation/);
+  assert.match(page, /type EvaluationConfig/);
+  assert.match(page, /function buildEvaluationResult/);
+  assert.match(page, /function getEvaluationGateChecks/);
+  assert.match(page, /function saveEvaluationConfig/);
+  assert.match(page, /function exportEvaluationReport/);
+  assert.match(page, /发布门禁判定/);
+  assert.match(page, /模型评测对比报告\.csv/);
   assert.match(page, /setLoggedIn\(false\)/);
   assert.match(layout, /title: "高质量数据集评估平台"/);
   assert.match(layout, /\/og\.png/);
@@ -135,6 +142,10 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.model-job-workspace/);
   assert.match(css, /\.model-metric-bars/);
   assert.match(css, /\.model-version-workspace/);
+  assert.match(css, /\.evaluation-standard-strip/);
+  assert.match(css, /\.evaluation-progress-strip/);
+  assert.match(css, /\.gate-check-list/);
+  assert.match(css, /\.evaluation-config-dialog/);
   assert.match(css, /\.source-sync-state/);
   assert.match(css, /\.connection-config-summary/);
   assert.match(css, /\.workbench-run-log/);
@@ -154,5 +165,6 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(workflow, /\[x\] 治理工作间节点增删、连线、运行失败与重试/);
   assert.match(workflow, /\[x\] 数据集评估配置、问题闭环和报告导出/);
   assert.match(workflow, /\[x\] 模型开发参数、运行指标和模型版本管理/);
+  assert.match(workflow, /\[x\] 模型评测标准、门禁判定和对比报告/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });
