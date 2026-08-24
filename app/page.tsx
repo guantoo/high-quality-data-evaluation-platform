@@ -24,12 +24,17 @@ import {
   ClipboardCheck,
   Database,
   Download,
+  Eye,
+  FileDown,
+  FileUp,
   Filter,
   FolderKanban,
   Gauge,
   GitBranch,
   Grid2X2,
+  HardDrive,
   House,
+  KeyRound,
   LayoutDashboard,
   Layers3,
   Link2,
@@ -37,6 +42,7 @@ import {
   LocateFixed,
   LogOut,
   Menu,
+  MessageSquare,
   Minus,
   MoreHorizontal,
   PackageCheck,
@@ -44,12 +50,14 @@ import {
   Plus,
   RefreshCw,
   Redo2,
+  RotateCcw,
   Rows3,
   Save,
   Search,
   ScanSearch,
   Server,
   Settings2,
+  ScrollText,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
@@ -59,7 +67,10 @@ import {
   TriangleAlert,
   Undo2,
   Upload,
+  UserCog,
+  UserPlus,
   UserRound,
+  Users,
   Workflow,
   X,
   ZoomIn,
@@ -72,7 +83,8 @@ type ModuleId =
   | "governance"
   | "assessment"
   | "modelDev"
-  | "modelEval";
+  | "modelEval"
+  | "admin";
 type DialogId =
   | "assessment"
   | "model"
@@ -82,6 +94,7 @@ type DialogId =
   | null;
 type TopPanelId = "guide" | "profile" | "messages" | null;
 type GovernanceView = "projects" | "workspace" | "algorithms" | "marketplace";
+type AdminView = "messages" | "audit" | "permissions" | "storage";
 type Notify = (message: string) => void;
 
 function UiIcon({ icon: Icon, size = 14 }: { icon: LucideIcon; size?: number }) {
@@ -221,6 +234,69 @@ type EvaluationRow = {
   result: EvaluationResult | null;
 };
 
+type PlatformMessage = {
+  id: string;
+  title: string;
+  detail: string;
+  category: "质量" | "治理" | "模型" | "系统";
+  level: "普通" | "重要" | "紧急";
+  time: string;
+  read: boolean;
+  module: ModuleId;
+};
+
+type AuditLogRow = {
+  id: string;
+  time: string;
+  user: string;
+  module: string;
+  action: string;
+  target: string;
+  result: "成功" | "失败";
+  detail: string;
+  address: string;
+};
+
+type PermissionLevel = "无权限" | "只读" | "管理";
+
+type PlatformRole = {
+  id: string;
+  name: string;
+  description: string;
+  members: number;
+  permissions: Record<ModuleId, PermissionLevel>;
+};
+
+type PlatformUser = {
+  id: string;
+  name: string;
+  account: string;
+  department: string;
+  roleId: string;
+  status: "正常" | "停用";
+  lastLogin: string;
+};
+
+type LocalPlatformSnapshot = {
+  version: 1;
+  savedAt: string;
+  data: {
+    project: string;
+    compact: boolean;
+    projects: ProjectRow[];
+    sources: SourceRow[];
+    cleaningTasks: CleaningTaskRow[];
+    reviewTasks: string[];
+    jobs: JobRow[];
+    evaluations: EvaluationRow[];
+    messages: PlatformMessage[];
+    auditLogs: AuditLogRow[];
+    roles: PlatformRole[];
+    users: PlatformUser[];
+    activeRoleId: string;
+  };
+};
+
 type CreatePayload = {
   kind: Exclude<DialogId, null>;
   name: string;
@@ -273,6 +349,13 @@ const modules: Array<{
     short: "评测",
     icon: Gauge,
     children: ["评测标准", "评测任务", "能力对比", "发布门禁"],
+  },
+  {
+    id: "admin",
+    label: "平台管理",
+    short: "管理",
+    icon: Settings2,
+    children: ["全局消息", "审计日志", "权限控制", "本地数据"],
   },
 ];
 
@@ -544,6 +627,65 @@ const initialEvaluations: EvaluationRow[] = [
     config: { ...defaultEvaluationConfig, standard: "多模态安全标准 v1.8", baseline: "qwen2.5-vl-7b", sampleSize: 1600, scoreThreshold: 94, safetyThreshold: 99 },
     result: { overall: 96.8, quality: 96.2, safety: 99.7, performance: 93.5, latency: 586, testsPassed: 48, testsTotal: 48, coverage: 100, completedAt: "2026-08-22 19:08:16" },
   },
+];
+
+const PLATFORM_STORAGE_KEY = "high-quality-data-platform:v1";
+
+const initialMessages: PlatformMessage[] = [
+  { id: "message-01", title: "篮球版本1评估已完成", detail: "五项质量审查全部通过，综合质量分 96.8。", category: "质量", level: "普通", time: "2 分钟前", read: false, module: "assessment" },
+  { id: "message-02", title: "finance-sft-lora-07 运行至 68%", detail: "训练指标稳定，预计 22 分钟后生成候选版本。", category: "模型", level: "普通", time: "8 分钟前", read: false, module: "modelDev" },
+  { id: "message-03", title: "金融问答模型安全门禁已通过", detail: "5 项发布检查全部达标，可进入版本审批。", category: "模型", level: "重要", time: "26 分钟前", read: false, module: "modelEval" },
+  { id: "message-04", title: "客户主数据异常率超过阈值", detail: "手机号格式异常率 3.6%，超过质量红线 1.6 个百分点。", category: "质量", level: "紧急", time: "今天 09:42", read: true, module: "assessment" },
+  { id: "message-05", title: "知识文档仓同步完成", detail: "最近同步 1,286 个文件，失败 0 个。", category: "系统", level: "普通", time: "今天 08:15", read: true, module: "inventory" },
+  { id: "message-06", title: "治理流程等待人工复核", detail: "图像多模态标注节点有 36 条低置信度样本。", category: "治理", level: "重要", time: "昨天 18:32", read: true, module: "governance" },
+];
+
+const initialAuditLogs: AuditLogRow[] = [
+  { id: "audit-01", time: "2026-08-24 11:42:18", user: "高质量数据评估演示", module: "模型评测", action: "执行评测", target: "金融问答能力评测", result: "成功", detail: "发布门禁 5/5 通过", address: "127.0.0.1" },
+  { id: "audit-02", time: "2026-08-24 11:36:05", user: "高质量数据评估演示", module: "数据治理", action: "更新规则", target: "质量规则过滤", result: "成功", detail: "启用 13 条质量规则", address: "127.0.0.1" },
+  { id: "audit-03", time: "2026-08-24 11:18:42", user: "高质量数据评估演示", module: "数据接入", action: "同步数据", target: "知识文档仓", result: "成功", detail: "同步文件 1,286 个", address: "127.0.0.1" },
+  { id: "audit-04", time: "2026-08-24 10:56:21", user: "质量评估员-王敏", module: "数据评估", action: "处置问题", target: "customer_name #3812", result: "成功", detail: "根据关联账户补全", address: "10.20.18.24" },
+  { id: "audit-05", time: "2026-08-24 10:42:09", user: "模型工程师-李成", module: "模型开发", action: "启动训练", target: "finance-sft-lora-07", result: "成功", detail: "计算资源 4 × A100 80GB", address: "10.20.18.31" },
+  { id: "audit-06", time: "2026-08-24 10:15:37", user: "数据管理员-赵宁", module: "数据接入", action: "测试连接", target: "业务事件接口", result: "失败", detail: "连接超时，已自动重试", address: "10.20.18.16" },
+];
+
+const initialRoles: PlatformRole[] = [
+  {
+    id: "role-admin",
+    name: "平台管理员",
+    description: "管理平台设置、人员权限和全部业务模块",
+    members: 2,
+    permissions: { home: "管理", inventory: "管理", governance: "管理", assessment: "管理", modelDev: "管理", modelEval: "管理", admin: "管理" },
+  },
+  {
+    id: "role-data",
+    name: "数据管理员",
+    description: "负责数据接入、盘点、清洗和治理流程",
+    members: 5,
+    permissions: { home: "只读", inventory: "管理", governance: "管理", assessment: "只读", modelDev: "无权限", modelEval: "只读", admin: "只读" },
+  },
+  {
+    id: "role-quality",
+    name: "质量评估员",
+    description: "执行数据集质量评估、问题复核和报告导出",
+    members: 8,
+    permissions: { home: "只读", inventory: "只读", governance: "只读", assessment: "管理", modelDev: "无权限", modelEval: "管理", admin: "只读" },
+  },
+  {
+    id: "role-model",
+    name: "模型工程师",
+    description: "运行模型开发任务并执行能力评测",
+    members: 4,
+    permissions: { home: "只读", inventory: "只读", governance: "只读", assessment: "只读", modelDev: "管理", modelEval: "管理", admin: "只读" },
+  },
+];
+
+const initialUsers: PlatformUser[] = [
+  { id: "user-01", name: "高质量数据评估演示", account: "admin@local", department: "平台管理组", roleId: "role-admin", status: "正常", lastLogin: "刚刚" },
+  { id: "user-02", name: "赵宁", account: "zhaoning@local", department: "数据中台组", roleId: "role-data", status: "正常", lastLogin: "今天 10:12" },
+  { id: "user-03", name: "王敏", account: "wangmin@local", department: "质量运营组", roleId: "role-quality", status: "正常", lastLogin: "今天 09:48" },
+  { id: "user-04", name: "李成", account: "licheng@local", department: "模型工程组", roleId: "role-model", status: "正常", lastLogin: "今天 09:21" },
+  { id: "user-05", name: "周悦", account: "zhouyue@local", department: "质量运营组", roleId: "role-quality", status: "停用", lastLogin: "2026-08-18" },
 ];
 
 function Status({
@@ -2879,6 +3021,131 @@ function ModelEvaluation({
   );
 }
 
+function PlatformManagement({
+  view,
+  messages,
+  auditLogs,
+  roles,
+  users,
+  activeRoleId,
+  persistenceReady,
+  lastSavedAt,
+  storageBytes,
+  recordCounts,
+  notify,
+  openModule,
+  markMessageRead,
+  markAllMessagesRead,
+  updateRolePermission,
+  addRole,
+  updateUserRole,
+  toggleUserStatus,
+  setActiveRoleId,
+  exportLocalBackup,
+  importLocalBackup,
+  clearLocalBackup,
+}: {
+  view: AdminView;
+  messages: PlatformMessage[];
+  auditLogs: AuditLogRow[];
+  roles: PlatformRole[];
+  users: PlatformUser[];
+  activeRoleId: string;
+  persistenceReady: boolean;
+  lastSavedAt: string;
+  storageBytes: number;
+  recordCounts: Array<{ name: string; count: number; description: string }>;
+  notify: Notify;
+  openModule: (id: ModuleId, label?: string) => void;
+  markMessageRead: (id: string) => void;
+  markAllMessagesRead: () => void;
+  updateRolePermission: (roleId: string, moduleId: ModuleId, level: PermissionLevel) => void;
+  addRole: () => void;
+  updateUserRole: (userId: string, roleId: string) => void;
+  toggleUserStatus: (userId: string) => void;
+  setActiveRoleId: (roleId: string) => void;
+  exportLocalBackup: () => void;
+  importLocalBackup: (file: File) => void;
+  clearLocalBackup: () => void;
+}) {
+  const [messageFilter, setMessageFilter] = useState<"全部" | PlatformMessage["category"] | "未读">("全部");
+  const [auditQuery, setAuditQuery] = useState("");
+  const [auditModule, setAuditModule] = useState("全部模块");
+  const [selectedAudit, setSelectedAudit] = useState<AuditLogRow | null>(null);
+  const [permissionView, setPermissionView] = useState<"角色权限" | "成员账号">("角色权限");
+  const [selectedRoleId, setSelectedRoleId] = useState(roles[0]?.id ?? "");
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const backupInput = useRef<HTMLInputElement>(null);
+  const currentRole = roles.find((role) => role.id === activeRoleId) ?? roles[0];
+  const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? roles[0];
+  const canManage = currentRole?.permissions.admin === "管理";
+  const unreadCount = messages.filter((message) => !message.read).length;
+  const visibleMessages = messages.filter((message) => messageFilter === "全部" || messageFilter === "未读" ? messageFilter === "全部" || !message.read : message.category === messageFilter);
+  const visibleAudits = auditLogs.filter((log) => {
+    const matchesModule = auditModule === "全部模块" || log.module === auditModule;
+    const text = `${log.user}${log.module}${log.action}${log.target}${log.detail}`.toLowerCase();
+    return matchesModule && text.includes(auditQuery.toLowerCase());
+  });
+  const viewMeta: Record<AdminView, { title: string; description: string; icon: LucideIcon }> = {
+    messages: { title: "全局消息", description: "集中查看质量、治理、模型与系统通知", icon: MessageSquare },
+    audit: { title: "审计日志", description: "追踪平台关键操作、执行结果和访问来源", icon: ScrollText },
+    permissions: { title: "权限控制", description: "按角色配置模块访问范围与操作级别", icon: UserCog },
+    storage: { title: "本地持久化", description: "管理当前浏览器中的平台数据、备份和恢复", icon: HardDrive },
+  };
+  const meta = viewMeta[view];
+  const permissionModules = modules.map((item) => ({ id: item.id, label: item.label, icon: item.icon }));
+
+  function exportAuditLogs() {
+    const lines = [["时间", "用户", "模块", "操作", "对象", "结果", "详情", "来源地址"], ...visibleAudits.map((log) => [log.time, log.user, log.module, log.action, log.target, log.result, log.detail, log.address])];
+    const csv = `\uFEFF${lines.map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "平台审计日志.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+    notify(`已导出 ${visibleAudits.length} 条审计日志`);
+  }
+
+  return (
+    <section className="reuse-content-page admin-management-page">
+      <header className="white-panel admin-page-head">
+        <div><span><UiIcon icon={meta.icon} size={18} /></span><div><h1>{meta.title}</h1><p>{meta.description}</p></div></div>
+        <label>当前身份<select value={activeRoleId} onChange={(event) => setActiveRoleId(event.target.value)}>{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
+      </header>
+
+      {view === "messages" && <>
+        <div className="admin-summary-strip message-summary-strip"><span><small>全部消息</small><strong>{messages.length}</strong></span><span><small>未读消息</small><strong>{unreadCount}</strong></span><span><small>重要及紧急</small><strong>{messages.filter((message) => message.level !== "普通").length}</strong></span><span><small>今日更新</small><strong>{messages.filter((message) => !message.time.includes("昨天")).length}</strong></span><button className="reuse-secondary" disabled={!unreadCount} onClick={() => { markAllMessagesRead(); notify("全部消息已标记为已读"); }}><UiIcon icon={CircleCheck} />全部已读</button></div>
+        <article className="white-panel admin-list-panel">
+          <div className="admin-list-toolbar"><div className="admin-filter-tabs">{(["全部", "未读", "质量", "治理", "模型", "系统"] as const).map((item) => <button className={messageFilter === item ? "active" : ""} key={item} onClick={() => setMessageFilter(item)}>{item}<b>{item === "全部" ? messages.length : item === "未读" ? unreadCount : messages.filter((message) => message.category === item).length}</b></button>)}</div><span>消息保存于当前浏览器</span></div>
+          <div className="global-message-list">{visibleMessages.map((message) => <div className={message.read ? "read" : "unread"} key={message.id}><span className={`message-category ${message.category}`}>{message.category.slice(0, 1)}</span><button onClick={() => markMessageRead(message.id)}><strong>{message.title}{message.level !== "普通" && <em className={message.level}>{message.level}</em>}</strong><p>{message.detail}</p><small>{message.time}</small></button><div><Status tone={message.read ? "gray" : "blue"}>{message.read ? "已读" : "未读"}</Status><button className="reuse-link" onClick={() => { markMessageRead(message.id); openModule(message.module); }}>查看业务</button></div></div>)}</div>
+          {!visibleMessages.length && <div className="admin-empty-state"><UiIcon icon={MessageSquare} size={22} /><strong>当前筛选下没有消息</strong><p>新的任务状态和平台事件会显示在这里。</p></div>}
+        </article>
+      </>}
+
+      {view === "audit" && <article className="white-panel admin-list-panel audit-panel">
+        <div className="admin-list-toolbar"><div className="admin-search-group"><label><UiIcon icon={Search} /><input value={auditQuery} onChange={(event) => setAuditQuery(event.target.value)} placeholder="搜索用户、操作或对象" /></label><select value={auditModule} onChange={(event) => setAuditModule(event.target.value)}><option>全部模块</option>{Array.from(new Set(auditLogs.map((log) => log.module))).map((moduleName) => <option key={moduleName}>{moduleName}</option>)}</select></div><button className="reuse-secondary" onClick={exportAuditLogs}><UiIcon icon={Download} />导出日志</button></div>
+        <div className="audit-stat-strip"><span><small>操作总量</small><strong>{auditLogs.length}</strong></span><span><small>成功操作</small><strong>{auditLogs.filter((log) => log.result === "成功").length}</strong></span><span><small>失败操作</small><strong>{auditLogs.filter((log) => log.result === "失败").length}</strong></span><span><small>活跃用户</small><strong>{new Set(auditLogs.map((log) => log.user)).size}</strong></span></div>
+        <div className="reuse-table-wrap"><table className="reuse-table audit-table"><thead><tr><th>操作时间</th><th>操作用户</th><th>业务模块</th><th>操作类型</th><th>操作对象</th><th>结果</th><th>来源地址</th><th>详情</th></tr></thead><tbody>{visibleAudits.map((log) => <tr key={log.id}><td>{log.time}</td><td><strong>{log.user}</strong></td><td>{log.module}</td><td>{log.action}</td><td>{log.target}</td><td><Status tone={log.result === "成功" ? "green" : "orange"}>{log.result}</Status></td><td>{log.address}</td><td><button className="reuse-link" onClick={() => setSelectedAudit(log)}><UiIcon icon={Eye} />查看</button></td></tr>)}</tbody></table></div>
+        {selectedAudit && <aside className="audit-detail-drawer"><header><div><span>审计详情</span><strong>{selectedAudit.action}</strong></div><button aria-label="关闭审计详情" onClick={() => setSelectedAudit(null)}><UiIcon icon={X} /></button></header><dl><dt>操作时间</dt><dd>{selectedAudit.time}</dd><dt>操作用户</dt><dd>{selectedAudit.user}</dd><dt>业务模块</dt><dd>{selectedAudit.module}</dd><dt>操作对象</dt><dd>{selectedAudit.target}</dd><dt>执行结果</dt><dd><Status tone={selectedAudit.result === "成功" ? "green" : "orange"}>{selectedAudit.result}</Status></dd><dt>来源地址</dt><dd>{selectedAudit.address}</dd><dt>操作说明</dt><dd>{selectedAudit.detail}</dd></dl><footer><button className="reuse-secondary" onClick={() => setSelectedAudit(null)}>关闭</button></footer></aside>}
+      </article>}
+
+      {view === "permissions" && <article className="white-panel permission-panel">
+        <div className="admin-list-toolbar"><div className="admin-filter-tabs">{(["角色权限", "成员账号"] as const).map((item) => <button className={permissionView === item ? "active" : ""} key={item} onClick={() => setPermissionView(item)}>{item}</button>)}</div><span><UiIcon icon={KeyRound} />当前身份：{currentRole?.name} · {canManage ? "可编辑权限" : "只读查看"}</span></div>
+        {permissionView === "角色权限" && <div className="permission-layout"><aside className="role-list"><header><strong>平台角色</strong><button disabled={!canManage} onClick={addRole} aria-label="新增角色"><UiIcon icon={Plus} /></button></header>{roles.map((role) => <button className={selectedRole?.id === role.id ? "active" : ""} key={role.id} onClick={() => setSelectedRoleId(role.id)}><span><UiIcon icon={role.id === "role-admin" ? ShieldCheck : Users} /></span><div><strong>{role.name}</strong><small>{role.members} 名成员</small></div><UiIcon icon={ChevronRight} /></button>)}</aside><section className="permission-matrix"><header><div><h2>{selectedRole?.name}</h2><p>{selectedRole?.description}</p></div><Status tone={canManage ? "green" : "gray"}>{canManage ? "可编辑" : "只读"}</Status></header><table><thead><tr><th>功能模块</th><th>无权限</th><th>只读</th><th>管理</th><th>当前范围</th></tr></thead><tbody>{selectedRole && permissionModules.map((moduleItem) => <tr key={moduleItem.id}><td><span><UiIcon icon={moduleItem.icon} /></span><strong>{moduleItem.label}</strong></td>{(["无权限", "只读", "管理"] as const).map((level) => <td key={level}><input type="radio" name={`${selectedRole.id}-${moduleItem.id}`} checked={selectedRole.permissions[moduleItem.id] === level} disabled={!canManage || selectedRole.id === "role-admin" && moduleItem.id === "admin"} onChange={() => updateRolePermission(selectedRole.id, moduleItem.id, level)} aria-label={`${moduleItem.label}${level}`} /></td>)}<td><Status tone={selectedRole.permissions[moduleItem.id] === "管理" ? "green" : selectedRole.permissions[moduleItem.id] === "只读" ? "blue" : "gray"}>{selectedRole.permissions[moduleItem.id]}</Status></td></tr>)}</tbody></table></section></div>}
+        {permissionView === "成员账号" && <div className="user-management"><div className="user-management-head"><div><h2>成员账号</h2><p>角色调整和账号状态会立即写入本地权限配置</p></div><button className="reuse-primary" disabled={!canManage} onClick={() => notify("本地演示环境通过导入成员清单新增账号")}><UiIcon icon={UserPlus} />新增成员</button></div><div className="reuse-table-wrap"><table className="reuse-table"><thead><tr><th>成员</th><th>账号</th><th>所属部门</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><strong>{user.name}</strong></td><td>{user.account}</td><td>{user.department}</td><td><select value={user.roleId} disabled={!canManage || user.id === "user-01"} onChange={(event) => updateUserRole(user.id, event.target.value)}>{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></td><td><Status tone={user.status === "正常" ? "green" : "gray"}>{user.status}</Status></td><td>{user.lastLogin}</td><td><button className="reuse-link" disabled={!canManage || user.id === "user-01"} onClick={() => toggleUserStatus(user.id)}>{user.status === "正常" ? "停用" : "启用"}</button></td></tr>)}</tbody></table></div></div>}
+      </article>}
+
+      {view === "storage" && <>
+        <div className="admin-summary-strip storage-summary-strip"><span><small>持久化状态</small><strong>{persistenceReady ? "已启用" : "初始化中"}</strong></span><span><small>保存位置</small><strong>当前浏览器</strong></span><span><small>占用空间</small><strong>{(storageBytes / 1024).toFixed(1)} KB</strong></span><span><small>最近保存</small><strong>{lastSavedAt}</strong></span><Status tone={persistenceReady ? "green" : "blue"}>{persistenceReady ? "自动保存中" : "正在连接"}</Status></div>
+        <div className="storage-management-grid"><article className="white-panel storage-data-panel"><header className="decision-section-head"><div><h2>本地数据清单</h2><p>以下数据会在刷新或重新打开页面后恢复</p></div><UiIcon icon={HardDrive} /></header><div className="storage-record-list">{recordCounts.map((record) => <div key={record.name}><span><UiIcon icon={Database} /></span><div><strong>{record.name}</strong><small>{record.description}</small></div><b>{record.count}</b></div>)}</div></article><article className="white-panel storage-action-panel"><header className="decision-section-head"><div><h2>备份与恢复</h2><p>备份文件仅包含本地平台配置和演示数据</p></div><UiIcon icon={RotateCcw} /></header><button onClick={exportLocalBackup}><span><UiIcon icon={FileDown} /></span><div><strong>导出本地备份</strong><small>生成 JSON 文件，用于迁移或归档</small></div><UiIcon icon={ChevronRight} /></button><button onClick={() => backupInput.current?.click()}><span><UiIcon icon={FileUp} /></span><div><strong>导入本地备份</strong><small>校验版本后覆盖当前浏览器数据</small></div><UiIcon icon={ChevronRight} /></button><input ref={backupInput} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) importLocalBackup(file); event.target.value = ""; }} /><button className="danger" onClick={() => setResetConfirm(true)}><span><UiIcon icon={Trash2} /></span><div><strong>清除本地数据</strong><small>恢复平台预置演示数据，不影响程序文件</small></div><UiIcon icon={ChevronRight} /></button></article></div>
+        <article className="white-panel storage-policy-panel"><header><UiIcon icon={ShieldCheck} /><div><strong>本地持久化策略</strong><p>当前平台按照本地化部署要求，使用浏览器设备存储保存业务状态；数据不会自动上传到云端。导出的备份文件可能包含项目名称、操作日志与账号配置，请按内部数据规范保管。</p></div></header><div><span>自动保存</span><strong>每次数据变更后即时写入</strong><span>恢复策略</span><strong>启动时读取最后一次完整快照</strong><span>数据范围</span><strong>项目、任务、消息、日志与权限</strong></div></article>
+        {resetConfirm && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="取消清除本地数据" onClick={() => setResetConfirm(false)} /><div className="reuse-dialog local-reset-dialog"><header><div><h2>确认清除本地数据</h2><p>此操作会移除当前浏览器保存的项目状态</p></div><button aria-label="关闭确认框" onClick={() => setResetConfirm(false)}><UiIcon icon={X} /></button></header><div><span><UiIcon icon={TriangleAlert} size={22} /></span><p>清除后平台将恢复预置演示数据。建议先导出备份，以便需要时恢复。</p></div><footer><button className="reuse-secondary" onClick={() => setResetConfirm(false)}>取消</button><button className="reuse-primary danger-button" onClick={() => { clearLocalBackup(); setResetConfirm(false); }}>确认清除</button></footer></div></div>}
+      </>}
+    </section>
+  );
+}
+
 function CreateDialog({
   id,
   preset,
@@ -3031,7 +3298,7 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [assistant, setAssistant] = useState(false);
   const [topPanel, setTopPanel] = useState<TopPanelId>(null);
-  const [messagesRead, setMessagesRead] = useState(false);
+  const [adminView, setAdminView] = useState<AdminView>("messages");
   const [compact, setCompact] = useState(false);
   const [projects, setProjects] = useState(initialProjects);
   const [workspaceProject, setWorkspaceProject] = useState<ProjectRow | null>(null);
@@ -3041,6 +3308,13 @@ export default function Home() {
   const [reviewTasks, setReviewTasks] = useState(initialReviewTasks);
   const [jobs, setJobs] = useState(initialJobs);
   const [evaluations, setEvaluations] = useState(initialEvaluations);
+  const [messages, setMessages] = useState(initialMessages);
+  const [auditLogs, setAuditLogs] = useState(initialAuditLogs);
+  const [roles, setRoles] = useState(initialRoles);
+  const [users, setUsers] = useState(initialUsers);
+  const [activeRoleId, setActiveRoleId] = useState("role-admin");
+  const [persistenceReady, setPersistenceReady] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState("尚未保存");
   const [logJob, setLogJob] = useState<JobRow | null>(null);
   const toastTimer = useRef<number | null>(null);
 
@@ -3048,7 +3322,71 @@ export default function Home() {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     setToast(message);
     toastTimer.current = window.setTimeout(() => setToast(""), 2800);
+    const moduleName = modules.find((item) => item.id === active)?.label ?? "平台管理";
+    setAuditLogs((current) => [{
+      id: `audit-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+      time: new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-"),
+      user: "高质量数据评估演示",
+      module: moduleName,
+      action: message.includes("导出") ? "导出数据" : message.includes("创建") ? "创建记录" : message.includes("运行") ? "执行任务" : message.includes("保存") ? "保存配置" : message.includes("同步") ? "同步数据" : message.includes("切换") ? "切换状态" : "执行操作",
+      target: message.slice(0, 28),
+      result: message.includes("失败") || message.includes("异常") ? "失败" : "成功",
+      detail: message,
+      address: "127.0.0.1",
+    }, ...current].slice(0, 300));
+  }, [active]);
+
+  const buildLocalSnapshot = useCallback((): LocalPlatformSnapshot => ({
+    version: 1,
+    savedAt: new Date().toISOString(),
+    data: { project, compact, projects, sources, cleaningTasks, reviewTasks, jobs, evaluations, messages, auditLogs, roles, users, activeRoleId },
+  }), [activeRoleId, auditLogs, cleaningTasks, compact, evaluations, jobs, messages, project, projects, reviewTasks, roles, sources, users]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.localStorage.getItem(PLATFORM_STORAGE_KEY);
+        if (raw) {
+          const snapshot = JSON.parse(raw) as LocalPlatformSnapshot;
+          if (snapshot.version === 1 && snapshot.data) {
+            setProject(snapshot.data.project || "高质量数据集评估演示");
+            setCompact(Boolean(snapshot.data.compact));
+            setProjects(snapshot.data.projects || initialProjects);
+            setSources(snapshot.data.sources || initialSources);
+            setCleaningTasks(snapshot.data.cleaningTasks || initialCleaningTasks);
+            setReviewTasks(snapshot.data.reviewTasks || initialReviewTasks);
+            setJobs(snapshot.data.jobs || initialJobs);
+            setEvaluations(snapshot.data.evaluations || initialEvaluations);
+            setMessages(snapshot.data.messages || initialMessages);
+            setAuditLogs(snapshot.data.auditLogs || initialAuditLogs);
+            setRoles(snapshot.data.roles || initialRoles);
+            setUsers(snapshot.data.users || initialUsers);
+            setActiveRoleId(snapshot.data.activeRoleId || "role-admin");
+            setLastSavedAt(new Date(snapshot.savedAt).toLocaleTimeString("zh-CN", { hour12: false }));
+          }
+        }
+      } catch {
+        window.localStorage.removeItem(PLATFORM_STORAGE_KEY);
+      } finally {
+        setPersistenceReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!persistenceReady) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const snapshot = buildLocalSnapshot();
+        window.localStorage.setItem(PLATFORM_STORAGE_KEY, JSON.stringify(snapshot));
+        setLastSavedAt(new Date(snapshot.savedAt).toLocaleTimeString("zh-CN", { hour12: false }));
+      } catch {
+        setToast("本地保存空间不足，请先导出备份并清理数据");
+      }
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [buildLocalSnapshot, persistenceReady]);
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -3116,6 +3454,12 @@ export default function Home() {
 
   function openModule(id: ModuleId, label?: string) {
     const moduleItem = modules.find((item) => item.id === id)!;
+    const currentRole = roles.find((role) => role.id === activeRoleId) ?? roles[0];
+    if (id !== "home" && currentRole?.permissions[id] === "无权限") {
+      setMenuOpen(null);
+      notify(`${currentRole.name} 无权访问${moduleItem.label}，请联系平台管理员`);
+      return;
+    }
     if (id === "governance") {
       if (!label || label === "治理项目管理") {
         setGovernanceView("projects");
@@ -3133,6 +3477,10 @@ export default function Home() {
         setGovernanceView("marketplace");
         setWorkspaceProject(null);
       }
+    }
+    if (id === "admin") {
+      const nextAdminView: Record<string, AdminView> = { 全局消息: "messages", 审计日志: "audit", 权限控制: "permissions", 本地数据: "storage" };
+      setAdminView(nextAdminView[label || "全局消息"] || "messages");
     }
     setActive(id);
     setMenuOpen(null);
@@ -3154,6 +3502,10 @@ export default function Home() {
   function openCreate(id: Exclude<DialogId, null>, preset = "") {
     setDialogPreset(preset);
     setDialog(id);
+  }
+
+  function pushPlatformMessage(message: Omit<PlatformMessage, "id" | "time" | "read">) {
+    setMessages((current) => [{ ...message, id: `message-${Date.now()}`, time: "刚刚", read: false }, ...current].slice(0, 100));
   }
 
   function handleCreated(payload: CreatePayload) {
@@ -3198,6 +3550,13 @@ export default function Home() {
       ]);
     }
     setDialog(null);
+    pushPlatformMessage({
+      title: `${payload.name} 已创建`,
+      detail: "新记录已加入平台任务列表，可继续配置并执行。",
+      category: payload.kind === "model" || payload.kind === "evaluation" ? "模型" : payload.kind === "project" ? "治理" : "质量",
+      level: "普通",
+      module: payload.kind === "model" ? "modelDev" : payload.kind === "evaluation" ? "modelEval" : payload.kind === "project" ? "governance" : payload.kind === "connection" ? "inventory" : "assessment",
+    });
     notify(`${payload.name} 已创建并加入列表`);
   }
 
@@ -3215,6 +3574,7 @@ export default function Home() {
 
   function runEvaluation(name: string) {
     setEvaluations((current) => current.map((item) => item.name === name ? { ...item, status: "评测中", progress: 3, score: "--", result: null } : item));
+    pushPlatformMessage({ title: `${name} 已开始运行`, detail: "评测完成后将自动计算能力指标并判定发布门禁。", category: "模型", level: "普通", module: "modelEval" });
     notify(`${name} 已开始运行`);
   }
 
@@ -3247,9 +3607,99 @@ export default function Home() {
     setCleaningTasks((current) => current.map((task) => task.id === id ? { ...task, ...patch } : task));
   }, []);
 
+  function markMessageRead(id: string) {
+    setMessages((current) => current.map((message) => message.id === id ? { ...message, read: true } : message));
+  }
+
+  function markAllMessagesRead() {
+    setMessages((current) => current.map((message) => ({ ...message, read: true })));
+  }
+
+  function updateRolePermission(roleId: string, moduleId: ModuleId, level: PermissionLevel) {
+    setRoles((current) => current.map((role) => role.id === roleId ? { ...role, permissions: { ...role.permissions, [moduleId]: level } } : role));
+    notify(`${roles.find((role) => role.id === roleId)?.name || "角色"} 的${modules.find((item) => item.id === moduleId)?.label || "模块"}权限已设为${level}`);
+  }
+
+  function addRole() {
+    const id = `role-custom-${Date.now()}`;
+    setRoles((current) => [...current, { id, name: `自定义角色 ${current.length - 3}`, description: "按实际职责配置模块访问权限", members: 0, permissions: { home: "只读", inventory: "只读", governance: "只读", assessment: "只读", modelDev: "无权限", modelEval: "无权限", admin: "只读" } }]);
+    notify("已新增自定义角色，可继续配置模块权限");
+  }
+
+  function updateUserRole(userId: string, roleId: string) {
+    const user = users.find((item) => item.id === userId);
+    if (!user || user.roleId === roleId) return;
+    setUsers((current) => current.map((item) => item.id === userId ? { ...item, roleId } : item));
+    setRoles((current) => current.map((role) => role.id === user.roleId ? { ...role, members: Math.max(0, role.members - 1) } : role.id === roleId ? { ...role, members: role.members + 1 } : role));
+    notify(`${user.name} 的平台角色已更新`);
+  }
+
+  function toggleUserStatus(userId: string) {
+    const user = users.find((item) => item.id === userId);
+    setUsers((current) => current.map((item) => item.id === userId ? { ...item, status: item.status === "正常" ? "停用" : "正常" } : item));
+    if (user) notify(`${user.name} 的账号已${user.status === "正常" ? "停用" : "启用"}`);
+  }
+
+  function exportLocalBackup() {
+    const snapshot = buildLocalSnapshot();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `高质量数据评估平台本地备份-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    notify("本地平台数据备份已导出");
+  }
+
+  async function importLocalBackup(file: File) {
+    try {
+      const snapshot = JSON.parse(await file.text()) as LocalPlatformSnapshot;
+      if (snapshot.version !== 1 || !snapshot.data) throw new Error("invalid backup");
+      setProject(snapshot.data.project);
+      setCompact(snapshot.data.compact);
+      setProjects(snapshot.data.projects);
+      setSources(snapshot.data.sources);
+      setCleaningTasks(snapshot.data.cleaningTasks);
+      setReviewTasks(snapshot.data.reviewTasks);
+      setJobs(snapshot.data.jobs);
+      setEvaluations(snapshot.data.evaluations);
+      setMessages(snapshot.data.messages);
+      setAuditLogs(snapshot.data.auditLogs);
+      setRoles(snapshot.data.roles);
+      setUsers(snapshot.data.users);
+      setActiveRoleId(snapshot.data.activeRoleId);
+      setLastSavedAt("刚刚恢复");
+      notify("本地备份已校验并恢复");
+    } catch {
+      notify("备份文件无效或版本不兼容，恢复失败");
+    }
+  }
+
+  function clearLocalBackup() {
+    window.localStorage.removeItem(PLATFORM_STORAGE_KEY);
+    setProject("高质量数据集评估演示");
+    setCompact(false);
+    setProjects(initialProjects);
+    setSources(initialSources);
+    setCleaningTasks(initialCleaningTasks);
+    setReviewTasks(initialReviewTasks);
+    setJobs(initialJobs);
+    setEvaluations(initialEvaluations);
+    setMessages(initialMessages);
+    setAuditLogs(initialAuditLogs);
+    setRoles(initialRoles);
+    setUsers(initialUsers);
+    setActiveRoleId("role-admin");
+    setLastSavedAt("已恢复预置数据");
+    notify("本地数据已清除，平台恢复预置演示状态");
+  }
+
   if (!loggedIn) return <Login onLogin={() => { setLoggedIn(true); notify("登录成功，欢迎回来"); }} />;
 
   const currentModule = modules.find((item) => item.id === active)!;
+  const currentRole = roles.find((role) => role.id === activeRoleId) ?? roles[0];
+  const unreadMessageCount = messages.filter((message) => !message.read).length;
+  const storageBytes = JSON.stringify(buildLocalSnapshot()).length * 2;
 
   return (
     <div className={`reuse-app ${compact ? "compact" : ""}`}>
@@ -3259,9 +3709,9 @@ export default function Home() {
           {modules.map((item) => (
             <button
               key={item.id}
-              className={active === item.id ? "active" : ""}
-              onClick={() => item.children.length ? setMenuOpen(menuOpen === item.id ? null : item.id) : openModule(item.id)}
-              title={item.label}
+              className={`${active === item.id ? "active" : ""} ${currentRole?.permissions[item.id] === "无权限" ? "locked" : ""}`}
+              onClick={() => currentRole?.permissions[item.id] === "无权限" ? openModule(item.id) : item.children.length ? setMenuOpen(menuOpen === item.id ? null : item.id) : openModule(item.id)}
+              title={`${item.label}${currentRole?.permissions[item.id] === "无权限" ? "（无权限）" : ""}`}
               aria-current={active === item.id ? "page" : undefined}
               aria-expanded={item.children.length ? menuOpen === item.id : undefined}
             >
@@ -3304,7 +3754,7 @@ export default function Home() {
         <nav>
           <button className={topPanel === "guide" ? "active" : ""} onClick={() => setTopPanel(topPanel === "guide" ? null : "guide")}><UiIcon icon={BookOpen} />快速入门</button>
           <button className={topPanel === "profile" ? "active" : ""} onClick={() => setTopPanel(topPanel === "profile" ? null : "profile")}><UiIcon icon={UserRound} />我的主页</button>
-          <button className={topPanel === "messages" ? "active" : ""} onClick={() => setTopPanel(topPanel === "messages" ? null : "messages")}><UiIcon icon={Bell} />消息{!messagesRead && <b className="message-badge">3</b>}</button>
+          <button className={topPanel === "messages" ? "active" : ""} onClick={() => setTopPanel(topPanel === "messages" ? null : "messages")}><UiIcon icon={Bell} />消息{unreadMessageCount > 0 && <b className="message-badge">{unreadMessageCount}</b>}</button>
           <button onClick={() => setLoggedIn(false)}><UiIcon icon={LogOut} />退出登录</button><i /><strong>高质量数据评估演示</strong>
         </nav>
       </header>
@@ -3321,18 +3771,18 @@ export default function Home() {
           )}
           {topPanel === "profile" && (
             <>
-              <header><div><strong>高质量数据评估演示</strong><span>平台管理员</span></div><button aria-label="关闭个人信息" onClick={() => setTopPanel(null)}><UiIcon icon={X} size={16} /></button></header>
+              <header><div><strong>高质量数据评估演示</strong><span>{currentRole?.name}</span></div><button aria-label="关闭个人信息" onClick={() => setTopPanel(null)}><UiIcon icon={X} size={16} /></button></header>
               <div className="profile-card"><span>高</span><div><strong>演示租户</strong><small>最后登录：刚刚 · 本地环境</small></div></div>
               <div className="profile-stats"><span><b>12</b>数据集</span><span><b>20</b>治理任务</span><span><b>{jobs.length}</b>模型任务</span></div>
             </>
           )}
           {topPanel === "messages" && (
             <>
-              <header><div><strong>消息中心</strong><span>{messagesRead ? "没有未读消息" : "3 条未读消息"}</span></div><button aria-label="关闭消息中心" onClick={() => setTopPanel(null)}><UiIcon icon={X} size={16} /></button></header>
-              {["篮球版本1评估已完成", "finance-sft-lora-07 已运行至 68%", "安全评测门禁已通过"].map((message, index) => (
-                <button className="message-item" key={message} onClick={() => notify(message)}><i className={messagesRead ? "read" : ""} /><div><strong>{message}</strong><small>{["2 分钟前", "8 分钟前", "26 分钟前"][index]}</small></div></button>
+              <header><div><strong>消息中心</strong><span>{unreadMessageCount ? `${unreadMessageCount} 条未读消息` : "没有未读消息"}</span></div><button aria-label="关闭消息中心" onClick={() => setTopPanel(null)}><UiIcon icon={X} size={16} /></button></header>
+              {messages.slice(0, 4).map((message) => (
+                <button className="message-item" key={message.id} onClick={() => { markMessageRead(message.id); openModule(message.module); }}><i className={message.read ? "read" : ""} /><div><strong>{message.title}</strong><small>{message.category} · {message.time}</small></div></button>
               ))}
-              <button className="mark-read" onClick={() => setMessagesRead(true)}>全部标为已读</button>
+              <div className="message-popover-actions"><button className="mark-read" disabled={!unreadMessageCount} onClick={markAllMessagesRead}>全部标为已读</button><button className="mark-read" onClick={() => openModule("admin", "全局消息")}>查看全部消息</button></div>
             </>
           )}
         </aside>
@@ -3340,7 +3790,7 @@ export default function Home() {
 
       <div className="open-tabs" role="tablist" aria-label="已打开页面">
         {tabs.map((tab) => (
-          <button key={tab.id} role="tab" aria-selected={active === tab.id} className={active === tab.id ? "active" : ""} onClick={() => setActive(tab.id)}>
+          <button key={tab.id} role="tab" aria-selected={active === tab.id} className={active === tab.id ? "active" : ""} onClick={() => openModule(tab.id, tab.label)}>
             <i />{tab.label}
             {tab.id !== "home" && (
               <span
@@ -3408,6 +3858,39 @@ export default function Home() {
         )}
         {active === "modelEval" && (
           <ModelEvaluation evaluations={evaluations} openDialog={() => openCreate("evaluation")} notify={notify} runEvaluation={runEvaluation} updateEvaluation={updateEvaluation} />
+        )}
+        {active === "admin" && (
+          <PlatformManagement
+            view={adminView}
+            messages={messages}
+            auditLogs={auditLogs}
+            roles={roles}
+            users={users}
+            activeRoleId={activeRoleId}
+            persistenceReady={persistenceReady}
+            lastSavedAt={lastSavedAt}
+            storageBytes={storageBytes}
+            recordCounts={[
+              { name: "项目与治理", count: projects.length + cleaningTasks.length, description: "治理项目、清洗任务和版本记录" },
+              { name: "数据源", count: sources.length, description: "连接配置、同步策略和运行状态" },
+              { name: "模型任务", count: jobs.length + evaluations.length, description: "开发任务、模型版本和评测结果" },
+              { name: "全局消息", count: messages.length, description: "业务通知、未读状态和跳转目标" },
+              { name: "审计日志", count: auditLogs.length, description: "操作用户、时间、对象和执行结果" },
+              { name: "权限配置", count: roles.length + users.length, description: "平台角色、成员账号和模块权限" },
+            ]}
+            notify={notify}
+            openModule={openModule}
+            markMessageRead={markMessageRead}
+            markAllMessagesRead={markAllMessagesRead}
+            updateRolePermission={updateRolePermission}
+            addRole={addRole}
+            updateUserRole={updateUserRole}
+            toggleUserStatus={toggleUserStatus}
+            setActiveRoleId={(roleId) => { setActiveRoleId(roleId); notify(`当前身份已切换为${roles.find((role) => role.id === roleId)?.name || "指定角色"}`); }}
+            exportLocalBackup={exportLocalBackup}
+            importLocalBackup={importLocalBackup}
+            clearLocalBackup={clearLocalBackup}
+          />
         )}
       </main>
 

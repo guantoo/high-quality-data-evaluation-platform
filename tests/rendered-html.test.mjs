@@ -36,6 +36,7 @@ test("server-renders the high-quality data assessment platform", async () => {
   assert.match(html, /高质量数据集评估/);
   assert.match(html, /可用不可见模型开发/);
   assert.match(html, /大模型能力评测/);
+  assert.match(html, /平台管理/);
   assert.match(html, /高数据质量评估决策看板/);
   assert.match(html, /综合数据质量分/);
   assert.match(html, /质量风险预警/);
@@ -120,6 +121,17 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /function exportEvaluationReport/);
   assert.match(page, /发布门禁判定/);
   assert.match(page, /模型评测对比报告\.csv/);
+  assert.match(page, /type PlatformMessage/);
+  assert.match(page, /type AuditLogRow/);
+  assert.match(page, /type PlatformRole/);
+  assert.match(page, /type LocalPlatformSnapshot/);
+  assert.match(page, /function PlatformManagement/);
+  assert.match(page, /function updateRolePermission/);
+  assert.match(page, /function exportLocalBackup/);
+  assert.match(page, /function importLocalBackup/);
+  assert.match(page, /function clearLocalBackup/);
+  assert.match(page, /window\.localStorage\.setItem/);
+  assert.match(page, /高质量数据评估平台本地备份/);
   assert.match(page, /setLoggedIn\(false\)/);
   assert.match(layout, /title: "高质量数据集评估平台"/);
   assert.match(layout, /\/og\.png/);
@@ -154,6 +166,11 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(css, /\.evaluation-progress-strip/);
   assert.match(css, /\.gate-check-list/);
   assert.match(css, /\.evaluation-config-dialog/);
+  assert.match(css, /\.admin-management-page/);
+  assert.match(css, /\.global-message-list/);
+  assert.match(css, /\.audit-detail-drawer/);
+  assert.match(css, /\.permission-matrix/);
+  assert.match(css, /\.storage-management-grid/);
   assert.match(css, /\.source-sync-state/);
   assert.match(css, /\.connection-config-summary/);
   assert.match(css, /\.workbench-run-log/);
@@ -174,5 +191,6 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(workflow, /\[x\] 数据集评估配置、问题闭环和报告导出/);
   assert.match(workflow, /\[x\] 模型开发参数、运行指标和模型版本管理/);
   assert.match(workflow, /\[x\] 模型评测标准、门禁判定和对比报告/);
+  assert.match(workflow, /\[x\] 全局消息、审计日志、权限控制和本地持久化/);
   assert.doesNotMatch(page, /sites-skeleton|codex-preview/);
 });
