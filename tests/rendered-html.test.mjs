@@ -36,9 +36,10 @@ test("server-renders the high-quality data assessment platform", async () => {
   assert.match(html, /高质量数据集评估/);
   assert.match(html, /可用不可见模型开发/);
   assert.match(html, /大模型能力评测/);
-  assert.match(html, /篮球高质量数据集1/);
-  assert.match(html, /唯一数据量/);
-  assert.match(html, /检查执行次数/);
+  assert.match(html, /高数据质量评估决策看板/);
+  assert.match(html, /综合数据质量分/);
+  assert.match(html, /质量风险预警/);
+  assert.match(html, /重点业务域质量表现/);
 });
 
 test("keeps production metadata and core interactions in source", async () => {
@@ -53,6 +54,10 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(page, /from "lucide-react"/);
   assert.match(page, /function UiIcon/);
   assert.match(page, /function animateButtonPress/);
+  assert.match(page, /function HomeDashboard/);
+  assert.match(page, /function exportDashboard/);
+  assert.match(page, /function resolveRisk/);
+  assert.match(page, /高数据质量评估决策看板/);
   assert.match(page, /120 \+ Math\.floor\(Math\.random\(\) \* 71\)/);
   assert.match(page, /prefers-reduced-motion: reduce/);
   assert.match(page, /function ProjectToolbar/);
@@ -120,7 +125,10 @@ test("keeps production metadata and core interactions in source", async () => {
   assert.match(layout, /\/og\.png/);
   assert.match(css, /\.icon-rail/);
   assert.match(css, /\.reuse-topbar/);
-  assert.match(css, /\.original-dashboard/);
+  assert.match(css, /\.quality-decision-dashboard/);
+  assert.match(css, /\.decision-kpi-strip/);
+  assert.match(css, /\.decision-trend-chart/);
+  assert.match(css, /\.decision-risk-list/);
   assert.match(css, /\.inventory-workspace/);
   assert.match(css, /\.exploration-grid/);
   assert.match(css, /\.exploration-issue-panel/);

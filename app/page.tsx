@@ -10,6 +10,9 @@ import {
   useState,
 } from "react";
 import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
   Bell,
   Blocks,
   BookOpen,
@@ -17,6 +20,7 @@ import {
   Check,
   ChevronRight,
   CircleCheck,
+  CircleAlert,
   ClipboardCheck,
   Database,
   Download,
@@ -27,7 +31,9 @@ import {
   Grid2X2,
   House,
   LayoutDashboard,
+  Layers3,
   Link2,
+  ListChecks,
   LocateFixed,
   LogOut,
   Menu,
@@ -41,12 +47,15 @@ import {
   Rows3,
   Save,
   Search,
+  ScanSearch,
+  Server,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Star,
   Trash2,
+  TrendingUp,
   TriangleAlert,
   Undo2,
   Upload,
@@ -220,12 +229,6 @@ type CreatePayload = {
   dataset: string;
   endpoint?: string;
   strategy?: string;
-};
-
-type FilterValues = {
-  dataType: string;
-  status: string;
-  date: string;
 };
 
 const modules: Array<{
@@ -697,133 +700,130 @@ function ProjectToolbar({
   );
 }
 
-function HomeDashboard({ filters, notify }: { filters: FilterValues; notify: Notify }) {
-  const checks = ["图像完好性", "图像重复率合规性", "图像涉黄合规性", "图像格式一致性", "图像内容有效性"];
-  const metricGuides: Record<string, string> = {
-    图像完好性: "检查文件是否可正常解码、尺寸信息是否完整。当前阈值：完好率 ≥ 98%。",
-    图像重复率合规性: "通过感知哈希识别近似重复内容。当前阈值：重复率 ≤ 2%。",
-    图像涉黄合规性: "调用内容安全规则识别敏感内容。当前阈值：违规率 = 0%。",
-    图像格式一致性: "检查文件扩展名、编码和色彩空间。当前标准：JPEG / RGB。",
-    图像内容有效性: "检查空白、过暗、模糊及主体缺失。当前阈值：有效率 ≥ 95%。",
+function HomeDashboard({
+  sources,
+  cleaningTasks,
+  reviewTaskCount,
+  jobs,
+  evaluations,
+  notify,
+  openModule,
+}: {
+  sources: SourceRow[];
+  cleaningTasks: CleaningTaskRow[];
+  reviewTaskCount: number;
+  jobs: JobRow[];
+  evaluations: EvaluationRow[];
+  notify: Notify;
+  openModule: (id: ModuleId, label?: string) => void;
+}) {
+  const [period, setPeriod] = useState<"近 7 天" | "近 30 天" | "本季度">("近 30 天");
+  const [selectedDomain, setSelectedDomain] = useState("金融数据");
+  const [resolvedRisks, setResolvedRisks] = useState<string[]>([]);
+  const [lastUpdated, setLastUpdated] = useState("刚刚");
+  const trends = {
+    "近 7 天": [91.8, 92.1, 92.4, 92.2, 93.1, 93.4, 93.7],
+    "近 30 天": [88.6, 89.2, 90.1, 89.7, 90.8, 91.5, 91.2, 92.3, 92.9, 93.4, 93.7, 94.1],
+    本季度: [84.2, 85.7, 87.1, 86.8, 88.5, 89.4, 90.2, 91.6, 92.1, 92.8, 93.4, 93.7],
   };
-  const [files, setFiles] = useState([
-    { name: "篮球2.jpeg", time: "2026-03-22 17:00:35", type: "JPEG" },
-    { name: "篮球1.jpeg", time: "2026-03-22 17:00:36", type: "JPEG" },
-  ]);
-  const [selectedFile, setSelectedFile] = useState("篮球2.jpeg");
-  const [selectedMetric, setSelectedMetric] = useState(checks[0]);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const activeFilters = Object.entries(filters).filter(([, value]) => value && value !== "全部");
+  const trendLabels = period === "近 7 天" ? ["18", "19", "20", "21", "22", "23", "24"] : period === "近 30 天" ? ["07-26", "07-29", "08-01", "08-04", "08-07", "08-10", "08-13", "08-16", "08-19", "08-21", "08-23", "08-24"] : ["6月", "", "", "7月", "", "", "8月", "", "", "", "", "当前"];
+  const domainRows = [
+    { name: "金融数据", datasets: 18, score: 96.2, change: 1.8, issues: 3, owner: "金融数据组" },
+    { name: "客服知识", datasets: 12, score: 94.8, change: 0.9, issues: 5, owner: "智能客服组" },
+    { name: "业务事件", datasets: 26, score: 92.6, change: 2.4, issues: 8, owner: "数据中台组" },
+    { name: "图像多模态", datasets: 9, score: 89.4, change: -1.2, issues: 11, owner: "多模态实验室" },
+    { name: "机构基础数据", datasets: 15, score: 87.9, change: 0.4, issues: 14, owner: "主数据组" },
+  ];
+  const riskItems = [
+    { id: "risk-01", level: "高", title: "金融年报问答集存在 842 条重复记录", meta: "影响训练样本分布 · 2 小时前", module: "governance" as ModuleId },
+    { id: "risk-02", level: "高", title: "客户主数据手机号格式异常率升至 3.6%", meta: "超过质量红线 1.6 个百分点 · 4 小时前", module: "assessment" as ModuleId },
+    { id: "risk-03", level: "中", title: "图像多模态数据集标注一致性下降", meta: "复核一致率 89.4% · 今天 09:26", module: "governance" as ModuleId },
+    { id: "risk-04", level: "中", title: "知识文档仓同步延迟超过 2 小时", meta: "SFTP 数据源 · 今天 08:42", module: "inventory" as ModuleId },
+  ];
+  const visibleRisks = riskItems.filter((item) => !resolvedRisks.includes(item.id));
+  const runningJobs = jobs.filter((job) => job.status === "训练中").length;
+  const passedEvaluations = evaluations.filter((item) => item.status === "通过").length;
+  const waitingEvaluations = evaluations.filter((item) => item.status === "待评测" || item.status === "评测中").length;
+  const openIssues = Math.max(18, 41 - resolvedRisks.length * 6);
+  const qualityScore = (93.7 + resolvedRisks.length * 0.1).toFixed(1);
+  const kpis: Array<{ label: string; value: string; unit: string; note: string; icon: LucideIcon; tone: string; module: ModuleId }> = [
+    { label: "综合数据质量分", value: qualityScore, unit: "分", note: "较上期 +1.8", icon: TrendingUp, tone: "blue", module: "assessment" },
+    { label: "纳管数据资产", value: "1,286", unit: "项", note: `${sources.length} 个数据源正常`, icon: Database, tone: "cyan", module: "inventory" },
+    { label: "评估任务", value: String(reviewTaskCount), unit: "个", note: "本月已完成 18 个", icon: ClipboardCheck, tone: "violet", module: "assessment" },
+    { label: "待处置质量问题", value: String(openIssues), unit: "项", note: "其中高风险 7 项", icon: CircleAlert, tone: "orange", module: "governance" },
+    { label: "治理任务完成率", value: "84.6", unit: "%", note: `${cleaningTasks.length} 个清洗任务纳入`, icon: Workflow, tone: "green", module: "governance" },
+    { label: "模型发布门禁", value: `${passedEvaluations}/${evaluations.length}`, unit: "通过", note: `${waitingEvaluations} 个任务待完成`, icon: ShieldCheck, tone: "navy", module: "modelEval" },
+  ];
 
-  function addFiles(event: ChangeEvent<HTMLInputElement>) {
-    const selected = Array.from(event.target.files ?? []);
-    if (!selected.length) return;
-    const now = new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-");
-    const added = selected.map((file) => ({
-      name: file.name,
-      time: now,
-      type: file.name.split(".").pop()?.toUpperCase() || "文件",
-    }));
-    setFiles((current) => [...current, ...added]);
-    setSelectedFile(added[0].name);
-    event.target.value = "";
-    notify(`已添加 ${added.length} 个本地文件`);
+  function refreshDashboard() {
+    setLastUpdated(new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" }));
+    notify("决策看板指标已刷新");
+  }
+
+  function exportDashboard() {
+    const lines = [["业务域", "数据集", "质量得分", "环比变化", "问题数", "责任团队"], ...domainRows.map((row) => [row.name, row.datasets, row.score, row.change, row.issues, row.owner])];
+    const csv = `\uFEFF${lines.map((line) => line.map((cell) => `"${cell}"`).join(",")).join("\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "高数据质量评估决策看板.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+    notify("决策看板数据已导出");
+  }
+
+  function resolveRisk(id: string) {
+    setResolvedRisks((current) => [...current, id]);
+    notify("质量风险已转入处置并从待办中移除");
   }
 
   return (
-    <section className="original-dashboard">
-      <article className="file-panel white-panel">
-        <div className="file-panel-title">
-          <h2>篮球高质量数据集1</h2>
-          <span>{files.length} 个文件</span>
-        </div>
-        {files.map((file) => (
-          <button
-            className={`file-row ${selectedFile === file.name ? "active" : ""}`}
-            key={`${file.name}-${file.time}`}
-            onClick={() => setSelectedFile(file.name)}
-            aria-pressed={selectedFile === file.name}
-          >
-            <span className="file-type">T</span>
-            <div>
-              <strong>{file.name}</strong>
-              <p>
-                <i>▧</i> {file.type} <em>图像</em>
-              </p>
-              <small>{file.time}</small>
-            </div>
-            <b className="file-check">{selectedFile === file.name ? "✓" : ""}</b>
-          </button>
-        ))}
-        <button className="file-empty" onClick={() => fileInput.current?.click()}>
-          <span><UiIcon icon={Plus} size={18} /></span>
-          <p>添加本地数据文件</p>
-          <small>支持多选，文件仅保留在当前浏览器会话</small>
-        </button>
-        <input ref={fileInput} className="visually-hidden" type="file" accept="image/*" multiple onChange={addFiles} />
-      </article>
-      <div className="dashboard-right">
-        <article className="summary-panel white-panel">
-          <header>
-            <h2>质量评估总结</h2>
-            <span>2026-08-23 00:08:06</span>
-          </header>
-          <div className="summary-scroll">
-            <div className="summary-context">
-              <span>当前文件：{selectedFile}</span>
-              {activeFilters.map(([key, value]) => (
-                <span key={key}>{value}</span>
-              ))}
-            </div>
-            <p>
-              <strong>【结论】</strong>篮球版本1图像数据集已完成当前五项质量审查，{files.length} 个唯一图像样本均通过规则校验。
-            </p>
-            <h3>审查范围与数据表现概览：</h3>
-            <p>
-              <b>唯一数据量：</b>{files.length} 个图像文件；<b>检查执行次数：</b>{files.length * checks.length} 次；
-              <b>问题样本：</b>0 个。
-            </p>
-            <h3>质量分析：</h3>
-            <p>
-              图像完好性、重复率、涉黄内容、格式一致性和内容有效性通过率均为 100%。结论仅适用于本次规则及当前样本，不直接代表模型训练效果。
-            </p>
+    <section className="quality-decision-dashboard">
+      <header className="decision-dashboard-head">
+        <div><h1>高数据质量评估决策看板</h1><p>统一观察数据资产质量、治理进展与模型发布门禁，为重点问题处置提供决策依据</p></div>
+        <div className="decision-dashboard-tools"><span>数据更新：{lastUpdated}</span><select value={period} onChange={(event) => setPeriod(event.target.value as typeof period)} aria-label="选择统计周期"><option>近 7 天</option><option>近 30 天</option><option>本季度</option></select><button className="reuse-secondary" onClick={refreshDashboard}><UiIcon icon={RefreshCw} />刷新指标</button><button className="reuse-primary" onClick={exportDashboard}><UiIcon icon={Download} />导出看板</button></div>
+      </header>
+
+      <div className="decision-kpi-strip">
+        {kpis.map((kpi) => <button key={kpi.label} onClick={() => openModule(kpi.module)}><span className={kpi.tone}><UiIcon icon={kpi.icon} size={19} /></span><div><small>{kpi.label}</small><strong>{kpi.value}<em>{kpi.unit}</em></strong><p>{kpi.note}</p></div><UiIcon icon={ChevronRight} /></button>)}
+      </div>
+
+      <div className="decision-upper-grid">
+        <article className="white-panel decision-trend-panel">
+          <header className="decision-section-head"><div><h2>全域质量趋势</h2><p>纳入完整性、准确性、一致性、时效性和安全性五类核心指标</p></div><div className="decision-trend-legend"><span>综合质量分</span><span>目标线 92.0</span></div></header>
+          <div className="decision-trend-summary"><strong>{qualityScore}</strong><span><UiIcon icon={ArrowUpRight} />较期初提升 5.1 分</span><p>当前质量水平处于<strong>良好</strong>区间，图像多模态与机构基础数据仍需重点治理。</p></div>
+          <div className="decision-trend-chart" role="img" aria-label={`${period}综合数据质量分趋势`}>
+            <i className="decision-target-line"><span>目标 92.0</span></i>
+            {trends[period].map((value, index) => <div key={`${period}-${index}`}><span><i style={{ height: `${Math.max(12, (value - 82) * 5.3)}%` }} /><b>{value.toFixed(1)}</b></span><small>{trendLabels[index]}</small></div>)}
           </div>
         </article>
-        <article className="result-panel white-panel">
-          <h2>篮球版本1质量评估结果</h2>
-          <div className="metric-focus">
-            <span>当前指标</span>
-            <strong>{selectedMetric}</strong>
-            <p>{metricGuides[selectedMetric]}</p>
+
+        <article className="white-panel decision-risk-panel">
+          <header className="decision-section-head"><div><h2>质量风险预警</h2><p>按业务影响和质量红线综合排序</p></div><button onClick={() => openModule("assessment")} className="reuse-link">查看全部</button></header>
+          <div className="risk-overview"><span><strong>{openIssues}</strong>待处置</span><i><b style={{ width: "18%" }} /><b style={{ width: "34%" }} /><b style={{ width: "48%" }} /></i><small><em className="high" />高风险 7 · <em className="medium" />中风险 14 · <em className="low" />低风险 {Math.max(0, openIssues - 21)}</small></div>
+          <div className="decision-risk-list">
+            {visibleRisks.map((risk) => <div key={risk.id}><span className={risk.level === "高" ? "high" : "medium"}>{risk.level}</span><button onClick={() => openModule(risk.module)}><strong>{risk.title}</strong><small>{risk.meta}</small></button><button aria-label={`处置${risk.title}`} onClick={() => resolveRisk(risk.id)}>处置</button></div>)}
+            {visibleRisks.length === 0 && <div className="decision-risk-empty"><UiIcon icon={CircleCheck} /><span>当前重点风险均已进入处置流程</span></div>}
           </div>
-          <div className="reuse-table-wrap">
-            <table className="reuse-table">
-              <thead>
-                <tr>
-                  <th>审查内容</th>
-                  <th>组件名称</th>
-                  <th>唯一数据量</th>
-                  <th>问题数量</th>
-                  <th>正确率</th>
-                </tr>
-              </thead>
-              <tbody>
-                {checks.map((check) => (
-                  <tr key={check} className={selectedMetric === check ? "selected-row" : ""}>
-                    <td>篮球版本1</td>
-                    <td>
-                      <button className="reuse-link metric-link" onClick={() => setSelectedMetric(check)}>
-                        {check}
-                      </button>
-                    </td>
-                    <td>{files.length}</td>
-                    <td>0</td>
-                    <td><strong>100%</strong></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        </article>
+      </div>
+
+      <div className="decision-lower-grid">
+        <article className="white-panel decision-domain-panel">
+          <header className="decision-section-head"><div><h2>重点业务域质量表现</h2><p>选择业务域可查看当前质量判断和责任归属</p></div><button className="reuse-link" onClick={() => openModule("inventory")}>进入数据盘点</button></header>
+          <div className="reuse-table-wrap"><table className="reuse-table decision-domain-table"><thead><tr><th>业务域</th><th>数据集</th><th>质量得分</th><th>环比</th><th>问题数</th><th>责任团队</th><th>决策</th></tr></thead><tbody>{domainRows.map((row) => <tr key={row.name} className={selectedDomain === row.name ? "selected-row" : ""} onClick={() => setSelectedDomain(row.name)}><td><strong>{row.name}</strong></td><td>{row.datasets}</td><td><span className={`domain-score ${row.score < 90 ? "risk" : ""}`}>{row.score.toFixed(1)}</span></td><td><span className={row.change < 0 ? "trend-down" : "trend-up"}><UiIcon icon={row.change < 0 ? ArrowDownRight : ArrowUpRight} />{Math.abs(row.change).toFixed(1)}</span></td><td>{row.issues}</td><td>{row.owner}</td><td><button className="reuse-link" onClick={(event) => { event.stopPropagation(); openModule(row.score < 90 ? "governance" : "assessment"); }}>{row.score < 90 ? "发起治理" : "查看评估"}</button></td></tr>)}</tbody></table></div>
+          <footer className="domain-decision-note"><UiIcon icon={ScanSearch} /><span><strong>{selectedDomain}</strong>：{selectedDomain === "图像多模态" || selectedDomain === "机构基础数据" ? "质量得分低于平台目标，建议优先处理完整性与标注一致性问题。" : "质量表现稳定，建议保持现有评估频率并持续监控异常波动。"}</span></footer>
+        </article>
+
+        <article className="white-panel decision-action-panel">
+          <header className="decision-section-head"><div><h2>决策待办</h2><p>跨治理、评估与模型门禁的优先事项</p></div><span>{runningJobs + waitingEvaluations + 3} 项</span></header>
+          <div className="decision-action-list">
+            <button onClick={() => openModule("governance")}><span className="governance"><UiIcon icon={Workflow} /></span><div><strong>处理高风险治理任务</strong><small>金融年报问答集 · 842 条重复记录</small></div><b>今日</b><UiIcon icon={ChevronRight} /></button>
+            <button onClick={() => openModule("assessment")}><span className="assessment"><UiIcon icon={ListChecks} /></span><div><strong>复核质量评估问题</strong><small>客户主数据 · 6 条低置信度建议</small></div><b>今日</b><UiIcon icon={ChevronRight} /></button>
+            <button onClick={() => openModule("modelEval")}><span className="evaluation"><UiIcon icon={ShieldCheck} /></span><div><strong>确认模型发布门禁</strong><small>{waitingEvaluations || 1} 个模型等待能力与安全评测</small></div><b>明日</b><UiIcon icon={ChevronRight} /></button>
+            <button onClick={() => openModule("inventory")}><span className="inventory"><UiIcon icon={Server} /></span><div><strong>检查数据源同步状态</strong><small>{sources.filter((source) => source.status !== "正常").length || 1} 个连接需要确认同步时效</small></div><b>本周</b><UiIcon icon={ChevronRight} /></button>
           </div>
+          <footer><button className="reuse-secondary" onClick={() => openModule("modelDev")}><UiIcon icon={Activity} />模型任务 {runningJobs} 个运行中</button><button className="reuse-secondary" onClick={() => openModule("governance", "治理项目管理")}><UiIcon icon={Layers3} />进入治理项目</button></footer>
         </article>
       </div>
     </section>
@@ -3033,7 +3033,6 @@ export default function Home() {
   const [topPanel, setTopPanel] = useState<TopPanelId>(null);
   const [messagesRead, setMessagesRead] = useState(false);
   const [compact, setCompact] = useState(false);
-  const [filters] = useState<FilterValues>({ dataType: "全部", status: "全部", date: "" });
   const [projects, setProjects] = useState(initialProjects);
   const [workspaceProject, setWorkspaceProject] = useState<ProjectRow | null>(null);
   const [governanceView, setGovernanceView] = useState<GovernanceView>("projects");
@@ -3363,7 +3362,7 @@ export default function Home() {
 
       <main className="reuse-main">
         <ProjectToolbar project={project} setProject={setProject} notify={notify} />
-        {active === "home" && <HomeDashboard filters={filters} notify={notify} />}
+        {active === "home" && <HomeDashboard sources={sources} cleaningTasks={cleaningTasks} reviewTaskCount={reviewTasks.length} jobs={jobs} evaluations={evaluations} notify={notify} openModule={openModule} />}
         {active === "inventory" && <InventoryPage sources={sources} cleaningTasks={cleaningTasks} openDialog={() => openCreate("connection")} updateSource={updateSource} createCleaningTask={createCleaningTask} updateCleaningTask={updateCleaningTask} notify={notify} />}
         {active === "governance" && governanceView === "workspace" && workspaceProject && (
           <GovernanceWorkbench
