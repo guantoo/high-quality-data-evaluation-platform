@@ -971,14 +971,7 @@ function HomeDashboard({
   setResolvedRisks: React.Dispatch<React.SetStateAction<string[]>>;
 }) {
   const [period, setPeriod] = useState<"近 7 天" | "近 30 天" | "本季度">("近 30 天");
-  const [selectedDomain, setSelectedDomain] = useState("金融数据");
   const [lastUpdated, setLastUpdated] = useState("刚刚");
-  const trends = {
-    "近 7 天": [91.8, 92.1, 92.4, 92.2, 93.1, 93.4, 93.7],
-    "近 30 天": [88.6, 89.2, 90.1, 89.7, 90.8, 91.5, 91.2, 92.3, 92.9, 93.4, 93.7, 94.1],
-    本季度: [84.2, 85.7, 87.1, 86.8, 88.5, 89.4, 90.2, 91.6, 92.1, 92.8, 93.4, 93.7],
-  };
-  const trendLabels = period === "近 7 天" ? ["18", "19", "20", "21", "22", "23", "24"] : period === "近 30 天" ? ["07-26", "07-29", "08-01", "08-04", "08-07", "08-10", "08-13", "08-16", "08-19", "08-21", "08-23", "08-24"] : ["6月", "", "", "7月", "", "", "8月", "", "", "", "", "当前"];
   const domainRows = [
     { name: "金融数据", datasets: 18, score: 96.2, change: 1.8, issues: 3, owner: "金融数据组" },
     { name: "客服知识", datasets: 12, score: 94.8, change: 0.9, issues: 5, owner: "智能客服组" },
@@ -999,12 +992,24 @@ function HomeDashboard({
   const openIssues = Math.max(18, 41 - resolvedRisks.length * 6);
   const qualityScore = (93.7 + resolvedRisks.length * 0.1).toFixed(1);
   const kpis: Array<{ label: string; value: string; unit: string; note: string; icon: LucideIcon; tone: string; module: ModuleId }> = [
-    { label: "综合数据质量分", value: qualityScore, unit: "分", note: "较上期 +1.8", icon: TrendingUp, tone: "blue", module: "assessment" },
-    { label: "纳管数据资产", value: "1,286", unit: "项", note: `${sources.length} 个数据源正常`, icon: Database, tone: "cyan", module: "inventory" },
-    { label: "评估任务", value: String(reviewTaskCount), unit: "个", note: "本月已完成 18 个", icon: ClipboardCheck, tone: "violet", module: "assessment" },
-    { label: "待处置质量问题", value: String(openIssues), unit: "项", note: "其中高风险 7 项", icon: CircleAlert, tone: "orange", module: "governance" },
-    { label: "治理任务完成率", value: "84.6", unit: "%", note: `${cleaningTasks.length} 个清洗任务纳入`, icon: Workflow, tone: "green", module: "governance" },
-    { label: "模型发布门禁", value: `${passedEvaluations}/${evaluations.length}`, unit: "通过", note: `${waitingEvaluations} 个任务待完成`, icon: ShieldCheck, tone: "navy", module: "modelEval" },
+    { label: "纳管数据资产", value: "1,286", unit: "项", note: `${sources.length} 个数据源在线`, icon: Database, tone: "blue", module: "inventory" },
+    { label: "综合数据质量分", value: qualityScore, unit: "分", note: "较上期提升 1.8", icon: TrendingUp, tone: "cyan", module: "assessment" },
+    { label: "评估与治理任务", value: String(reviewTaskCount + cleaningTasks.length), unit: "个", note: "本月完成 18 个", icon: ClipboardCheck, tone: "violet", module: "assessment" },
+    { label: "模型发布门禁", value: `${passedEvaluations}/${evaluations.length}`, unit: "通过", note: `${waitingEvaluations} 个等待评测`, icon: ShieldCheck, tone: "navy", module: "modelEval" },
+  ];
+  const serviceCards: Array<{ label: string; detail: string; icon: LucideIcon; module: ModuleId; child?: string }> = [
+    { label: "数据接入", detail: `${sources.length} 个连接`, icon: Database, module: "inventory", child: "数据库管理" },
+    { label: "智能盘点", detail: "1,286 项资产", icon: ScanSearch, module: "inventory", child: "智能数据盘点" },
+    { label: "数据治理", detail: `${cleaningTasks.length} 个任务`, icon: Workflow, module: "governance" },
+    { label: "质量评估", detail: `${reviewTaskCount} 个任务`, icon: ClipboardCheck, module: "assessment" },
+    { label: "模型开发", detail: `${jobs.length} 个作业`, icon: Blocks, module: "modelDev" },
+    { label: "能力评测", detail: `${evaluations.length} 个模型`, icon: Gauge, module: "modelEval" },
+  ];
+  const issueBars = [
+    { label: "完整性", value: 92, tone: "navy" },
+    { label: "准确性", value: 76, tone: "gold" },
+    { label: "一致性", value: 61, tone: "gray" },
+    { label: "时效性", value: 84, tone: "blue" },
   ];
 
   function refreshDashboard() {
@@ -1030,54 +1035,74 @@ function HomeDashboard({
   }
 
   return (
-    <section className="quality-decision-dashboard">
+    <section className="quality-decision-dashboard reference-dashboard">
       <header className="decision-dashboard-head">
-        <div><h1>高数据质量评估决策看板</h1><p>统一观察数据资产质量、治理进展与模型发布门禁，为重点问题处置提供决策依据</p></div>
-        <div className="decision-dashboard-tools"><span>数据更新：{lastUpdated}</span><select value={period} onChange={(event) => setPeriod(event.target.value as typeof period)} aria-label="选择统计周期"><option>近 7 天</option><option>近 30 天</option><option>本季度</option></select><button className="reuse-secondary" onClick={refreshDashboard}><UiIcon icon={RefreshCw} />刷新指标</button><button className="reuse-primary" onClick={exportDashboard}><UiIcon icon={Download} />导出看板</button></div>
+        <div><span className="reference-eyebrow">数据质量运营中心</span><h1>早上好，质量运营团队！</h1><p>这里是平台数据资产、质量风险与模型门禁的今日概览。</p></div>
+        <div className="decision-dashboard-tools"><span>更新于 {lastUpdated}</span><label className="reference-period"><CalendarClock size={13} aria-hidden="true" /><select value={period} onChange={(event) => setPeriod(event.target.value as typeof period)} aria-label="选择统计周期"><option>近 7 天</option><option>近 30 天</option><option>本季度</option></select></label><button className="reuse-secondary" onClick={refreshDashboard}><UiIcon icon={RefreshCw} />刷新</button><button className="reference-filter-button" onClick={exportDashboard}><UiIcon icon={Download} />导出</button></div>
       </header>
 
-      <div className="decision-kpi-strip">
+      <div className="decision-kpi-strip reference-kpi-grid">
         {kpis.map((kpi) => <button key={kpi.label} onClick={() => openModule(kpi.module)}><span className={kpi.tone}><UiIcon icon={kpi.icon} size={19} /></span><div><small>{kpi.label}</small><strong>{kpi.value}<em>{kpi.unit}</em></strong><p>{kpi.note}</p></div><UiIcon icon={ChevronRight} /></button>)}
       </div>
 
-      <div className="decision-upper-grid">
-        <article className="white-panel decision-trend-panel">
-          <header className="decision-section-head"><div><h2>全域质量趋势</h2><p>纳入完整性、准确性、一致性、时效性和安全性五类核心指标</p></div><div className="decision-trend-legend"><span>综合质量分</span><span>目标线 92.0</span></div></header>
-          <div className="decision-trend-summary"><strong>{qualityScore}</strong><span><UiIcon icon={ArrowUpRight} />较期初提升 5.1 分</span><p>当前质量水平处于<strong>良好</strong>区间，图像多模态与机构基础数据仍需重点治理。</p></div>
-          <div className="decision-trend-chart" role="img" aria-label={`${period}综合数据质量分趋势`}>
-            <i className="decision-target-line"><span>目标 92.0</span></i>
-            {trends[period].map((value, index) => <div key={`${period}-${index}`}><span><i style={{ height: `${Math.max(12, (value - 82) * 5.3)}%` }} /><b>{value.toFixed(1)}</b></span><small>{trendLabels[index]}</small></div>)}
-          </div>
-        </article>
+      <div className="reference-core-grid">
+        <div className="reference-left-stack">
+          <article className="white-panel reference-services-card">
+            <header className="reference-card-head"><div><h2>平台能力服务</h2><p>从数据接入到模型门禁的一体化工作流</p></div><span><i />运行正常</span></header>
+            <div className="reference-service-grid">
+              {serviceCards.map((service, index) => <button className={index === 0 ? "featured" : ""} key={service.label} onClick={() => openModule(service.module, service.child)}><UiIcon icon={service.icon} size={18} /><strong>{service.label}</strong><small>{service.detail}</small></button>)}
+            </div>
+          </article>
 
-        <article className="white-panel decision-risk-panel">
-          <header className="decision-section-head"><div><h2>质量风险预警</h2><p>按业务影响和质量红线综合排序</p></div><button onClick={() => openModule("assessment")} className="reuse-link">查看全部</button></header>
-          <div className="risk-overview"><span><strong>{openIssues}</strong>待处置</span><i><b style={{ width: "18%" }} /><b style={{ width: "34%" }} /><b style={{ width: "48%" }} /></i><small><em className="high" />高风险 7 · <em className="medium" />中风险 14 · <em className="low" />低风险 {Math.max(0, openIssues - 21)}</small></div>
-          <div className="decision-risk-list">
-            {visibleRisks.map((risk) => <div key={risk.id}><span className={risk.level === "高" ? "high" : "medium"}>{risk.level}</span><button onClick={() => openModule(risk.module)}><strong>{risk.title}</strong><small>{risk.meta}</small></button><button aria-label={`处置${risk.title}`} onClick={() => resolveRisk(risk.id)}>处置</button></div>)}
-            {visibleRisks.length === 0 && <div className="decision-risk-empty"><UiIcon icon={CircleCheck} /><span>当前重点风险均已进入处置流程</span></div>}
+          <article className="white-panel reference-bars-card">
+            <header className="reference-card-head"><div><h2>质量维度表现</h2><p>{period}核心质量指标分布</p></div><div className="reference-inline-legend"><span>达标</span><span>关注</span><span>待治理</span></div></header>
+            <div className="reference-horizontal-chart" role="img" aria-label="质量维度横向统计图">
+              {issueBars.map((bar) => <div key={bar.label}><span>{bar.label}</span><i><b className={bar.tone} style={{ width: `${bar.value}%` }} /></i><strong>{bar.value}%</strong></div>)}
+            </div>
+          </article>
+        </div>
+
+        <article className="white-panel reference-territory-card">
+          <header className="reference-card-head"><div><h2>业务域质量版图</h2><p>各业务域资产规模、质量得分与风险分布</p></div><button className="reuse-link" onClick={() => openModule("inventory")}>查看资产</button></header>
+          <div className="reference-territory-map" role="img" aria-label="五个业务域质量分布">
+            <div className="territory-score"><small>平台质量分</small><strong>{qualityScore}</strong><span>目标 92.0</span></div>
+            {domainRows.map((row, index) => <button key={row.name} className={`territory-point p${index + 1}`} onClick={() => openModule(row.score < 90 ? "governance" : "assessment")}><i /><span><strong>{row.name}</strong><small>{row.datasets} 个数据集 · {row.score.toFixed(1)} 分</small></span></button>)}
+            <i className="territory-orbit orbit-one" /><i className="territory-orbit orbit-two" /><i className="territory-orbit orbit-three" />
           </div>
+          <footer className="reference-territory-footer"><span><i className="good" />稳定域 3</span><span><i className="watch" />关注域 1</span><span><i className="risk" />风险域 1</span><button onClick={() => openModule("governance")}>进入治理工作台<UiIcon icon={ChevronRight} /></button></footer>
         </article>
       </div>
 
-      <div className="decision-lower-grid">
-        <article className="white-panel decision-domain-panel">
-          <header className="decision-section-head"><div><h2>重点业务域质量表现</h2><p>选择业务域可查看当前质量判断和责任归属</p></div><button className="reuse-link" onClick={() => openModule("inventory")}>进入数据盘点</button></header>
-          <div className="reuse-table-wrap"><table className="reuse-table decision-domain-table"><thead><tr><th>业务域</th><th>数据集</th><th>质量得分</th><th>环比</th><th>问题数</th><th>责任团队</th><th>决策</th></tr></thead><tbody>{domainRows.map((row) => <tr key={row.name} className={selectedDomain === row.name ? "selected-row" : ""} onClick={() => setSelectedDomain(row.name)}><td><strong>{row.name}</strong></td><td>{row.datasets}</td><td><span className={`domain-score ${row.score < 90 ? "risk" : ""}`}>{row.score.toFixed(1)}</span></td><td><span className={row.change < 0 ? "trend-down" : "trend-up"}><UiIcon icon={row.change < 0 ? ArrowDownRight : ArrowUpRight} />{Math.abs(row.change).toFixed(1)}</span></td><td>{row.issues}</td><td>{row.owner}</td><td><button className="reuse-link" onClick={(event) => { event.stopPropagation(); openModule(row.score < 90 ? "governance" : "assessment"); }}>{row.score < 90 ? "发起治理" : "查看评估"}</button></td></tr>)}</tbody></table></div>
-          <footer className="domain-decision-note"><UiIcon icon={ScanSearch} /><span><strong>{selectedDomain}</strong>：{selectedDomain === "图像多模态" || selectedDomain === "机构基础数据" ? "质量得分低于平台目标，建议优先处理完整性与标注一致性问题。" : "质量表现稳定，建议保持现有评估频率并持续监控异常波动。"}</span></footer>
+      <div className="reference-bottom-grid">
+        <article className="white-panel reference-mini-card priority-card">
+          <header className="reference-card-head"><div><h2>风险与优先级</h2><p>待处置质量活动</p></div><button className="reuse-link" onClick={() => openModule("assessment")}>全部</button></header>
+          <div className="reference-priority-grid">
+            <button onClick={() => openModule("governance")}><small>高风险</small><strong>7</strong><span>立即处置</span></button>
+            <button onClick={() => openModule("assessment")}><small>待复核</small><strong>14</strong><span>今日完成</span></button>
+            <button onClick={() => openModule("inventory")}><small>同步异常</small><strong>{sources.filter((source) => source.status !== "正常").length || 1}</strong><span>检查连接</span></button>
+            <button onClick={() => openModule("modelEval")}><small>门禁等待</small><strong>{waitingEvaluations || 1}</strong><span>进入评测</span></button>
+          </div>
         </article>
 
-        <article className="white-panel decision-action-panel">
-          <header className="decision-section-head"><div><h2>决策待办</h2><p>跨治理、评估与模型门禁的优先事项</p></div><span>{runningJobs + waitingEvaluations + 3} 项</span></header>
-          <div className="decision-action-list">
-            <button onClick={() => openModule("governance")}><span className="governance"><UiIcon icon={Workflow} /></span><div><strong>处理高风险治理任务</strong><small>金融年报问答集 · 842 条重复记录</small></div><b>今日</b><UiIcon icon={ChevronRight} /></button>
-            <button onClick={() => openModule("assessment")}><span className="assessment"><UiIcon icon={ListChecks} /></span><div><strong>复核质量评估问题</strong><small>客户主数据 · 6 条低置信度建议</small></div><b>今日</b><UiIcon icon={ChevronRight} /></button>
-            <button onClick={() => openModule("modelEval")}><span className="evaluation"><UiIcon icon={ShieldCheck} /></span><div><strong>确认模型发布门禁</strong><small>{waitingEvaluations || 1} 个模型等待能力与安全评测</small></div><b>明日</b><UiIcon icon={ChevronRight} /></button>
-            <button onClick={() => openModule("inventory")}><span className="inventory"><UiIcon icon={Server} /></span><div><strong>检查数据源同步状态</strong><small>{sources.filter((source) => source.status !== "正常").length || 1} 个连接需要确认同步时效</small></div><b>本周</b><UiIcon icon={ChevronRight} /></button>
-          </div>
-          <footer><button className="reuse-secondary" onClick={() => openModule("modelDev")}><UiIcon icon={Activity} />模型任务 {runningJobs} 个运行中</button><button className="reuse-secondary" onClick={() => openModule("governance", "治理项目管理")}><UiIcon icon={Layers3} />进入治理项目</button></footer>
+        <article className="white-panel reference-mini-card activity-card">
+          <header className="reference-card-head"><div><h2>当前活动</h2><p>近 12 个月</p></div></header>
+          <div className="reference-activity-bars"><div><span><i style={{ height: "76%" }} /></span><strong>{cleaningTasks.length + 12}</strong><small>治理任务</small></div><div><span><i className="gold" style={{ height: "68%" }} /></span><strong>{reviewTaskCount}</strong><small>评估任务</small></div></div>
+          <dl><div><dt>运行中</dt><dd>{runningJobs + 2}</dd></div><div><dt>本月完成</dt><dd>18</dd></div></dl>
+        </article>
+
+        <article className="white-panel reference-mini-card gate-card">
+          <header className="reference-card-head"><div><h2>模型发布门禁</h2><p>评测与发布状态</p></div></header>
+          <div className="reference-gate-stats"><span><small>已通过</small><strong>{passedEvaluations}</strong></span><span><small>待评测</small><strong>{waitingEvaluations}</strong></span><span><small>评测总数</small><strong>{evaluations.length}</strong></span></div>
+          <button onClick={() => openModule("modelEval")}><span>门禁通过率</span><strong>{evaluations.length ? Math.round((passedEvaluations / evaluations.length) * 100) : 0}%</strong></button>
+        </article>
+
+        <article className="white-panel reference-mini-card events-card">
+          <header className="reference-card-head"><div><h2>质量事件</h2><p>按风险等级</p></div></header>
+          <div className="reference-event-bars">{[{ label: "高", value: 7 }, { label: "中", value: 14 }, { label: "低", value: Math.max(0, openIssues - 21) }, { label: "已处置", value: resolvedRisks.length + 8 }].map((item, index) => <button key={item.label} onClick={() => openModule(index === 3 ? "governance" : "assessment")}><strong>{item.value}</strong><i style={{ height: `${24 + Math.min(70, item.value * 3)}%` }} /><small>{item.label}</small></button>)}</div>
         </article>
       </div>
+
+      {visibleRisks.length > 0 && <aside className="reference-risk-ticker"><span><UiIcon icon={TriangleAlert} />重点风险</span><button onClick={() => openModule(visibleRisks[0].module)}>{visibleRisks[0].title}<small>{visibleRisks[0].meta}</small></button><button onClick={() => resolveRisk(visibleRisks[0].id)}>转入处置</button></aside>}
     </section>
   );
 }
