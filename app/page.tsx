@@ -1061,16 +1061,6 @@ function HomeDashboard({
             </div>
           </article>
         </div>
-
-        <article className="white-panel reference-territory-card">
-          <header className="reference-card-head"><div><h2>业务域质量版图</h2><p>各业务域资产规模、质量得分与风险分布</p></div><button className="reuse-link" onClick={() => openModule("inventory")}>查看资产</button></header>
-          <div className="reference-territory-map" role="img" aria-label="五个业务域质量分布">
-            <div className="territory-score"><small>平台质量分</small><strong>{qualityScore}</strong><span>目标 92.0</span></div>
-            {domainRows.map((row, index) => <button key={row.name} className={`territory-point p${index + 1}`} onClick={() => openModule(row.score < 90 ? "governance" : "assessment")}><i /><span><strong>{row.name}</strong><small>{row.datasets} 个数据集 · {row.score.toFixed(1)} 分</small></span></button>)}
-            <i className="territory-orbit orbit-one" /><i className="territory-orbit orbit-two" /><i className="territory-orbit orbit-three" />
-          </div>
-          <footer className="reference-territory-footer"><span><i className="good" />稳定域 3</span><span><i className="watch" />关注域 1</span><span><i className="risk" />风险域 1</span><button onClick={() => openModule("governance")}>进入治理工作台<UiIcon icon={ChevronRight} /></button></footer>
-        </article>
       </div>
 
       <div className="reference-bottom-grid">

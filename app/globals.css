@@ -7439,21 +7439,17 @@ textarea:focus-visible {
 
 .reference-core-grid {
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(450px, 0.96fr) minmax(520px, 1.04fr);
-  gap: 16px;
 }
 
 .reference-left-stack {
   min-width: 0;
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
 .reference-services-card,
 .reference-bars-card,
-.reference-territory-card,
 .reference-mini-card {
   min-width: 0;
   padding: 0 14px 14px;
@@ -7628,136 +7624,6 @@ textarea:focus-visible {
 .reference-horizontal-chart b.gold { background: #d3aa4c; }
 .reference-horizontal-chart b.gray { background: #cfd3d8; }
 .reference-horizontal-chart b.blue { background: #607895; }
-
-.reference-territory-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.reference-territory-map {
-  position: relative;
-  min-height: 314px;
-  flex: 1;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(211, 170, 76, 0.12) 0 4%, transparent 4.2%),
-    linear-gradient(rgba(10, 34, 63, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(10, 34, 63, 0.035) 1px, transparent 1px),
-    #fafbfb;
-  background-size: auto, 35px 35px, 35px 35px, auto;
-  border: 1px solid #eef0f1;
-  border-top: 0;
-}
-
-.reference-territory-map::before,
-.reference-territory-map::after {
-  content: "";
-  position: absolute;
-  background: rgba(224, 229, 234, 0.72);
-  border: 1px solid rgba(201, 209, 217, 0.7);
-  border-radius: 50% 45% 55% 43%;
-  transform: rotate(-12deg);
-}
-
-.reference-territory-map::before { inset: 18% 14% 22% 12%; }
-.reference-territory-map::after { inset: 31% 28% 12% 28%; background: rgba(239, 242, 244, 0.82); transform: rotate(18deg); }
-
-.territory-score {
-  position: absolute;
-  z-index: 4;
-  left: 50%;
-  top: 50%;
-  width: 105px;
-  height: 105px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  color: #fff;
-  background: #0a223f;
-  border: 7px solid rgba(255, 255, 255, 0.88);
-  border-radius: 50%;
-  box-shadow: 0 7px 22px rgba(8, 29, 54, 0.2);
-  transform: translate(-50%, -50%);
-}
-
-.territory-score small,
-.territory-score span { color: #9dabb9; font-size: 6px; }
-.territory-score strong { margin: 4px 0; color: #fff; font-size: 24px; }
-
-.territory-point {
-  position: absolute;
-  z-index: 5;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-
-.territory-point > i {
-  width: 11px;
-  height: 11px;
-  flex: 0 0 auto;
-  background: #0a223f;
-  border: 3px solid #fff;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px #0a223f, 0 2px 6px rgba(7, 26, 50, 0.2);
-}
-
-.territory-point:nth-of-type(5) > i,
-.territory-point:nth-of-type(6) > i { background: #d3aa4c; box-shadow: 0 0 0 1px #b58c32, 0 2px 6px rgba(7, 26, 50, 0.18); }
-
-.territory-point span {
-  padding: 5px 7px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid #e3e7ea;
-  box-shadow: 0 2px 7px rgba(11, 31, 53, 0.06);
-}
-
-.territory-point strong,
-.territory-point small { display: block; white-space: nowrap; }
-.territory-point strong { color: #31445a; font-size: 8px; }
-.territory-point small { margin-top: 3px; color: #8794a1; font-size: 6px; }
-.territory-point.p1 { left: 9%; top: 21%; }
-.territory-point.p2 { right: 8%; top: 18%; }
-.territory-point.p3 { left: 9%; top: 53%; }
-.territory-point.p4 { right: 6%; top: 54%; }
-.territory-point.p5 { left: 22%; bottom: 10%; }
-
-.territory-orbit {
-  position: absolute;
-  z-index: 3;
-  left: 50%;
-  top: 50%;
-  width: 66%;
-  height: 42%;
-  border: 1px dashed rgba(42, 65, 91, 0.17);
-  border-radius: 50%;
-  transform: translate(-50%, -50%) rotate(8deg);
-  pointer-events: none;
-}
-
-.territory-orbit.orbit-two { width: 48%; height: 70%; transform: translate(-50%, -50%) rotate(55deg); }
-.territory-orbit.orbit-three { width: 83%; height: 73%; transform: translate(-50%, -50%) rotate(-10deg); }
-
-.reference-territory-footer {
-  min-height: 49px;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  color: #7e8b99;
-  font-size: 7px;
-  border-top: 1px solid #e8eaec;
-}
-
-.reference-territory-footer > span { display: inline-flex; align-items: center; gap: 4px; }
-.reference-territory-footer > span > i { width: 6px; height: 6px; background: #0a223f; border-radius: 50%; }
-.reference-territory-footer > span > i.watch { background: #d3aa4c; }
-.reference-territory-footer > span > i.risk { background: #c96557; }
-.reference-territory-footer > button { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; color: #173b62; font-size: 8px; background: transparent; border: 0; cursor: pointer; }
 
 .reference-bottom-grid {
   min-width: 0;
@@ -7937,20 +7803,16 @@ textarea:focus-visible {
 @media (min-width: 1600px) {
   .reference-kpi-grid,
   .reference-dashboard .reference-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .reference-core-grid { grid-template-columns: minmax(540px, 0.9fr) minmax(650px, 1.1fr); }
 }
 
 @media (max-width: 1180px) {
   .reference-kpi-grid,
   .reference-dashboard .reference-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .reference-core-grid { grid-template-columns: 1fr; }
-  .reference-left-stack { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+  .reference-left-stack { grid-template-columns: 1fr; }
   .reference-bottom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 920px) {
-  .reference-left-stack { grid-template-columns: 1fr; }
-  .reference-territory-map { min-height: 340px; }
   .reference-service-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
@@ -7960,14 +7822,6 @@ textarea:focus-visible {
   .reference-dashboard .reference-kpi-grid,
   .reference-bottom-grid { grid-template-columns: 1fr; }
   .reference-service-grid { grid-template-columns: repeat(2, 1fr); }
-  .reference-territory-map { min-height: 430px; }
-  .territory-point.p1 { left: 4%; top: 12%; }
-  .territory-point.p2 { right: 4%; top: 27%; }
-  .territory-point.p3 { left: 3%; top: 49%; }
-  .territory-point.p4 { right: 3%; top: 65%; }
-  .territory-point.p5 { left: 12%; bottom: 6%; }
-  .reference-territory-footer { flex-wrap: wrap; padding: 8px 0; }
-  .reference-territory-footer > button { width: 100%; margin: 0; justify-content: flex-end; }
   .reference-risk-ticker { grid-template-columns: 1fr auto; padding-block: 8px; }
   .reference-risk-ticker > span { grid-column: 1 / -1; }
   .reference-risk-ticker > button small { display: none; }
