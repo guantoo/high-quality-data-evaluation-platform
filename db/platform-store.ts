@@ -2,7 +2,8 @@ import { env } from "cloudflare:workers";
 
 const SESSION_COOKIE = "hqdp_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
-const PASSWORD_ITERATIONS = 120_000;
+const PASSWORD_ITERATIONS = 100_000;
+const LEGACY_PASSWORD_ITERATIONS = 120_000;
 
 export type SessionUser = {
   id: string;
@@ -86,7 +87,17 @@ export async function authenticateUser(username: string, password: string): Prom
     FROM platform_users WHERE username = ? LIMIT 1`).bind(username).first<SessionUser & { passwordHash: string; passwordSalt: string; active: number }>();
   if (!row || !row.active) return null;
   const candidate = await hashPassword(password, row.passwordSalt);
-  if (!constantTimeEqual(candidate, row.passwordHash)) return null;
+  if (!constantTimeEqual(candidate, row.passwordHash)) {
+    let matchesLegacyHash = false;
+    try {
+      const legacyCandidate = await hashPassword(password, row.passwordSalt, LEGACY_PASSWORD_ITERATIONS);
+      matchesLegacyHash = constantTimeEqual(legacyCandidate, row.passwordHash);
+    } catch {
+      // Some Workers runtimes reject the former 120k work factor. New hashes use 100k.
+    }
+    if (!matchesLegacyHash) return null;
+    await getDatabase().prepare("UPDATE platform_users SET password_hash = ? WHERE id = ?").bind(candidate, row.id).run();
+  }
   await getDatabase().prepare("UPDATE platform_users SET last_login_at = ? WHERE id = ?").bind(Date.now(), row.id).run();
   return { id: row.id, username: row.username, displayName: row.displayName, roleId: row.roleId };
 }
@@ -168,9 +179,9 @@ function readCookie(cookieHeader: string, name: string) {
   return "";
 }
 
-async function hashPassword(password: string, saltHex: string) {
+async function hashPassword(password: string, saltHex: string, iterations = PASSWORD_ITERATIONS) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: hexToBytes(saltHex), iterations: PASSWORD_ITERATIONS }, key, 256);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: hexToBytes(saltHex), iterations }, key, 256);
   return bytesToHex(new Uint8Array(bits));
 }
 
