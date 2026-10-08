@@ -1,0 +1,11 @@
+CREATE USER 'quality_reader'@'%' IDENTIFIED BY 'hqdp_reader_test';
+GRANT SELECT ON quality_test.* TO 'quality_reader'@'%';
+USE quality_test;
+CREATE TABLE contacts (id BIGINT PRIMARY KEY, name VARCHAR(100), email VARCHAR(100), amount DECIMAL(22,4), joined_at DATETIME, payload JSON);
+INSERT INTO contacts VALUES (1,' Alice ','alice@example.test',123456789012345678.1234,'2026-01-01 10:00:00','{"source":"synthetic"}'),(2,'Bob',NULL,2.5000,'2026-01-02 10:00:00',NULL),(3,' Alice ','alice@example.test',123456789012345678.1234,'2026-01-01 10:00:00','{"source":"synthetic"}');
+CREATE TABLE `odd``table` (`__proto__` VARCHAR(100));
+INSERT INTO `odd``table` VALUES ('literal-field-value');
+CREATE TABLE empty_table (id INT);
+CREATE TABLE oversized (id INT PRIMARY KEY);
+SET SESSION cte_max_recursion_depth=6000;
+INSERT INTO oversized WITH RECURSIVE n AS (SELECT 1 AS id UNION ALL SELECT id+1 FROM n WHERE id<5001) SELECT id FROM n;

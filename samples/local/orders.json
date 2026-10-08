@@ -1,0 +1,17 @@
+[
+  {
+    "id": "O-001",
+    "product": " 样例设备 ",
+    "amount": 120
+  },
+  {
+    "id": "O-001",
+    "product": "样例设备",
+    "amount": 120
+  },
+  {
+    "id": "O-002",
+    "product": "样例服务",
+    "amount": null
+  }
+]

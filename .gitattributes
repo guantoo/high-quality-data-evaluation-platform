@@ -1,0 +1,9 @@
+# Preserve actual fixture bytes; whitespace is intentional test input/output.
+samples/local/*.txt whitespace=-blank-at-eol
+samples/local/**/*.csv -text whitespace=-blank-at-eol
+samples/local/*.csv -text whitespace=-blank-at-eol
+*.pdf binary
+*.png binary
+*.webp binary
+*.wav binary
+*.mp4 binary

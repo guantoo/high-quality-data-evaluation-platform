@@ -1,0 +1,126 @@
+{
+  "workspace": "{\"nodes\":[{\"id\":\"sample-file-input-0\",\"label\":\"非结构化文件接入\",\"kind\":\"dataset\",\"stage\":\"数据接入\",\"dataType\":\"非结构化\",\"templateId\":\"file-input\",\"meta\":\"数据接入 · 非结构化\",\"placed\":true,\"position\":{\"left\":44,\"top\":110}},{\"id\":\"sample-text-clean-1\",\"label\":\"文本清洗\",\"kind\":\"recipe\",\"stage\":\"数据处理\",\"dataType\":\"非结构化\",\"templateId\":\"text-clean\",\"meta\":\"数据处理 · 非结构化\",\"placed\":true,\"position\":{\"left\":274,\"top\":110}},{\"id\":\"sample-file-deduplicate-2\",\"label\":\"文件去重\",\"kind\":\"recipe\",\"stage\":\"数据处理\",\"dataType\":\"非结构化\",\"templateId\":\"file-deduplicate\",\"meta\":\"数据处理 · 非结构化\",\"placed\":true,\"position\":{\"left\":504,\"top\":110}},{\"id\":\"sample-media-check-3\",\"label\":\"非结构化质量校验\",\"kind\":\"recipe\",\"stage\":\"质量检查\",\"dataType\":\"非结构化\",\"templateId\":\"media-check\",\"meta\":\"质量检查 · 非结构化\",\"placed\":true,\"position\":{\"left\":734,\"top\":110}},{\"id\":\"sample-file-output-4\",\"label\":\"非结构化结果输出\",\"kind\":\"output\",\"stage\":\"结果输出\",\"dataType\":\"非结构化\",\"templateId\":\"file-output\",\"meta\":\"结果输出 · 非结构化\",\"placed\":true,\"position\":{\"left\":964,\"top\":110}}],\"edges\":[{\"id\":\"sample-edge-0\",\"from\":\"sample-file-input-0\",\"to\":\"sample-text-clean-1\"},{\"id\":\"sample-edge-1\",\"from\":\"sample-text-clean-1\",\"to\":\"sample-file-deduplicate-2\"},{\"id\":\"sample-edge-2\",\"from\":\"sample-file-deduplicate-2\",\"to\":\"sample-media-check-3\"},{\"id\":\"sample-edge-3\",\"from\":\"sample-media-check-3\",\"to\":\"sample-file-output-4\"}],\"nodeConfigs\":{\"sample-file-input-0\":{\"category\":\"数据清洗\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}},\"sample-text-clean-1\":{\"category\":\"数据清洗\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{\"whitespace\":\"合并连续空白\"}},\"sample-file-deduplicate-2\":{\"category\":\"去重治理\",\"algorithm\":\"文件哈希去重\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{\"hash\":\"SHA-256\"}},\"sample-media-check-3\":{\"category\":\"多模态治理\",\"algorithm\":\"图像质量检测\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}},\"sample-file-output-4\":{\"category\":\"数据清洗\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}}},\"mediaAssets\":{\"sample-file-input-0\":[{\"name\":\"notes.txt\",\"type\":\"text/plain\",\"size\":69,\"url\":\"data:text/plain;base64,ICBMb2NhbCAgIHNhbXBsZQogIERhdGEgICBxdWFsaXR5CgogIOS7heeUqOS6juacrOWcsOWKn+iDvemqjOaUtuOAgiAg\"},{\"name\":\"notes-copy.txt\",\"type\":\"text/plain\",\"size\":69,\"url\":\"data:text/plain;base64,ICBMb2NhbCAgIHNhbXBsZQogIERhdGEgICBxdWFsaXR5CgogIOS7heeUqOS6juacrOWcsOWKn+iDvemqjOaUtuOAgiAg\"}]}}",
+  "result": {
+    "results": [
+      {
+        "id": "sample-file-input-0",
+        "status": "成功",
+        "durationMs": 1,
+        "files": 2
+      },
+      {
+        "id": "sample-text-clean-1",
+        "status": "成功",
+        "durationMs": 0,
+        "files": 2
+      },
+      {
+        "id": "sample-file-deduplicate-2",
+        "status": "成功",
+        "durationMs": 0,
+        "files": 1
+      },
+      {
+        "id": "sample-media-check-3",
+        "status": "成功",
+        "durationMs": 24,
+        "files": 1,
+        "report": {
+          "files": 1,
+          "issueCount": 0,
+          "issues": [],
+          "passed": true
+        }
+      },
+      {
+        "id": "sample-file-output-4",
+        "status": "成功",
+        "durationMs": 0,
+        "files": 1,
+        "report": {
+          "files": 1,
+          "issueCount": 0,
+          "issues": [],
+          "passed": true
+        }
+      }
+    ],
+    "outputs": {
+      "sample-file-input-0": {
+        "files": [
+          {
+            "name": "notes.txt",
+            "type": "text/plain",
+            "size": 69,
+            "url": "data:text/plain;base64,ICBMb2NhbCAgIHNhbXBsZQogIERhdGEgICBxdWFsaXR5CgogIOS7heeUqOS6juacrOWcsOWKn+iDvemqjOaUtuOAgiAg"
+          },
+          {
+            "name": "notes-copy.txt",
+            "type": "text/plain",
+            "size": 69,
+            "url": "data:text/plain;base64,ICBMb2NhbCAgIHNhbXBsZQogIERhdGEgICBxdWFsaXR5CgogIOS7heeUqOS6juacrOWcsOWKn+iDvemqjOaUtuOAgiAg"
+          }
+        ]
+      },
+      "sample-text-clean-1": {
+        "files": [
+          {
+            "name": "notes.txt",
+            "type": "text/plain",
+            "size": 56,
+            "url": "data:text/plain;base64,TG9jYWwgc2FtcGxlIERhdGEgcXVhbGl0eSDku4XnlKjkuo7mnKzlnLDlip/og73pqozmlLbjgII="
+          },
+          {
+            "name": "notes-copy.txt",
+            "type": "text/plain",
+            "size": 56,
+            "url": "data:text/plain;base64,TG9jYWwgc2FtcGxlIERhdGEgcXVhbGl0eSDku4XnlKjkuo7mnKzlnLDlip/og73pqozmlLbjgII="
+          }
+        ]
+      },
+      "sample-file-deduplicate-2": {
+        "files": [
+          {
+            "name": "notes.txt",
+            "type": "text/plain",
+            "size": 56,
+            "url": "data:text/plain;base64,TG9jYWwgc2FtcGxlIERhdGEgcXVhbGl0eSDku4XnlKjkuo7mnKzlnLDlip/og73pqozmlLbjgII="
+          }
+        ]
+      },
+      "sample-media-check-3": {
+        "files": [
+          {
+            "name": "notes.txt",
+            "type": "text/plain",
+            "size": 56,
+            "url": "data:text/plain;base64,TG9jYWwgc2FtcGxlIERhdGEgcXVhbGl0eSDku4XnlKjkuo7mnKzlnLDlip/og73pqozmlLbjgII="
+          }
+        ],
+        "report": {
+          "files": 1,
+          "issueCount": 0,
+          "issues": [],
+          "passed": true
+        }
+      },
+      "sample-file-output-4": {
+        "files": [
+          {
+            "name": "notes.txt",
+            "type": "text/plain",
+            "size": 56,
+            "url": "data:text/plain;base64,TG9jYWwgc2FtcGxlIERhdGEgcXVhbGl0eSDku4XnlKjkuo7mnKzlnLDlip/og73pqozmlLbjgII="
+          }
+        ],
+        "report": {
+          "files": 1,
+          "issueCount": 0,
+          "issues": [],
+          "passed": true
+        }
+      }
+    },
+    "failedNodeId": null
+  }
+}

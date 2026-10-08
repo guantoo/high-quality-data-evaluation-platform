@@ -1,0 +1,40 @@
+✔ findings are measured results only, with original provenance and no invented risk/threshold (1.469333ms)
+✔ D1 issue lifecycle: scope, no skipped stages, concurrency, evidence, reload and audit (817.118458ms)
+✔ all 45 source rules preserved; automatic results use actual records and cell counts (3.149ms)
+✔ missing evidence stays pending; verified count evidence is evaluated without changing original (3.130875ms)
+✔ selection isolates execution and rejects empty, duplicate, unknown or excluded rules (0.173125ms)
+✔ platform reads document and records matched lines and missing requirements; ignores manual counts (0.628125ms)
+✔ JSON docs and validation: all four document rules, empty, malformed, oversized and binary formats (0.358291ms)
+﹣ live MySQL and PostgreSQL: read-only catalog, safe preview, authenticated encrypted D1 import and downstream processing (0.61875ms) # SKIP
+✔ connection validation rejects malformed hosts, ports and credential types (1.778ms)
+✔ driver failure messages do not reveal database passwords or connection strings (0.380042ms)
+✔ domestic adapters select correct protocol and TiDB does not use unsupported READ ONLY syntax (59.191167ms)
+✔ dashboard: no data is not a quality score; exact problem totals survive truncated details (1.633542ms)
+✔ dashboard D1: private/shared scope, period boundaries, current version and no duplicated latest results (686.610416ms)
+✔ dashboard endpoint enforces login, module permission and validated periods, with safe failure responses (6.312542ms)
+✔ CSV: BOM, quoted comma, escaped quote, multiline and malformed records (0.952167ms)
+✔ real profiling and cleaning preserve source, expose nulls and produce deterministic results (1.051125ms)
+✔ JSON/JSONL flat schema, limits and formula-safe export (0.376ms)
+✔ redaction does not remove distinct original records (0.078458ms)
+✔ isolated D1: authentication, business records, atomic conflict, account status, reset audit (2418.290208ms)
+﹣ native TiDB: real authentication, catalog, preview and import with its own transaction dialect (0.932ms) # SKIP
+✔ isolated project API executes real graph, creates a new version, preserves original and rejects unauthorized sources (1161.763291ms)
+✔ each structured template transforms actual rows and preserves the input (4.051708ms)
+✔ file input, text cleaning, content hashing, checks, annotation review and output use actual bytes (60.930333ms)
+✔ image normalization decodes pixels and changes real output format/size (66.883875ms)
+✔ audio resampling and video extraction produce decodable output files (533.858834ms)
+✔ document extraction returns the original text content (0.230375ms)
+✔ workflow executes dependencies, rejects cycles and stops at genuine failures (0.475459ms)
+✔ every advertised node template has an exercised real executor (0.049959ms)
+✔ offline OCR recognizes pixels rather than filename or placeholder text (656.871167ms)
+✔ PDF extraction reads the text objects from a real PDF (252.80925ms)
+✔ server-renders the authenticated platform entry (99.677792ms)
+✔ keeps production metadata and core interactions in source (8.89375ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 3161.596042

@@ -1,4 +1,6 @@
+import { projectDatabase } from "./project-store";
 import { env } from "cloudflare:workers";
+import { businessCollections, validateSnapshot, type BusinessSnapshot } from "./business-model";
 
 const SESSION_COOKIE = "hqdp_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
@@ -58,6 +60,16 @@ export async function ensurePlatformDatabase() {
       updated_by TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     )`),
+    db.prepare("CREATE TABLE IF NOT EXISTS platform_write_guard (id TEXT PRIMARY KEY, valid INTEGER NOT NULL CHECK(valid = 1))"),
+    db.prepare(`CREATE TABLE IF NOT EXISTS platform_records (
+      collection TEXT NOT NULL, record_id TEXT NOT NULL, module_id TEXT NOT NULL,
+      payload TEXT NOT NULL CHECK(json_valid(payload)), updated_by TEXT NOT NULL,
+      updated_at INTEGER NOT NULL, PRIMARY KEY(collection, record_id))`),
+    db.prepare("CREATE INDEX IF NOT EXISTS idx_platform_records_module ON platform_records(module_id, collection)"),
+    db.prepare(`CREATE TABLE IF NOT EXISTS platform_write_audit (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL, action TEXT NOT NULL,
+      collections TEXT NOT NULL, created_at INTEGER NOT NULL)`),
+    db.prepare("CREATE INDEX IF NOT EXISTS idx_platform_write_audit_created ON platform_write_audit(created_at)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_users_username ON platform_users(username)"),
     db.prepare("CREATE INDEX IF NOT EXISTS idx_platform_users_role_id ON platform_users(role_id)"),
     db.prepare("CREATE INDEX IF NOT EXISTS idx_platform_sessions_user_id ON platform_sessions(user_id)"),
@@ -148,27 +160,95 @@ export async function loadPlatformSnapshot(): Promise<unknown | null> {
   return JSON.parse(row.payload);
 }
 
-export async function savePlatformSnapshot(snapshot: unknown, user: SessionUser) {
+export async function savePlatformSnapshot(snapshot: unknown, user: SessionUser, expectedSavedAt: string | null = null) {
+  validateSnapshot(snapshot);
   await ensurePlatformDatabase();
-  const version = typeof snapshot === "object" && snapshot && "version" in snapshot ? Number((snapshot as { version: unknown }).version) || 2 : 2;
-  await getDatabase().prepare(`INSERT INTO platform_snapshots (id, version, payload, updated_by, updated_at)
-    VALUES ('default', ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET version = excluded.version, payload = excluded.payload,
-      updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
-    .bind(version, JSON.stringify(snapshot), user.id, Date.now()).run();
+  const db = getDatabase();
+  const now = Date.now();
+  const guardId = crypto.randomUUID();
+  const statements = [
+    db.prepare(`INSERT INTO platform_write_guard (id, valid) VALUES (?, CASE WHEN
+      COALESCE((SELECT json_extract(payload, '$.savedAt') FROM platform_snapshots WHERE id = 'default'), '') = ?
+      THEN 1 ELSE 0 END)`).bind(guardId, expectedSavedAt ?? ""),
+    db.prepare("DELETE FROM platform_records"),
+  ];
+  for (const [collection, moduleId] of Object.entries(businessCollections)) {
+    const rows = snapshot.data[collection] as Array<Record<string, unknown> | string>;
+    rows.forEach((row, index) => {
+      // Include position to preserve order and avoid collisions between display names.
+      const identity = typeof row === "string" ? row : String(row.id ?? row.name ?? index);
+      statements.push(db.prepare(`INSERT INTO platform_records
+        (collection, record_id, module_id, payload, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)`)
+        .bind(collection, `${index}:${identity}`, moduleId, JSON.stringify(row), user.id, now));
+    });
+  }
+  const members = snapshot.data.users as Array<{ account: string; roleId: string; status: string }>;
+  for (const member of members) {
+    if (member.account === "admin@local") continue;
+    statements.push(db.prepare("UPDATE platform_users SET role_id = ?, active = ? WHERE username = ? AND role_id != 'role-admin'")
+      .bind(member.roleId, member.status === "正常" ? 1 : 0, member.account));
+  }
+  statements.push(db.prepare(`INSERT INTO platform_snapshots (id, version, payload, updated_by, updated_at)
+    VALUES ('default', ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET version = excluded.version,
+    payload = excluded.payload, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
+    .bind(snapshot.version, JSON.stringify(snapshot), user.id, now));
+  statements.push(db.prepare("INSERT INTO platform_write_audit (id, user_id, action, collections, created_at) VALUES (?, ?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), user.id, "save", JSON.stringify(Object.keys(businessCollections)), now));
+  // D1 batch is transactional: snapshot, records, accounts and audit commit together.
+  statements.push(db.prepare("DELETE FROM platform_write_guard WHERE id = ?").bind(guardId));
+  await db.batch(statements);
 }
 
-export async function clearPlatformSnapshot() {
+export async function clearPlatformSnapshot(user?: SessionUser) {
   await ensurePlatformDatabase();
-  await getDatabase().prepare("DELETE FROM platform_snapshots WHERE id = 'default'").run();
+  const db = getDatabase();
+  await db.batch([
+    db.prepare("DELETE FROM platform_snapshots WHERE id = 'default'"),
+    db.prepare("DELETE FROM platform_records"),
+    db.prepare("UPDATE platform_users SET role_id = CASE username WHEN 'zhaoning@local' THEN 'role-data' WHEN 'wangmin@local' THEN 'role-quality' WHEN 'licheng@local' THEN 'role-model' ELSE role_id END, active = 1 WHERE username IN ('zhaoning@local', 'wangmin@local', 'licheng@local')"),
+    db.prepare("INSERT INTO platform_write_audit (id, user_id, action, collections, created_at) VALUES (?, ?, 'reset', '[]', ?)")
+      .bind(crypto.randomUUID(), user?.id ?? "system", Date.now()),
+  ]);
 }
 
+export async function databaseStatus() {
+  await ensurePlatformDatabase();
+  const db = getDatabase();
+  await projectDatabase();
+  const records = await db.prepare("SELECT collection, module_id AS moduleId, COUNT(*) AS count FROM platform_records GROUP BY collection, module_id").all();
+  const audit = await db.prepare(`SELECT id, user_id AS userId, action, collections, created_at AS createdAt FROM platform_write_audit
+    UNION ALL SELECT id, user_id AS userId, action, target_id || ' ' || detail AS collections, created_at AS createdAt FROM data_audit
+    ORDER BY createdAt DESC LIMIT 50`).all();
+  for (const table of ["data_assets", "data_versions", "quality_runs", "data_projects", "project_members", "database_connections", "database_imports"]) {
+    const exists = await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").bind(table).first();
+    if (exists) { const row = await db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first<{ count: number }>(); records.results.push({ collection: table, moduleId: "database", count: row?.count ?? 0 }); }
+  }
+  return { engine: "Cloudflare D1 / SQLite", records: records.results, audit: audit.results };
+}
+
+export function modulePermission(user: SessionUser, moduleId: string, snapshot: BusinessSnapshot | null) {
+  if (user.roleId === "role-admin") return "管理";
+  const roles = snapshot?.data.roles as Array<{ id: string; permissions?: Record<string, string> }> | undefined;
+  const role = roles?.find(item => item.id === user.roleId);
+  return role?.permissions?.[moduleId] || fallbackPermissions[user.roleId]?.[moduleId] || "无权限";
+}
+export function visiblePlatformSnapshot(snapshot: BusinessSnapshot | null, user: SessionUser): BusinessSnapshot | null {
+  if (!snapshot || user.roleId === "role-admin") return snapshot;
+  const data: Record<string, unknown> = { ...snapshot.data, activeRoleId: user.roleId };
+  for (const [key, moduleId] of Object.entries(businessCollections)) {
+    if (modulePermission(user, moduleId, snapshot) === "无权限") data[key] = [];
+  }
+  // The current role is required to display navigation permissions, even without admin access.
+  if (modulePermission(user, "admin", snapshot) === "无权限") {
+    data.roles = (snapshot.data.roles as Array<{ id: string }> ?? []).filter(role => role.id === user.roleId);
+  }
+  return { ...snapshot, data };
+}
+export async function canReadModule(user: SessionUser, moduleId: string) {
+  return modulePermission(user, moduleId, await loadPlatformSnapshot() as BusinessSnapshot | null) !== "无权限";
+}
 export async function canWriteModule(user: SessionUser, moduleId: string) {
-  if (user.roleId === "role-admin") return true;
-  const snapshot = await loadPlatformSnapshot() as { data?: { roles?: Array<{ id: string; permissions?: Record<string, string> }> } } | null;
-  const role = snapshot?.data?.roles?.find((item) => item.id === user.roleId);
-  const permission = role?.permissions?.[moduleId] || fallbackPermissions[user.roleId]?.[moduleId] || "无权限";
-  return permission === "管理";
+  return modulePermission(user, moduleId, await loadPlatformSnapshot() as BusinessSnapshot | null) === "管理";
 }
 
 function readCookie(cookieHeader: string, name: string) {

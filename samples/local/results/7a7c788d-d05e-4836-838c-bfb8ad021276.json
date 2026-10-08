@@ -1,0 +1,698 @@
+{
+  "workspace": "{\"nodes\":[{\"id\":\"asset-aa1ddc81-0ea9-48e2-bb2f-fb47eaa9d542\",\"label\":\"结构化数据接入\",\"kind\":\"dataset\",\"stage\":\"数据接入\",\"dataType\":\"结构化\",\"templateId\":\"table-input\",\"meta\":\"数据接入 · 结构化\",\"placed\":true,\"position\":{\"left\":44,\"top\":110}},{\"id\":\"sample-field-clean-1\",\"label\":\"字段清洗\",\"kind\":\"recipe\",\"stage\":\"数据处理\",\"dataType\":\"结构化\",\"templateId\":\"field-clean\",\"meta\":\"数据处理 · 结构化\",\"placed\":true,\"position\":{\"left\":274,\"top\":110}},{\"id\":\"sample-null-fill-2\",\"label\":\"缺失值处理\",\"kind\":\"recipe\",\"stage\":\"数据处理\",\"dataType\":\"结构化\",\"templateId\":\"null-fill\",\"meta\":\"数据处理 · 结构化\",\"placed\":true,\"position\":{\"left\":504,\"top\":110}},{\"id\":\"sample-row-deduplicate-3\",\"label\":\"记录去重\",\"kind\":\"recipe\",\"stage\":\"数据处理\",\"dataType\":\"结构化\",\"templateId\":\"row-deduplicate\",\"meta\":\"数据处理 · 结构化\",\"placed\":true,\"position\":{\"left\":734,\"top\":110}},{\"id\":\"sample-field-normalize-4\",\"label\":\"字段格式标准化\",\"kind\":\"recipe\",\"stage\":\"数据处理\",\"dataType\":\"结构化\",\"templateId\":\"field-normalize\",\"meta\":\"数据处理 · 结构化\",\"placed\":true,\"position\":{\"left\":964,\"top\":110}},{\"id\":\"sample-field-mask-5\",\"label\":\"敏感字段脱敏\",\"kind\":\"recipe\",\"stage\":\"数据处理\",\"dataType\":\"结构化\",\"templateId\":\"field-mask\",\"meta\":\"数据处理 · 结构化\",\"placed\":true,\"position\":{\"left\":1194,\"top\":110}},{\"id\":\"sample-table-check-6\",\"label\":\"结构化质量校验\",\"kind\":\"recipe\",\"stage\":\"质量检查\",\"dataType\":\"结构化\",\"templateId\":\"table-check\",\"meta\":\"质量检查 · 结构化\",\"placed\":true,\"position\":{\"left\":1424,\"top\":110}},{\"id\":\"sample-table-output-7\",\"label\":\"结构化结果输出\",\"kind\":\"output\",\"stage\":\"结果输出\",\"dataType\":\"结构化\",\"templateId\":\"table-output\",\"meta\":\"结果输出 · 结构化\",\"placed\":true,\"position\":{\"left\":1654,\"top\":110}}],\"edges\":[{\"id\":\"sample-edge-0\",\"from\":\"asset-aa1ddc81-0ea9-48e2-bb2f-fb47eaa9d542\",\"to\":\"sample-field-clean-1\"},{\"id\":\"sample-edge-1\",\"from\":\"sample-field-clean-1\",\"to\":\"sample-null-fill-2\"},{\"id\":\"sample-edge-2\",\"from\":\"sample-null-fill-2\",\"to\":\"sample-row-deduplicate-3\"},{\"id\":\"sample-edge-3\",\"from\":\"sample-row-deduplicate-3\",\"to\":\"sample-field-normalize-4\"},{\"id\":\"sample-edge-4\",\"from\":\"sample-field-normalize-4\",\"to\":\"sample-field-mask-5\"},{\"id\":\"sample-edge-5\",\"from\":\"sample-field-mask-5\",\"to\":\"sample-table-check-6\"},{\"id\":\"sample-edge-6\",\"from\":\"sample-table-check-6\",\"to\":\"sample-table-output-7\"}],\"nodeConfigs\":{\"asset-aa1ddc81-0ea9-48e2-bb2f-fb47eaa9d542\":{\"category\":\"数据清洗\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{\"versionId\":\"a8fb3673-0b99-4bcd-a30f-e5a196abc6af\"}},\"sample-field-clean-1\":{\"category\":\"数据清洗\",\"algorithm\":\"空白字符清理\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}},\"sample-null-fill-2\":{\"category\":\"完整性治理\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"name,city,status\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{\"defaultValue\":\"未知\"}},\"sample-row-deduplicate-3\":{\"category\":\"去重治理\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"id\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}},\"sample-field-normalize-4\":{\"category\":\"规范性治理\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"signup_date\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{\"format\":\"日期 YYYY-MM-DD\"}},\"sample-field-mask-5\":{\"category\":\"安全治理\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"phone,email\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}},\"sample-table-check-6\":{\"category\":\"准确性治理\",\"algorithm\":\"业务规则校验\",\"scope\":\"全量数据\",\"keyFields\":\"id,name,city,status\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}},\"sample-table-output-7\":{\"category\":\"数据清洗\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}}},\"mediaAssets\":{}}",
+  "result": {
+    "results": [
+      {
+        "id": "asset-aa1ddc81-0ea9-48e2-bb2f-fb47eaa9d542",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 8
+      },
+      {
+        "id": "sample-field-clean-1",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 8
+      },
+      {
+        "id": "sample-null-fill-2",
+        "status": "成功",
+        "durationMs": 1,
+        "records": 8
+      },
+      {
+        "id": "sample-row-deduplicate-3",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 6
+      },
+      {
+        "id": "sample-field-normalize-4",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 6
+      },
+      {
+        "id": "sample-field-mask-5",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 6
+      },
+      {
+        "id": "sample-table-check-6",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 6,
+        "report": {
+          "records": 6,
+          "issueCount": 0,
+          "issues": [],
+          "passed": true
+        }
+      },
+      {
+        "id": "sample-table-output-7",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 6,
+        "files": 1,
+        "report": {
+          "records": 6,
+          "issueCount": 0,
+          "issues": [],
+          "passed": true
+        },
+        "outputId": "06f3d208-b259-4efd-831c-b6b5d008a218"
+      }
+    ],
+    "outputs": {
+      "asset-aa1ddc81-0ea9-48e2-bb2f-fb47eaa9d542": {
+        "table": {
+          "columns": [
+            "id",
+            "name",
+            "signup_date",
+            "phone",
+            "email",
+            "city",
+            "status"
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "name": " 样例甲 ",
+              "signup_date": "2026/1/2",
+              "phone": "13800000001",
+              "email": "a@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026/1/2",
+              "phone": "13800000001",
+              "email": "a@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "2",
+              "name": "样例乙",
+              "signup_date": "2026/2/3",
+              "phone": "13800000002",
+              "email": "b@example.test",
+              "city": "",
+              "status": "有效"
+            },
+            {
+              "id": "3",
+              "name": "",
+              "signup_date": "2026/3/4",
+              "phone": "13800000003",
+              "email": "c@example.test",
+              "city": "上海",
+              "status": "有效"
+            },
+            {
+              "id": "4",
+              "name": "样例丁",
+              "signup_date": "2026/4/5",
+              "phone": "13800000004",
+              "email": "d@example.test",
+              "city": "北京",
+              "status": ""
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026/5/6",
+              "phone": "13800000005",
+              "email": "e@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026/5/6",
+              "phone": "13800000005",
+              "email": "e@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "6",
+              "name": "样例己",
+              "signup_date": "2026/6/7",
+              "phone": "13800000006",
+              "email": "f@example.test",
+              "city": "成都",
+              "status": "有效"
+            }
+          ]
+        }
+      },
+      "sample-field-clean-1": {
+        "table": {
+          "columns": [
+            "id",
+            "name",
+            "signup_date",
+            "phone",
+            "email",
+            "city",
+            "status"
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026/1/2",
+              "phone": "13800000001",
+              "email": "a@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026/1/2",
+              "phone": "13800000001",
+              "email": "a@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "2",
+              "name": "样例乙",
+              "signup_date": "2026/2/3",
+              "phone": "13800000002",
+              "email": "b@example.test",
+              "city": "",
+              "status": "有效"
+            },
+            {
+              "id": "3",
+              "name": "",
+              "signup_date": "2026/3/4",
+              "phone": "13800000003",
+              "email": "c@example.test",
+              "city": "上海",
+              "status": "有效"
+            },
+            {
+              "id": "4",
+              "name": "样例丁",
+              "signup_date": "2026/4/5",
+              "phone": "13800000004",
+              "email": "d@example.test",
+              "city": "北京",
+              "status": ""
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026/5/6",
+              "phone": "13800000005",
+              "email": "e@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026/5/6",
+              "phone": "13800000005",
+              "email": "e@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "6",
+              "name": "样例己",
+              "signup_date": "2026/6/7",
+              "phone": "13800000006",
+              "email": "f@example.test",
+              "city": "成都",
+              "status": "有效"
+            }
+          ]
+        }
+      },
+      "sample-null-fill-2": {
+        "table": {
+          "columns": [
+            "id",
+            "name",
+            "signup_date",
+            "phone",
+            "email",
+            "city",
+            "status"
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026/1/2",
+              "phone": "13800000001",
+              "email": "a@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026/1/2",
+              "phone": "13800000001",
+              "email": "a@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "2",
+              "name": "样例乙",
+              "signup_date": "2026/2/3",
+              "phone": "13800000002",
+              "email": "b@example.test",
+              "city": "未知",
+              "status": "有效"
+            },
+            {
+              "id": "3",
+              "name": "未知",
+              "signup_date": "2026/3/4",
+              "phone": "13800000003",
+              "email": "c@example.test",
+              "city": "上海",
+              "status": "有效"
+            },
+            {
+              "id": "4",
+              "name": "样例丁",
+              "signup_date": "2026/4/5",
+              "phone": "13800000004",
+              "email": "d@example.test",
+              "city": "北京",
+              "status": "未知"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026/5/6",
+              "phone": "13800000005",
+              "email": "e@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026/5/6",
+              "phone": "13800000005",
+              "email": "e@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "6",
+              "name": "样例己",
+              "signup_date": "2026/6/7",
+              "phone": "13800000006",
+              "email": "f@example.test",
+              "city": "成都",
+              "status": "有效"
+            }
+          ]
+        }
+      },
+      "sample-row-deduplicate-3": {
+        "table": {
+          "columns": [
+            "id",
+            "name",
+            "signup_date",
+            "phone",
+            "email",
+            "city",
+            "status"
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026/1/2",
+              "phone": "13800000001",
+              "email": "a@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "2",
+              "name": "样例乙",
+              "signup_date": "2026/2/3",
+              "phone": "13800000002",
+              "email": "b@example.test",
+              "city": "未知",
+              "status": "有效"
+            },
+            {
+              "id": "3",
+              "name": "未知",
+              "signup_date": "2026/3/4",
+              "phone": "13800000003",
+              "email": "c@example.test",
+              "city": "上海",
+              "status": "有效"
+            },
+            {
+              "id": "4",
+              "name": "样例丁",
+              "signup_date": "2026/4/5",
+              "phone": "13800000004",
+              "email": "d@example.test",
+              "city": "北京",
+              "status": "未知"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026/5/6",
+              "phone": "13800000005",
+              "email": "e@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "6",
+              "name": "样例己",
+              "signup_date": "2026/6/7",
+              "phone": "13800000006",
+              "email": "f@example.test",
+              "city": "成都",
+              "status": "有效"
+            }
+          ]
+        }
+      },
+      "sample-field-normalize-4": {
+        "table": {
+          "columns": [
+            "id",
+            "name",
+            "signup_date",
+            "phone",
+            "email",
+            "city",
+            "status"
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026-01-02",
+              "phone": "13800000001",
+              "email": "a@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "2",
+              "name": "样例乙",
+              "signup_date": "2026-02-03",
+              "phone": "13800000002",
+              "email": "b@example.test",
+              "city": "未知",
+              "status": "有效"
+            },
+            {
+              "id": "3",
+              "name": "未知",
+              "signup_date": "2026-03-04",
+              "phone": "13800000003",
+              "email": "c@example.test",
+              "city": "上海",
+              "status": "有效"
+            },
+            {
+              "id": "4",
+              "name": "样例丁",
+              "signup_date": "2026-04-05",
+              "phone": "13800000004",
+              "email": "d@example.test",
+              "city": "北京",
+              "status": "未知"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026-05-06",
+              "phone": "13800000005",
+              "email": "e@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "6",
+              "name": "样例己",
+              "signup_date": "2026-06-07",
+              "phone": "13800000006",
+              "email": "f@example.test",
+              "city": "成都",
+              "status": "有效"
+            }
+          ]
+        }
+      },
+      "sample-field-mask-5": {
+        "table": {
+          "columns": [
+            "id",
+            "name",
+            "signup_date",
+            "phone",
+            "email",
+            "city",
+            "status"
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026-01-02",
+              "phone": "138****0001",
+              "email": "***@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "2",
+              "name": "样例乙",
+              "signup_date": "2026-02-03",
+              "phone": "138****0002",
+              "email": "***@example.test",
+              "city": "未知",
+              "status": "有效"
+            },
+            {
+              "id": "3",
+              "name": "未知",
+              "signup_date": "2026-03-04",
+              "phone": "138****0003",
+              "email": "***@example.test",
+              "city": "上海",
+              "status": "有效"
+            },
+            {
+              "id": "4",
+              "name": "样例丁",
+              "signup_date": "2026-04-05",
+              "phone": "138****0004",
+              "email": "***@example.test",
+              "city": "北京",
+              "status": "未知"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026-05-06",
+              "phone": "138****0005",
+              "email": "***@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "6",
+              "name": "样例己",
+              "signup_date": "2026-06-07",
+              "phone": "138****0006",
+              "email": "***@example.test",
+              "city": "成都",
+              "status": "有效"
+            }
+          ]
+        }
+      },
+      "sample-table-check-6": {
+        "table": {
+          "columns": [
+            "id",
+            "name",
+            "signup_date",
+            "phone",
+            "email",
+            "city",
+            "status"
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026-01-02",
+              "phone": "138****0001",
+              "email": "***@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "2",
+              "name": "样例乙",
+              "signup_date": "2026-02-03",
+              "phone": "138****0002",
+              "email": "***@example.test",
+              "city": "未知",
+              "status": "有效"
+            },
+            {
+              "id": "3",
+              "name": "未知",
+              "signup_date": "2026-03-04",
+              "phone": "138****0003",
+              "email": "***@example.test",
+              "city": "上海",
+              "status": "有效"
+            },
+            {
+              "id": "4",
+              "name": "样例丁",
+              "signup_date": "2026-04-05",
+              "phone": "138****0004",
+              "email": "***@example.test",
+              "city": "北京",
+              "status": "未知"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026-05-06",
+              "phone": "138****0005",
+              "email": "***@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "6",
+              "name": "样例己",
+              "signup_date": "2026-06-07",
+              "phone": "138****0006",
+              "email": "***@example.test",
+              "city": "成都",
+              "status": "有效"
+            }
+          ]
+        },
+        "report": {
+          "records": 6,
+          "issueCount": 0,
+          "issues": [],
+          "passed": true
+        }
+      },
+      "sample-table-output-7": {
+        "table": {
+          "columns": [
+            "id",
+            "name",
+            "signup_date",
+            "phone",
+            "email",
+            "city",
+            "status"
+          ],
+          "rows": [
+            {
+              "id": "1",
+              "name": "样例甲",
+              "signup_date": "2026-01-02",
+              "phone": "138****0001",
+              "email": "***@example.test",
+              "city": "杭州",
+              "status": "有效"
+            },
+            {
+              "id": "2",
+              "name": "样例乙",
+              "signup_date": "2026-02-03",
+              "phone": "138****0002",
+              "email": "***@example.test",
+              "city": "未知",
+              "status": "有效"
+            },
+            {
+              "id": "3",
+              "name": "未知",
+              "signup_date": "2026-03-04",
+              "phone": "138****0003",
+              "email": "***@example.test",
+              "city": "上海",
+              "status": "有效"
+            },
+            {
+              "id": "4",
+              "name": "样例丁",
+              "signup_date": "2026-04-05",
+              "phone": "138****0004",
+              "email": "***@example.test",
+              "city": "北京",
+              "status": "未知"
+            },
+            {
+              "id": "5",
+              "name": "样例戊",
+              "signup_date": "2026-05-06",
+              "phone": "138****0005",
+              "email": "***@example.test",
+              "city": "深圳",
+              "status": "有效"
+            },
+            {
+              "id": "6",
+              "name": "样例己",
+              "signup_date": "2026-06-07",
+              "phone": "138****0006",
+              "email": "***@example.test",
+              "city": "成都",
+              "status": "有效"
+            }
+          ]
+        },
+        "report": {
+          "records": 6,
+          "issueCount": 0,
+          "issues": [],
+          "passed": true
+        },
+        "files": [
+          {
+            "name": "result.csv",
+            "type": "text/csv",
+            "size": 540,
+            "url": "data:text/csv;base64,ImlkIiwibmFtZSIsInNpZ251cF9kYXRlIiwicGhvbmUiLCJlbWFpbCIsImNpdHkiLCJzdGF0dXMiDQoiMSIsIuagt+S+i+eUsiIsIjIwMjYtMDEtMDIiLCIxMzgqKioqMDAwMSIsIioqKkBleGFtcGxlLnRlc3QiLCLmna3lt54iLCLmnInmlYgiDQoiMiIsIuagt+S+i+S5mSIsIjIwMjYtMDItMDMiLCIxMzgqKioqMDAwMiIsIioqKkBleGFtcGxlLnRlc3QiLCLmnKrnn6UiLCLmnInmlYgiDQoiMyIsIuacquefpSIsIjIwMjYtMDMtMDQiLCIxMzgqKioqMDAwMyIsIioqKkBleGFtcGxlLnRlc3QiLCLkuIrmtbciLCLmnInmlYgiDQoiNCIsIuagt+S+i+S4gSIsIjIwMjYtMDQtMDUiLCIxMzgqKioqMDAwNCIsIioqKkBleGFtcGxlLnRlc3QiLCLljJfkuqwiLCLmnKrnn6UiDQoiNSIsIuagt+S+i+aIiiIsIjIwMjYtMDUtMDYiLCIxMzgqKioqMDAwNSIsIioqKkBleGFtcGxlLnRlc3QiLCLmt7HlnLMiLCLmnInmlYgiDQoiNiIsIuagt+S+i+W3sSIsIjIwMjYtMDYtMDciLCIxMzgqKioqMDAwNiIsIioqKkBleGFtcGxlLnRlc3QiLCLmiJDpg70iLCLmnInmlYgi"
+          }
+        ]
+      }
+    },
+    "failedNodeId": null
+  }
+}

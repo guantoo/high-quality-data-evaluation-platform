@@ -38,3 +38,21 @@ yarn-error.log*
 /.wrangler/
 /outputs/
 /work/
+
+# Local connector encryption and access secrets
+.dev.vars*
+
+# macOS resource forks
+._*
+
+# Local database credentials
+.local/
+
+# Temporary verification artifacts and compiler cache
+/tmp/
+*.tsbuildinfo
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+__pycache__/
+*.pyc

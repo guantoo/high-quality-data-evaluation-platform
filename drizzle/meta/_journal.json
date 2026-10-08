@@ -8,6 +8,41 @@
       "when": 1787590935702,
       "tag": "0000_glorious_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791441252048,
+      "tag": "0001_business_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791441605556,
+      "tag": "0002_real_data_pipeline",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791442151997,
+      "tag": "0003_project_sharing",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791444698876,
+      "tag": "0004_database_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791476871377,
+      "tag": "0005_project_workflows",
+      "breakpoints": true
     }
   ]
 }
