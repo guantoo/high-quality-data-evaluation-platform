@@ -1,0 +1,223 @@
+{
+  "generatedAt": "2026-10-08T17:12:18.191Z",
+  "base": "http://localhost:3000",
+  "projects": [
+    {
+      "id": "7a7c788d-d05e-4836-838c-bfb8ad021276",
+      "name": "样例 · 客户数据治理"
+    },
+    {
+      "id": "7f1de751-b308-4766-98ee-7b19496abb43",
+      "name": "样例 · 文本清洗与文件去重"
+    },
+    {
+      "id": "d5fff188-8f7b-41f4-a4f8-7305beef85aa",
+      "name": "样例 · 图像标准化"
+    },
+    {
+      "id": "7153fcd8-9c7b-45c5-8cfc-39da15578676",
+      "name": "样例 · 音频预处理"
+    },
+    {
+      "id": "4ba02599-ec77-46c5-b0aa-e40ee27de7a8",
+      "name": "样例 · 视频抽帧"
+    },
+    {
+      "id": "392ad306-12df-4e17-97c6-25decb9a328a",
+      "name": "样例 · 文档文字提取"
+    },
+    {
+      "id": "f72faf8e-fca9-4db5-bf2e-307363731eef",
+      "name": "样例 · 图像 OCR"
+    },
+    {
+      "id": "4ef8afb5-7118-4aed-846c-e7e02a6051cf",
+      "name": "样例 · 人工标注复核"
+    },
+    {
+      "id": "e44a2a36-afa9-40a2-b4fe-090a863f51b2",
+      "name": "样例 · 错误与重试"
+    }
+  ],
+  "assets": [
+    {
+      "id": "aa1ddc81-0ea9-48e2-bb2f-fb47eaa9d542",
+      "name": "样例 · 客户数据（含空值和重复）",
+      "filename": "customers.csv"
+    },
+    {
+      "id": "ea063a0d-4a72-4f1b-ae40-b415b617da72",
+      "name": "样例 · 订单 JSON",
+      "filename": "orders.json"
+    },
+    {
+      "id": "5fca76e5-dc82-452b-ab65-a09203472479",
+      "name": "样例 · 事件 JSONL",
+      "filename": "events.jsonl"
+    }
+  ],
+  "checks": [
+    {
+      "name": "客户治理：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "8 条客户原始记录治理为 6 条唯一记录",
+      "status": "通过"
+    },
+    {
+      "name": "手机号和邮箱实际脱敏",
+      "status": "通过"
+    },
+    {
+      "name": "日期已统一为 YYYY-MM-DD",
+      "status": "通过"
+    },
+    {
+      "name": "输出版本已落库，原始版本保留",
+      "status": "通过"
+    },
+    {
+      "name": "完整说明文档与治理后数据完成质量评估",
+      "status": "通过"
+    },
+    {
+      "name": "orders.json：导入、清洗、探查和评估",
+      "status": "通过"
+    },
+    {
+      "name": "events.jsonl：导入、清洗、探查和评估",
+      "status": "通过"
+    },
+    {
+      "name": "样例 · 文本清洗与文件去重：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "文本已清理，重复文件从 2 个减至 1 个",
+      "status": "通过"
+    },
+    {
+      "name": "样例 · 图像标准化：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "图像输出为 WebP，最长边 1024",
+      "status": "通过"
+    },
+    {
+      "name": "样例 · 音频预处理：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "音频输出为 16000 Hz 单声道 WAV",
+      "status": "通过"
+    },
+    {
+      "name": "样例 · 视频抽帧：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "1 秒视频实际输出 5 帧图像",
+      "status": "通过"
+    },
+    {
+      "name": "样例 · 文档文字提取：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "PDF 实际文字提取正确",
+      "status": "通过"
+    },
+    {
+      "name": "样例 · 图像 OCR：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "OCR 从图像识别出 LOCAL SAMPLE DATA",
+      "status": "通过"
+    },
+    {
+      "name": "人工标注提交、复核与结果输出：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "人工复核按实际提交状态返回结果",
+      "status": "通过"
+    },
+    {
+      "name": "无效日期明确失败，输出节点未执行",
+      "status": "通过"
+    },
+    {
+      "name": "日期错误修复后重试：执行成功",
+      "status": "通过"
+    },
+    {
+      "name": "文档缺项已生成真实评估问题",
+      "status": "通过"
+    },
+    {
+      "name": "样例问题分派、处理、复核与关闭状态已落库",
+      "status": "通过"
+    },
+    {
+      "name": "首页统计已读取新增样例资产和执行记录",
+      "status": "通过"
+    }
+  ],
+  "nodes": [
+    "table-input",
+    "field-clean",
+    "null-fill",
+    "row-deduplicate",
+    "field-normalize",
+    "field-mask",
+    "table-check",
+    "table-output",
+    "file-input",
+    "text-clean",
+    "file-deduplicate",
+    "media-check",
+    "file-output",
+    "image-normalize",
+    "audio-process",
+    "video-process",
+    "document-extract",
+    "annotation-review"
+  ],
+  "manualProject": {
+    "id": "4ef8afb5-7118-4aed-846c-e7e02a6051cf",
+    "name": "样例 · 人工标注复核",
+    "pending": false
+  },
+  "browserChecks": {
+    "projectListWidths": [
+      1280,
+      768,
+      390
+    ],
+    "manualAnnotation": {
+      "submitted": true,
+      "samples": 1,
+      "objects": 1
+    },
+    "projectSearch": true,
+    "assetVersionsVisible": true,
+    "screenshots": [
+      "screenshots/projects-1280.png",
+      "screenshots/projects-768.png",
+      "screenshots/projects-390.png"
+    ]
+  },
+  "regression": {
+    "passed": 30,
+    "failed": 0,
+    "skipped": 2,
+    "typecheck": "通过",
+    "sampleScriptLint": "通过",
+    "build": "通过",
+    "log": "results/regression-tests.log",
+    "skippedReason": "外部数据库集成测试未启用"
+  }
+}

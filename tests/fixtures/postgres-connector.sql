@@ -1,0 +1,10 @@
+CREATE USER quality_reader WITH PASSWORD 'hqdp_reader_test';
+CREATE TABLE contacts (id BIGINT PRIMARY KEY, name TEXT, email TEXT, amount NUMERIC(22,4), joined_at TIMESTAMP, payload JSONB);
+INSERT INTO contacts VALUES (1,' Alice ','alice@example.test',123456789012345678.1234,'2026-01-01 10:00:00','{"source":"synthetic"}'),(2,'Bob',NULL,2.5000,'2026-01-02 10:00:00',NULL),(3,' Alice ','alice@example.test',123456789012345678.1234,'2026-01-01 10:00:00','{"source":"synthetic"}');
+CREATE TABLE "odd""table" ("__proto__" TEXT);
+INSERT INTO "odd""table" VALUES ('literal-field-value');
+CREATE TABLE empty_table (id INT);
+CREATE TABLE oversized AS SELECT generate_series(1,5001) AS id;
+GRANT CONNECT ON DATABASE quality_test TO quality_reader;
+GRANT USAGE ON SCHEMA public TO quality_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO quality_reader;

@@ -1,0 +1,73 @@
+{
+  "workspace": "{\"nodes\":[{\"id\":\"sample-table-input-0\",\"label\":\"结构化数据接入\",\"kind\":\"dataset\",\"stage\":\"数据接入\",\"dataType\":\"结构化\",\"templateId\":\"table-input\",\"meta\":\"数据接入 · 结构化\",\"placed\":true,\"position\":{\"left\":44,\"top\":110}},{\"id\":\"sample-field-normalize-1\",\"label\":\"字段格式标准化\",\"kind\":\"recipe\",\"stage\":\"数据处理\",\"dataType\":\"结构化\",\"templateId\":\"field-normalize\",\"meta\":\"数据处理 · 结构化\",\"placed\":true,\"position\":{\"left\":274,\"top\":110}},{\"id\":\"sample-table-output-2\",\"label\":\"结构化结果输出\",\"kind\":\"output\",\"stage\":\"结果输出\",\"dataType\":\"结构化\",\"templateId\":\"table-output\",\"meta\":\"结果输出 · 结构化\",\"placed\":true,\"position\":{\"left\":504,\"top\":110}}],\"edges\":[{\"id\":\"sample-edge-0\",\"from\":\"sample-table-input-0\",\"to\":\"sample-field-normalize-1\"},{\"id\":\"sample-edge-1\",\"from\":\"sample-field-normalize-1\",\"to\":\"sample-table-output-2\"}],\"nodeConfigs\":{\"sample-table-input-0\":{\"category\":\"数据清洗\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}},\"sample-field-normalize-1\":{\"category\":\"规范性治理\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"date\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{\"format\":\"日期 YYYY-MM-DD\"}},\"sample-table-output-2\":{\"category\":\"数据清洗\",\"algorithm\":\"规则化清洗\",\"scope\":\"全量数据\",\"keyFields\":\"\",\"threshold\":90,\"strategy\":\"标准处理\",\"exceptionPolicy\":\"终止当前流程\",\"outputMode\":\"生成新版本\",\"trigger\":\"手动触发\",\"keepAudit\":true,\"parameters\":{}}},\"mediaAssets\":{\"sample-table-input-0\":[{\"name\":\"dates.csv\",\"type\":\"text/csv\",\"size\":15,\"url\":\"data:text/csv;base64,ZGF0ZQoyMDI2LTAyLTI4\"}]}}",
+  "result": {
+    "results": [
+      {
+        "id": "sample-table-input-0",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 1
+      },
+      {
+        "id": "sample-field-normalize-1",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 1
+      },
+      {
+        "id": "sample-table-output-2",
+        "status": "成功",
+        "durationMs": 0,
+        "records": 1,
+        "files": 1
+      }
+    ],
+    "outputs": {
+      "sample-table-input-0": {
+        "table": {
+          "columns": [
+            "date"
+          ],
+          "rows": [
+            {
+              "date": "2026-02-28"
+            }
+          ]
+        }
+      },
+      "sample-field-normalize-1": {
+        "table": {
+          "columns": [
+            "date"
+          ],
+          "rows": [
+            {
+              "date": "2026-02-28"
+            }
+          ]
+        }
+      },
+      "sample-table-output-2": {
+        "table": {
+          "columns": [
+            "date"
+          ],
+          "rows": [
+            {
+              "date": "2026-02-28"
+            }
+          ]
+        },
+        "files": [
+          {
+            "name": "result.csv",
+            "type": "text/csv",
+            "size": 20,
+            "url": "data:text/csv;base64,ImRhdGUiDQoiMjAyNi0wMi0yOCI="
+          }
+        ]
+      }
+    },
+    "failedNodeId": null
+  }
+}

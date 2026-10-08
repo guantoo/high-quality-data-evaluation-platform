@@ -1,0 +1,9 @@
+id,name,signup_date,phone,email,city,status
+1, 样例甲 ,2026/1/2,13800000001,a@example.test,杭州,有效
+1,样例甲,2026/1/2,13800000001,a@example.test,杭州,有效
+2,样例乙,2026/2/3,13800000002,b@example.test,,有效
+3,,2026/3/4,13800000003,c@example.test,上海,有效
+4,样例丁,2026/4/5,13800000004,d@example.test,北京,
+5,样例戊,2026/5/6,13800000005,e@example.test,深圳,有效
+5,样例戊,2026/5/6,13800000005,e@example.test,深圳,有效
+6,样例己,2026/6/7,13800000006,f@example.test,成都,有效

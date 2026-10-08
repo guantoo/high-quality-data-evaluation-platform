@@ -1,0 +1,4 @@
+name,phone,email
+ Alice ,13800000000,alice@example.test
+Alice,13800000000,alice@example.test
+Bob,,bob@example.test

@@ -1,0 +1,25 @@
+"use client";
+import { useEffect, useState } from 'react';
+import { Database } from 'lucide-react';
+type Audit = { id: string; userId: string; action: string; collections: string; createdAt: number };
+type Status = { engine: string; records: Array<{ collection: string; count: number }>; audit: Audit[] };
+const collectionNames: Record<string, string> = { database_connections: '数据库连接', database_imports: '数据库导入', data_assets: '数据资产', data_versions: '数据版本', quality_runs: '质量运行', data_projects: '数据项目', project_members: '项目成员', project_assets: '项目资产关联', sources: '数据源', assets: '盘点资产', governanceTasks: '治理任务', assessmentTasks: '评估任务', users: '平台账号', roles: '角色', assessmentIssues: '评估问题', reviewTasks: '审核任务', projects: '流程项目', auditLogs: '页面操作日志', messages: '消息', resolvedRisks: '已处置风险', cleaningTasks: '清洗任务', jobs: '模型作业', evaluations: '模型评测', rules: '质量规则' };
+const actionNames: Record<string, string> = { 'connection.save': '保存数据库连接', 'connection.test': '测试数据库连接', 'connection.import': '数据库导入', save: '保存配置', 'asset.import': '导入文件', 'quality.profile': '数据探查', 'quality.clean': '数据清洗', 'quality.assessment': '质量评估', 'project.create': '新建项目', 'project.member': '成员配置', 'asset.project': '资产共享' };
+function actionLabel(value: string) { return actionNames[value] ?? value; }
+async function load() { const response = await fetch('/api/database', { cache: 'no-store' }); const value = await response.json(); if (!response.ok) throw new Error(value.error ?? '无法读取数据库状态'); return value as Status; }
+export default function DatabaseAudit({ mode }: { mode: 'audit' | 'storage' }) {
+  const [status, setStatus] = useState<Status | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState(''); const [action, setAction] = useState('');
+  useEffect(() => { let cancelled = false; load().then(value => { if (!cancelled) setStatus(value); }).catch(reason => { if (!cancelled) setError(reason.message); }); return () => { cancelled = true; }; }, []);
+  const audits = status?.audit.filter(item => (!action || item.action === action) && `${item.userId} ${actionLabel(item.action)} ${item.collections}`.toLowerCase().includes(query.toLowerCase())) ?? [];
+  function exportLogs() {
+    const rows = [['时间', '操作账号 ID', '事件', '业务对象 / 内容'], ...audits.map(item => [new Date(item.createdAt).toLocaleString('zh-CN'), item.userId, actionLabel(item.action), item.collections])];
+    const csv = '\uFEFF' + rows.map(row => row.map(value => `"${(/^[=+\-@\t\r]/.test(value) ? "'" + value : value).replaceAll('"', '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = '审计日志.csv'; link.click(); URL.revokeObjectURL(url);
+  }
+  return <article className={`white-panel reuse-list-panel real-data-workbench integrated-data-panel${mode === "storage" ? " storage-data-panel" : ""}`}>
+    <header className="reuse-panel-head"><div><h2>{mode === 'audit' ? '操作记录' : '本地数据清单'}</h2><p>{mode === 'audit' ? '服务端保存的最近 50 条操作记录' : '平台配置、数据资产与版本的实际存储数量'}</p></div><button className="reuse-secondary" disabled={busy} onClick={() => { setBusy(true); load().then(value => { setStatus(value); setError(''); }).catch(reason => setError(reason.message)).finally(() => setBusy(false)); }}>刷新</button></header>
+    {(error || busy || !status) && <p className={`data-notice${error ? ' is-error' : ''}`} role={error ? 'alert' : 'status'}>{error || (busy ? '正在刷新…' : '正在读取数据库…')}</p>}
+    {status && (mode === 'storage' ? <><p>存储引擎：{status.engine}</p><div className="storage-record-list">{status.records.map(item => <div key={item.collection}><span><Database size={16} aria-hidden="true" /></span><div><strong>{collectionNames[item.collection] ?? item.collection}</strong></div><b>{item.count}</b></div>)}</div></> : <><div className="real-data-controls"><label>搜索日志<input aria-label="搜索审计日志" value={query} onChange={event => setQuery(event.target.value)} placeholder="账号、事件或业务对象" /></label><label>事件类型<select aria-label="审计事件类型" value={action} onChange={event => setAction(event.target.value)}><option value="">全部事件</option>{Array.from(new Set(status.audit.map(item => item.action))).map(value => <option key={value} value={value}>{actionLabel(value)}</option>)}</select></label><button className="reuse-secondary" disabled={!audits.length} onClick={exportLogs}>导出日志</button></div><p>当前显示 {audits.length} 条记录</p><div className="reuse-table-wrap data-audit-table"><table className="reuse-table"><thead><tr><th>时间</th><th>操作账号 ID</th><th>事件</th><th>业务对象 / 内容</th></tr></thead><tbody>{audits.map(item => <tr key={item.id}><td>{new Date(item.createdAt).toLocaleString('zh-CN')}</td><td className="data-account-id">{item.userId}</td><td><span className="data-badge">{actionLabel(item.action)}</span></td><td className="data-audit-content"><details><summary>查看详情</summary><pre>{item.collections}</pre></details></td></tr>)}{!audits.length && <tr><td colSpan={4} className="data-empty">没有匹配的操作记录</td></tr>}</tbody></table></div></>)}
+  </article>;
+}

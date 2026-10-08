@@ -1,5 +1,14 @@
 "use client";
 
+import type { DashboardPeriod, DashboardSnapshot } from "@/lib/dashboard";
+import AssessmentIssues from "./components/assessment-issues";
+import { removeLegacyAssessmentSamples } from "@/lib/assessment-issues";
+import { governanceStages, governanceNodeTemplates, governanceTemplateParameters, type GovernanceStage, type GovernanceDataType } from "@/lib/governance-node-catalog";
+import DataProjects from "./components/data-projects";
+import DatabaseConnections from "./components/database-connections";
+import DatabaseAudit from "./components/database-audit";
+import DataWorkbench from "./components/data-workbench";
+
 import {
   ChangeEvent,
   FormEvent,
@@ -11,9 +20,7 @@ import {
   useState,
 } from "react";
 import {
-  Activity,
   ArrowLeft,
-  ArrowDownRight,
   ArrowUpRight,
   Bell,
   Blocks,
@@ -38,16 +45,13 @@ import {
   FileUp,
   FileVideo,
   Filter,
-  FolderKanban,
   Gauge,
-  GitBranch,
   Grid2X2,
   HardDrive,
   House,
   KeyRound,
   Layers3,
   Link2,
-  ListChecks,
   LocateFixed,
   LogOut,
   Menu,
@@ -64,7 +68,6 @@ import {
   Save,
   Search,
   ScanSearch,
-  Server,
   Settings2,
   ScrollText,
   ShieldCheck,
@@ -97,7 +100,6 @@ type ModuleId =
 type DialogId =
   | "assessment"
   | "model"
-  | "connection"
   | "project"
   | "evaluation"
   | null;
@@ -126,7 +128,7 @@ type ProjectRow = {
   workspace?: {
     nodes: WorkbenchNode[];
     edges: WorkbenchEdge[];
-    mediaAssets?: Record<string, WorkbenchMediaAsset[]>;
+    annotationReviews?: Record<string, { completed: number[]; shapes: Record<number, AnnotationShape[]>; files: WorkbenchMediaAsset[] }>; mediaAssets?: Record<string, WorkbenchMediaAsset[]>;
     nodeConfigs?: Record<string, GovernanceNodeConfig>;
   };
 };
@@ -186,10 +188,7 @@ type CleaningTaskRow = {
   created: string;
 };
 
-type CleaningTaskDraft = Omit<
-  CleaningTaskRow,
-  "id" | "status" | "progress" | "outputVersion" | "activeVersion" | "versions" | "created"
->;
+
 
 type ModelJobConfig = {
   learningRate: string;
@@ -397,7 +396,7 @@ const modules: Array<{
     label: "智能数据盘点",
     short: "盘点",
     icon: Database,
-    children: ["数据库管理", "数据探查", "本地数据管理", "智能数据盘点", "智能数据清洗"],
+    children: ["数据库管理", "数据探查", "本地数据管理"],
   },
   {
     id: "governance",
@@ -822,13 +821,13 @@ function Login({ onLogin, checking = false }: { onLogin: (credentials: { usernam
       <div className="login-art" aria-hidden="true">
         <header className="login-art-heading">
           <div className="login-art-eyebrow"><span>质</span><b>DATA QUALITY CONTROL</b></div>
-          <h2>让数据从“可用”走向“可信”</h2>
+          <h2>让数据从“可用”<br />走向<span>“可信”</span></h2>
           <p>覆盖数据盘点、治理、评估与交付的全流程质量闭环</p>
         </header>
         <div className="quality-blueprint">
           <div className="quality-blueprint-head">
             <span className="quality-live"><i />质量流水线运行正常</span>
-            <time>最近评估&nbsp; 08-25&nbsp; 09:42</time>
+            <time>质量评估概览 · 示例数据</time>
           </div>
           <div className="quality-pipeline">
             <div className="quality-stage">
@@ -885,6 +884,7 @@ function Login({ onLogin, checking = false }: { onLogin: (credentials: { usernam
       </div>
       <form className="login-card" onSubmit={submit}>
         <header>
+          <div className="login-brand-mark"><ShieldCheck size={25} /></div>
           <h1>高质量数据集评估平台</h1>
           <p>High quality dataset evaluation platform</p>
         </header>
@@ -905,7 +905,7 @@ function Login({ onLogin, checking = false }: { onLogin: (credentials: { usernam
           </button>
         </div>
         <label>
-          <span>♙ {loginMode === "password" ? "账 号" : "手机号"}：</span>
+          <span><UiIcon icon={UserPlus} size={16} />{loginMode === "password" ? "账号" : "手机号"}</span>
           <input
             required
             value={loginMode === "password" ? username : username.replace(/\D/g, "")}
@@ -917,18 +917,18 @@ function Login({ onLogin, checking = false }: { onLogin: (credentials: { usernam
         {loginMode === "password" ? (
           <>
             <label>
-              <span>♙ 密 码：</span>
+              <span><UiIcon icon={KeyRound} size={16} />密码</span>
               <input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} aria-label="密码" placeholder="请输入密码" />
             </label>
             <label className="captcha-row">
-              <span>▣ 验证码：</span>
+              <span><UiIcon icon={ShieldCheck} size={16} />验证码</span>
               <input required value={captcha} onChange={(event) => setCaptcha(event.target.value)} aria-label="验证码" placeholder="请输入验证码" />
               <b>3 + 5 =</b>
             </label>
           </>
         ) : (
           <label className="sms-row">
-            <span>▣ 验证码：</span>
+            <span><UiIcon icon={ShieldCheck} size={16} />验证码</span>
             <input required aria-label="短信验证码" placeholder="请输入短信验证码" />
             <button type="button" disabled={seconds > 0} onClick={() => { setSeconds(60); setMessage("本地部署未配置短信网关，未发送验证码"); }}>
               {seconds > 0 ? `${seconds}s` : "获取验证码"}
@@ -936,7 +936,7 @@ function Login({ onLogin, checking = false }: { onLogin: (credentials: { usernam
           </label>
         )}
         {(checking || message) && <div className="login-message" role="status">{checking ? "正在验证登录状态…" : message}</div>}
-        <button className="login-submit" disabled={checking || submitting}>{submitting ? "正在验证…" : checking ? "正在连接…" : "登 录"}</button>
+        <button className="login-submit" disabled={checking || submitting}>{submitting ? "正在验证…" : checking ? "正在连接…" : "登录平台"}</button>
         <div className="login-links">
           <button type="button" onClick={() => setMessage("账号由平台管理员统一创建，请联系管理员")}>注册账号</button>
           <button type="button" onClick={() => setMessage("请联系平台管理员重置密码")}>忘记密码？</button>
@@ -949,294 +949,110 @@ function Login({ onLogin, checking = false }: { onLogin: (credentials: { usernam
   );
 }
 
-function HomeDashboard({
-  sources,
-  cleaningTasks,
-  reviewTaskCount,
-  jobs,
-  evaluations,
-  notify,
-  openModule,
-  resolvedRisks,
-  setResolvedRisks,
-}: {
-  sources: SourceRow[];
-  cleaningTasks: CleaningTaskRow[];
-  reviewTaskCount: number;
-  jobs: JobRow[];
-  evaluations: EvaluationRow[];
+function HomeDashboard({ notify, openModule }: {
   notify: Notify;
   openModule: (id: ModuleId, label?: string) => void;
-  resolvedRisks: string[];
-  setResolvedRisks: React.Dispatch<React.SetStateAction<string[]>>;
 }) {
-  const [period, setPeriod] = useState<"近 7 天" | "近 30 天" | "本季度">("近 30 天");
-  const [lastUpdated, setLastUpdated] = useState("刚刚");
-  const domainRows = [
-    { name: "金融数据", datasets: 18, score: 96.2, change: 1.8, issues: 3, owner: "金融数据组" },
-    { name: "客服知识", datasets: 12, score: 94.8, change: 0.9, issues: 5, owner: "智能客服组" },
-    { name: "业务事件", datasets: 26, score: 92.6, change: 2.4, issues: 8, owner: "数据中台组" },
-    { name: "图像多模态", datasets: 9, score: 89.4, change: -1.2, issues: 11, owner: "多模态实验室" },
-    { name: "机构基础数据", datasets: 15, score: 87.9, change: 0.4, issues: 14, owner: "主数据组" },
+  const [period, setPeriod] = useState<DashboardPeriod>('30d');
+  const [revision, setRevision] = useState(0);
+  const [data, setData] = useState<DashboardSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`/api/dashboard?period=${period}`, { cache: 'no-store', signal: controller.signal })
+      .then(async response => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || '首页数据加载失败');
+        if (!controller.signal.aborted) setData(payload);
+      })
+      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '首页数据加载失败'); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [period, revision]);
+  function resetDashboard() { setLoading(true); setError(''); setData(null); }
+  function refreshDashboard() { resetDashboard(); setRevision(value => value + 1); }
+  const periodName = { '7d': '近 7 天', '30d': '近 30 天', quarter: '本季度' }[period];
+  const display = (value: number | null | undefined) => value == null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+  const totalTasks = data ? data.tasks.clean + data.tasks.assessment : null;
+  const kpis: Array<{ label: string; value: string; unit: string; note: string; icon: LucideIcon; tone: string; module: ModuleId; child: string }> = [
+    { label: '纳管数据资产', value: display(data?.assetCount), unit: '项', note: '当前账号可访问的全部资产', icon: Database, tone: 'blue', module: 'inventory', child: '数据库管理' },
+    { label: '结构数据质量分', value: display(data?.quality.score), unit: '分', note: data ? `${data.quality.assets} 项资产最新结果的平均值` : '等待质量结果', icon: TrendingUp, tone: 'cyan', module: 'inventory', child: '数据探查' },
+    { label: '评估与治理任务', value: display(totalTasks), unit: '次', note: `${periodName}已完成的执行记录`, icon: ClipboardCheck, tone: 'violet', module: 'assessment', child: '高质量数据评估' },
+    { label: '数据探查任务', value: display(data?.tasks.profile), unit: '次', note: `${periodName}已完成的探查记录`, icon: ScanSearch, tone: 'navy', module: 'inventory', child: '数据探查' },
   ];
-  const riskItems = [
-    { id: "risk-01", level: "高", title: "金融年报问答集存在 842 条重复记录", meta: "影响训练样本分布 · 2 小时前", module: "governance" as ModuleId },
-    { id: "risk-02", level: "高", title: "客户主数据手机号格式异常率升至 3.6%", meta: "超过质量红线 1.6 个百分点 · 4 小时前", module: "assessment" as ModuleId },
-    { id: "risk-03", level: "中", title: "图像多模态数据集标注一致性下降", meta: "复核一致率 89.4% · 今天 09:26", module: "governance" as ModuleId },
-    { id: "risk-04", level: "中", title: "知识文档仓同步延迟超过 2 小时", meta: "SFTP 数据源 · 今天 08:42", module: "inventory" as ModuleId },
+  const services: Array<{ label: string; detail: string; icon: LucideIcon; module: ModuleId; child: string }> = [
+    { label: '数据接入', detail: `${display(data?.connections?.total)} 个数据库连接`, icon: Database, module: 'inventory', child: '数据库管理' },
+    { label: '质量评估', detail: `${display(data?.tasks.assessment)} 次执行`, icon: ClipboardCheck, module: 'assessment', child: '高质量数据评估' },
   ];
-  const visibleRisks = riskItems.filter((item) => !resolvedRisks.includes(item.id));
-  const runningJobs = jobs.filter((job) => job.status === "训练中").length;
-  const passedEvaluations = evaluations.filter((item) => item.status === "通过").length;
-  const waitingEvaluations = evaluations.filter((item) => item.status === "待评测" || item.status === "评测中").length;
-  const openIssues = Math.max(18, 41 - resolvedRisks.length * 6);
-  const qualityScore = (93.7 + resolvedRisks.length * 0.1).toFixed(1);
-  const kpis: Array<{ label: string; value: string; unit: string; note: string; icon: LucideIcon; tone: string; module: ModuleId }> = [
-    { label: "纳管数据资产", value: "1,286", unit: "项", note: `${sources.length} 个数据源在线`, icon: Database, tone: "blue", module: "inventory" },
-    { label: "综合数据质量分", value: qualityScore, unit: "分", note: "较上期提升 1.8", icon: TrendingUp, tone: "cyan", module: "assessment" },
-    { label: "评估与治理任务", value: String(reviewTaskCount + cleaningTasks.length), unit: "个", note: "本月完成 18 个", icon: ClipboardCheck, tone: "violet", module: "assessment" },
-    { label: "模型发布门禁", value: `${passedEvaluations}/${evaluations.length}`, unit: "通过", note: `${waitingEvaluations} 个等待评测`, icon: ShieldCheck, tone: "navy", module: "modelEval" },
+  const metrics = [
+    { label: '完整性', value: data?.quality.completeness, tone: 'navy', unit: '%' },
+    { label: '唯一性', value: data?.quality.uniqueness, tone: 'gold', unit: '%' },
+    { label: '结构质量分', value: data?.quality.score, tone: 'blue', unit: '分' },
   ];
-  const serviceCards: Array<{ label: string; detail: string; icon: LucideIcon; module: ModuleId; child?: string }> = [
-    { label: "数据接入", detail: `${sources.length} 个连接`, icon: Database, module: "inventory", child: "数据库管理" },
-    { label: "智能盘点", detail: "1,286 项资产", icon: ScanSearch, module: "inventory", child: "智能数据盘点" },
-    { label: "数据治理", detail: `${cleaningTasks.length} 个任务`, icon: Workflow, module: "governance" },
-    { label: "质量评估", detail: `${reviewTaskCount} 个任务`, icon: ClipboardCheck, module: "assessment" },
-    { label: "模型开发", detail: `${jobs.length} 个作业`, icon: Blocks, module: "modelDev" },
-    { label: "能力评测", detail: `${evaluations.length} 个模型`, icon: Gauge, module: "modelEval" },
+  const events = [
+    { label: '空值单元格', value: data?.quality.empty },
+    { label: '重复记录', value: data?.quality.duplicates },
+    { label: '首尾空格', value: data?.quality.whitespace },
   ];
-  const issueBars = [
-    { label: "完整性", value: 92, tone: "navy" },
-    { label: "准确性", value: 76, tone: "gold" },
-    { label: "一致性", value: 61, tone: "gray" },
-    { label: "时效性", value: 84, tone: "blue" },
-  ];
-
-  function refreshDashboard() {
-    setLastUpdated(new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" }));
-    notify("决策看板指标已刷新");
-  }
-
+  const eventMax = Math.max(1, ...events.map(item => item.value ?? 0));
+  const taskMax = Math.max(1, data?.tasks.clean ?? 0, data?.tasks.assessment ?? 0);
   function exportDashboard() {
-    const lines = [["业务域", "数据集", "质量得分", "环比变化", "问题数", "责任团队"], ...domainRows.map((row) => [row.name, row.datasets, row.score, row.change, row.issues, row.owner])];
-    const csv = `\uFEFF${lines.map((line) => line.map((cell) => `"${cell}"`).join(",")).join("\n")}`;
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a");
+    if (!data) return;
+    const lines = [['统计项', '数值', '统计口径'],
+      ['统计周期', periodName, '任务和质量结果按所选周期统计'],
+      ['纳管数据资产', data.assetCount, '全部可访问资产'],
+      ['数据版本', data.versionCount, '全部可访问版本'],
+      ['数据记录', data.recordCount, '各资产当前版本的记录数合计'],
+      ['数据库连接', data.connections?.total ?? '无权限', '当前账号的已保存连接'],
+      ['连接正常', data.connections?.normal ?? '无权限', '最近测试成功，不代表实时在线'],
+      ['连接异常', data.connections?.abnormal ?? '无权限', '最近测试失败'],
+      ['数据探查任务', data.tasks.profile, '周期内已完成执行记录'],
+      ['数据清洗任务', data.tasks.clean, '周期内已完成执行记录'],
+      ['数据集评估任务', data.tasks.assessment, '周期内已完成执行记录'],
+      ['质量覆盖资产', data.quality.assets, '周期内当前版本的最新质量结果'],
+      ...metrics.map(item => [item.label, item.value ?? '暂无结果', '各资产最新结构质量结果的平均值']),
+      ...events.map(item => [item.label, item.value ?? 0, '各资产最新结果的问题数合计']),
+      ...data.risks.map(item => [item.name, item.issues, '问题数（空值、重复、首尾空格）'])];
+    const csv = '\uFEFF' + lines.map(line => line.map(cell => {
+      const text = String(cell);
+      return '"' + (/^[=+\-@\t\r]/.test(text) ? "'" + text : text).replaceAll('"', '""') + '"';
+    }).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = "高数据质量评估决策看板.csv";
+    anchor.download = '数据质量运营统计.csv';
     anchor.click();
     URL.revokeObjectURL(url);
-    notify("决策看板数据已导出");
+    notify('实际统计数据已导出');
   }
-
-  function resolveRisk(id: string) {
-    setResolvedRisks((current) => [...current, id]);
-    notify("质量风险已转入处置并从待办中移除");
-  }
-
-  return (
-    <section className="quality-decision-dashboard reference-dashboard">
-      <header className="decision-dashboard-head">
-        <div><span className="reference-eyebrow">数据质量运营中心</span><h1>早上好，质量运营团队！</h1><p>这里是平台数据资产、质量风险与模型门禁的今日概览。</p></div>
-        <div className="decision-dashboard-tools"><span>更新于 {lastUpdated}</span><label className="reference-period"><CalendarClock size={13} aria-hidden="true" /><select value={period} onChange={(event) => setPeriod(event.target.value as typeof period)} aria-label="选择统计周期"><option>近 7 天</option><option>近 30 天</option><option>本季度</option></select></label><button className="reuse-secondary" onClick={refreshDashboard}><UiIcon icon={RefreshCw} />刷新</button><button className="reference-filter-button" onClick={exportDashboard}><UiIcon icon={Download} />导出</button></div>
-      </header>
-
-      <div className="decision-kpi-strip reference-kpi-grid">
-        {kpis.map((kpi) => <button key={kpi.label} onClick={() => openModule(kpi.module)}><span className={kpi.tone}><UiIcon icon={kpi.icon} size={19} /></span><div><small>{kpi.label}</small><strong>{kpi.value}<em>{kpi.unit}</em></strong><p>{kpi.note}</p></div><UiIcon icon={ChevronRight} /></button>)}
-      </div>
-
-      <div className="reference-core-grid">
-        <div className="reference-left-stack">
-          <article className="white-panel reference-services-card">
-            <header className="reference-card-head"><div><h2>平台能力服务</h2><p>从数据接入到模型门禁的一体化工作流</p></div><span><i />运行正常</span></header>
-            <div className="reference-service-grid">
-              {serviceCards.map((service, index) => <button className={index === 0 ? "featured" : ""} key={service.label} onClick={() => openModule(service.module, service.child)}><UiIcon icon={service.icon} size={18} /><strong>{service.label}</strong><small>{service.detail}</small></button>)}
-            </div>
-          </article>
-
-          <article className="white-panel reference-bars-card">
-            <header className="reference-card-head"><div><h2>质量维度表现</h2><p>{period}核心质量指标分布</p></div><div className="reference-inline-legend"><span>达标</span><span>关注</span><span>待治理</span></div></header>
-            <div className="reference-horizontal-chart" role="img" aria-label="质量维度横向统计图">
-              {issueBars.map((bar) => <div key={bar.label}><span>{bar.label}</span><i><b className={bar.tone} style={{ width: `${bar.value}%` }} /></i><strong>{bar.value}%</strong></div>)}
-            </div>
-          </article>
-        </div>
-      </div>
-
-      <div className="reference-bottom-grid">
-        <article className="white-panel reference-mini-card priority-card">
-          <header className="reference-card-head"><div><h2>风险与优先级</h2><p>待处置质量活动</p></div><button className="reuse-link" onClick={() => openModule("assessment")}>全部</button></header>
-          <div className="reference-priority-grid">
-            <button onClick={() => openModule("governance")}><small>高风险</small><strong>7</strong><span>立即处置</span></button>
-            <button onClick={() => openModule("assessment")}><small>待复核</small><strong>14</strong><span>今日完成</span></button>
-            <button onClick={() => openModule("inventory")}><small>同步异常</small><strong>{sources.filter((source) => source.status !== "正常").length || 1}</strong><span>检查连接</span></button>
-            <button onClick={() => openModule("modelEval")}><small>门禁等待</small><strong>{waitingEvaluations || 1}</strong><span>进入评测</span></button>
-          </div>
-        </article>
-
-        <article className="white-panel reference-mini-card activity-card">
-          <header className="reference-card-head"><div><h2>当前活动</h2><p>近 12 个月</p></div></header>
-          <div className="reference-activity-bars"><div><span><i style={{ height: "76%" }} /></span><strong>{cleaningTasks.length + 12}</strong><small>治理任务</small></div><div><span><i className="gold" style={{ height: "68%" }} /></span><strong>{reviewTaskCount}</strong><small>评估任务</small></div></div>
-          <dl><div><dt>运行中</dt><dd>{runningJobs + 2}</dd></div><div><dt>本月完成</dt><dd>18</dd></div></dl>
-        </article>
-
-        <article className="white-panel reference-mini-card gate-card">
-          <header className="reference-card-head"><div><h2>模型发布门禁</h2><p>评测与发布状态</p></div></header>
-          <div className="reference-gate-stats"><span><small>已通过</small><strong>{passedEvaluations}</strong></span><span><small>待评测</small><strong>{waitingEvaluations}</strong></span><span><small>评测总数</small><strong>{evaluations.length}</strong></span></div>
-          <button onClick={() => openModule("modelEval")}><span>门禁通过率</span><strong>{evaluations.length ? Math.round((passedEvaluations / evaluations.length) * 100) : 0}%</strong></button>
-        </article>
-
-        <article className="white-panel reference-mini-card events-card">
-          <header className="reference-card-head"><div><h2>质量事件</h2><p>按风险等级</p></div></header>
-          <div className="reference-event-bars">{[{ label: "高", value: 7 }, { label: "中", value: 14 }, { label: "低", value: Math.max(0, openIssues - 21) }, { label: "已处置", value: resolvedRisks.length + 8 }].map((item, index) => <button key={item.label} onClick={() => openModule(index === 3 ? "governance" : "assessment")}><strong>{item.value}</strong><i style={{ height: `${24 + Math.min(70, item.value * 3)}%` }} /><small>{item.label}</small></button>)}</div>
-        </article>
-      </div>
-
-      {visibleRisks.length > 0 && <aside className="reference-risk-ticker"><span><UiIcon icon={TriangleAlert} />重点风险</span><button onClick={() => openModule(visibleRisks[0].module)}>{visibleRisks[0].title}<small>{visibleRisks[0].meta}</small></button><button onClick={() => resolveRisk(visibleRisks[0].id)}>转入处置</button></aside>}
-    </section>
-  );
+  return <section className="quality-decision-dashboard reference-dashboard live-dashboard" aria-busy={loading}>
+    <header className="decision-dashboard-head">
+      <div><span className="reference-eyebrow">数据质量运营中心</span><h1>数据质量运营概览</h1><p>统计当前账号可访问的资产、数据库连接和质量执行记录。</p></div>
+      <div className="decision-dashboard-tools"><span>{loading ? '正在加载' : data ? `更新于 ${new Date(data.generatedAt).toLocaleTimeString('zh-CN', { hour12: false })}` : '尚未更新'}</span><label className="reference-period"><CalendarClock size={13} aria-hidden="true" /><select value={period} onChange={event => { resetDashboard(); setPeriod(event.target.value as DashboardPeriod); }} aria-label="选择统计周期"><option value="7d">近 7 天</option><option value="30d">近 30 天</option><option value="quarter">本季度</option></select></label><button className="reuse-secondary" disabled={loading} onClick={refreshDashboard}><UiIcon icon={RefreshCw} />刷新</button><button className="reference-filter-button" disabled={!data || loading} onClick={exportDashboard}><UiIcon icon={Download} />导出</button></div>
+    </header>
+    {error && <div className="live-dashboard-error" role="alert">{error}<button className="reuse-link" onClick={refreshDashboard}>重新加载</button></div>}
+    <div className="decision-kpi-strip reference-kpi-grid">{kpis.map(kpi => <button key={kpi.label} onClick={() => openModule(kpi.module, kpi.child)}><span className={kpi.tone}><UiIcon icon={kpi.icon} size={19} /></span><div><small>{kpi.label}</small><strong>{kpi.value}<em>{kpi.unit}</em></strong><p>{kpi.note}</p></div><UiIcon icon={ChevronRight} /></button>)}</div>
+    <div className="reference-core-grid"><div className="reference-left-stack">
+      <article className="white-panel reference-services-card"><header className="reference-card-head"><div><h2>平台能力服务</h2><p>数据接入、资产盘点、清洗与评估</p></div></header><div className="reference-service-grid">{services.map((service, index) => <button className={index === 0 ? 'featured' : ''} key={service.label} onClick={() => openModule(service.module, service.child)}><UiIcon icon={service.icon} size={18} /><strong>{service.label}</strong><small>{service.detail}</small></button>)}</div><p className="live-dashboard-note">模型开发与能力评测暂未启用。</p></article>
+      <article className="white-panel reference-bars-card"><header className="reference-card-head"><div><h2>质量维度表现</h2><p>{periodName}当前版本最新结果的平均值</p></div></header>{data?.quality.assets ? <div className="reference-horizontal-chart" role="img" aria-label="实际结构质量指标统计图">{metrics.map(bar => <div key={bar.label}><span>{bar.label}</span><i><b className={bar.tone} style={{ width: `${bar.value ?? 0}%` }} /></i><strong>{display(bar.value)}{bar.unit}</strong></div>)}</div> : <div className="live-dashboard-empty">{loading ? '正在读取质量结果…' : error ? '质量结果暂不可用' : '该周期暂无当前版本的质量结果，可前往数据探查执行分析。'}</div>}<p className="live-dashboard-note">结构质量分为完整性与唯一性的平均值；未测量的准确性、一致性和时效性不计入。</p></article>
+    </div></div>
+    <div className="reference-bottom-grid">
+      <article className="white-panel reference-mini-card priority-card"><header className="reference-card-head"><div><h2>问题与连接状态</h2><p>当前版本问题及连接最近测试状态</p></div><button className="reuse-link" onClick={() => openModule('inventory', '数据探查')}>查看</button></header><div className="reference-priority-grid">
+        <button onClick={() => openModule('inventory', '数据探查')}><small>存在问题的资产</small><strong>{display(data?.quality.problemAssets)}</strong><span>查看探查</span></button>
+        <button onClick={() => openModule('inventory', '数据库管理')}><small>连接正常</small><strong>{display(data?.connections?.normal)}</strong><span>最近测试成功</span></button>
+        <button onClick={() => openModule('inventory', '数据库管理')}><small>连接异常</small><strong>{display(data?.connections?.abnormal)}</strong><span>检查连接</span></button>
+        <button onClick={() => openModule('inventory', '数据库管理')}><small>尚未测试</small><strong>{display(data?.connections?.untested)}</strong><span>测试连接</span></button>
+      </div></article>
+      <article className="white-panel reference-mini-card activity-card"><header className="reference-card-head"><div><h2>已完成任务</h2><p>{periodName}实际执行记录</p></div></header><div className="reference-activity-bars"><div><span><i style={{ height: `${(data?.tasks.clean ?? 0) / taskMax * 100}%` }} /></span><strong>{display(data?.tasks.clean)}</strong><small>清洗任务</small></div><div><span><i className="gold" style={{ height: `${(data?.tasks.assessment ?? 0) / taskMax * 100}%` }} /></span><strong>{display(data?.tasks.assessment)}</strong><small>评估任务</small></div></div><dl><div><dt>探查完成</dt><dd>{display(data?.tasks.profile)}</dd></div><div><dt>清洗与评估合计</dt><dd>{display(totalTasks)}</dd></div></dl></article>
+      <article className="white-panel reference-mini-card gate-card"><header className="reference-card-head"><div><h2>数据资产概览</h2><p>全部可访问资产与版本</p></div></header><div className="reference-gate-stats"><span><small>资产总数</small><strong>{display(data?.assetCount)}</strong></span><span><small>版本总数</small><strong>{display(data?.versionCount)}</strong></span><span><small>当前记录数</small><strong>{display(data?.recordCount)}</strong></span></div><button onClick={() => openModule('inventory', '数据库管理')}><span>本期质量覆盖资产</span><strong>{display(data?.quality.assets)} 项</strong></button></article>
+      <article className="white-panel reference-mini-card events-card"><header className="reference-card-head"><div><h2>质量问题</h2><p>每项资产最新结果的问题数合计</p></div></header><div className="reference-event-bars">{events.map(item => <button key={item.label} onClick={() => openModule('inventory', '数据探查')}><strong>{display(item.value)}</strong><i style={{ height: `${(item.value ?? 0) / eventMax * 70}%` }} /><small>{item.label}</small></button>)}</div></article>
+    </div>
+    {data && <aside className="reference-risk-ticker"><span><UiIcon icon={TriangleAlert} />质量关注</span>{data.risks.length ? <><button onClick={() => openModule('inventory', '数据探查')}>{data.risks[0].name}<small>{data.risks[0].issues} 个结构质量问题 · 质量分 {data.risks[0].score}</small></button><button onClick={() => openModule('inventory', '数据探查')}>查看探查</button></> : <p>{data.quality.assets ? '本期已分析的资产未发现结构质量问题。' : '本期暂无可用质量结果。'}</p>}</aside>}
+  </section>;
 }
 
-function DataExploration({
-  sources,
-  notify,
-  createCleaningTask,
-}: {
-  sources: SourceRow[];
-  notify: Notify;
-  createCleaningTask: (task: CleaningTaskDraft) => void;
-}) {
-  const columns = [
-    { name: "customer_id", type: "BIGINT", completeness: 100, unique: "1,256,842", issue: "无" },
-    { name: "customer_name", type: "VARCHAR", completeness: 99.8, unique: "1,238,407", issue: "2,516 个空值" },
-    { name: "mobile_phone", type: "VARCHAR", completeness: 97.6, unique: "1,201,338", issue: "格式异常 186" },
-    { name: "customer_level", type: "VARCHAR", completeness: 100, unique: "5", issue: "无" },
-    { name: "register_date", type: "DATE", completeness: 98.7, unique: "2,845", issue: "日期异常 42" },
-    { name: "annual_value", type: "DECIMAL", completeness: 96.4, unique: "842,039", issue: "极值 31" },
-  ];
-  const [source, setSource] = useState(sources[0]?.name ?? "生产业务库");
-  const [table, setTable] = useState("customer_profile");
-  const [selectedField, setSelectedField] = useState(columns[0].name);
-  const [scanning, setScanning] = useState(false);
-  const [progress, setProgress] = useState(100);
-  const progressRef = useRef(progress);
-  const issueColumns = columns.filter((column) => column.issue !== "无");
-  const [selectedIssueFields, setSelectedIssueFields] = useState(issueColumns.map((column) => column.name));
-  const [selectedSampleIds, setSelectedSampleIds] = useState(defaultCleaningSamples.map((sample) => sample.id));
-
-  useEffect(() => {
-    progressRef.current = progress;
-  }, [progress]);
-
-  useEffect(() => {
-    if (!scanning) return;
-    const timer = window.setInterval(() => {
-      const next = Math.min(100, progressRef.current + 11);
-      progressRef.current = next;
-      setProgress(next);
-      if (next === 100) {
-        window.clearInterval(timer);
-        setScanning(false);
-        notify(`${table} 数据探查已完成`);
-      }
-    }, 280);
-    return () => window.clearInterval(timer);
-  }, [notify, scanning, table]);
-
-  const selected = columns.find((column) => column.name === selectedField) ?? columns[0];
-  const distribution = selectedField === "customer_level"
-    ? [["战略客户", 18], ["重点客户", 31], ["普通客户", 42], ["潜在客户", 9]]
-    : [["有效值", Math.round(selected.completeness)], ["空值", Math.max(1, Math.round(100 - selected.completeness))], ["异常值", selected.issue === "无" ? 0 : 3]];
-  const selectedIssueCount = issueColumns.filter((column) => selectedIssueFields.includes(column.name)).reduce((total, column) => {
-    const count = Number(column.issue.match(/[\d,]+/)?.[0].replaceAll(",", "") || 0);
-    return total + count;
-  }, 0);
-  const visibleProblemSamples = defaultCleaningSamples.filter((sample) => selectedIssueFields.includes(sample.field));
-
-  function toggleIssueField(field: string) {
-    setSelectedIssueFields((current) => current.includes(field) ? current.filter((item) => item !== field) : [...current, field]);
-  }
-
-  function toggleProblemSample(id: string) {
-    setSelectedSampleIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  }
-
-  function submitCleaningTask() {
-    const selectedSamples = defaultCleaningSamples.filter((sample) => selectedSampleIds.includes(sample.id) && selectedIssueFields.includes(sample.field));
-    if (!selectedIssueFields.length || !selectedSamples.length) {
-      notify("请至少选择一个异常字段和一个问题样本");
-      return;
-    }
-    const rules = Array.from(new Set(selectedSamples.map((sample) => sample.rule)));
-    createCleaningTask({
-      name: `${table} 探查问题清洗-${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).replace(":", "")}`,
-      dataset: `${table} 探查数据集`,
-      source,
-      table,
-      fields: selectedIssueFields,
-      recordCount: 1256842,
-      issueCount: selectedIssueCount,
-      rules,
-      samples: selectedSamples,
-      sourceVersion: "探查快照 v1",
-    });
-  }
-
-  return (
-    <article className="white-panel inventory-workspace exploration-workspace">
-      <div className="reuse-panel-head inventory-head">
-        <div><h2>数据探查</h2><p>对数据表执行结构识别、字段画像、质量扫描和样例预览</p></div>
-        <div>
-          <label className="inventory-select">数据源<select value={source} onChange={(event) => setSource(event.target.value)}>{sources.map((item) => <option key={item.name}>{item.name}</option>)}</select></label>
-          <label className="inventory-select">数据表<select value={table} onChange={(event) => setTable(event.target.value)}><option>customer_profile</option><option>order_detail</option><option>service_record</option><option>product_catalog</option></select></label>
-          <button className="reuse-primary" disabled={scanning} onClick={() => { setProgress(0); setScanning(true); }}><UiIcon icon={scanning ? RefreshCw : Play} />{scanning ? `探查中 ${progress}%` : "开始探查"}</button>
-        </div>
-      </div>
-      {scanning && <div className="workspace-progress"><Progress value={progress} /><span>正在读取字段统计与样例数据...</span></div>}
-      <div className="inventory-kpis">
-        {[['记录总量', '1,256,842', '较上次 +12,608'], ['字段数量', '24', '6 个数值字段'], ['完整度', '98.7%', '高于标准 3.7%'], ['异常字段', '3', '建议进入清洗']].map((item, index) => (
-          <div key={item[0]}><span className={`kpi-icon k${index}`}>{['数', '列', '完', '!'][index]}</span><p>{item[0]}</p><strong>{item[1]}</strong><small>{item[2]}</small></div>
-        ))}
-      </div>
-      <div className="exploration-grid">
-        <section className="sub-panel field-profile-panel">
-          <header><div><h3>字段画像</h3><p>点击字段查看分布与质量问题</p></div><span>{columns.length} / 24 个重点字段</span></header>
-          <div className="reuse-table-wrap">
-            <table className="reuse-table compact-table">
-              <thead><tr><th className="selection-cell">清洗</th><th>字段名称</th><th>类型</th><th>完整度</th><th>唯一值</th><th>问题</th></tr></thead>
-              <tbody>{columns.map((column) => (
-                <tr key={column.name} className={selectedField === column.name ? "selected-row" : ""}>
-                  <td className="selection-cell"><input type="checkbox" aria-label={`选择${column.name}进入清洗`} disabled={column.issue === "无"} checked={selectedIssueFields.includes(column.name)} onChange={() => toggleIssueField(column.name)} /></td>
-                  <td><button className="reuse-link field-button" onClick={() => setSelectedField(column.name)}>{column.name}</button></td>
-                  <td><span className="field-type-tag">{column.type}</span></td><td><div className="inline-score"><Progress value={column.completeness} /><span>{column.completeness}%</span></div></td>
-                  <td>{column.unique}</td><td className={column.issue === "无" ? "good-text" : "warning-text"}>{column.issue}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </section>
-        <section className="sub-panel field-insight-panel">
-          <header><div><h3>{selected.name}</h3><p>{selected.type} · 字段分布</p></div><Status tone={selected.issue === "无" ? "green" : "orange"}>{selected.issue === "无" ? "质量正常" : "建议处理"}</Status></header>
-          <div className="donut-score" style={{ "--score": `${selected.completeness * 3.6}deg` } as React.CSSProperties}><strong>{selected.completeness}%</strong><span>字段完整度</span></div>
-          <div className="distribution-list">{distribution.map((item) => (
-            <div key={item[0]}><span>{item[0]}</span><div><i style={{ width: `${item[1]}%` }} /></div><b>{item[1]}%</b></div>
-          ))}</div>
-          <button className="reuse-secondary" disabled={selected.issue === "无"} onClick={() => { if (!selectedIssueFields.includes(selected.name)) toggleIssueField(selected.name); notify(`${selected.name} 已加入待清洗字段`); }}><UiIcon icon={Plus} />{selectedIssueFields.includes(selected.name) ? "已加入清洗范围" : "加入清洗范围"}</button>
-        </section>
-      </div>
-      <section className="sub-panel exploration-issue-panel">
-        <header><div><h3>问题样本</h3><p>从探查结果中选择要进入清洗任务的问题记录</p></div><div><span>已选 {selectedSampleIds.filter((id) => visibleProblemSamples.some((sample) => sample.id === id)).length} 条样本 · {selectedIssueFields.length} 个字段 · {selectedIssueCount.toLocaleString()} 个问题</span><button className="reuse-primary" disabled={progress < 100 || !selectedIssueFields.length} onClick={submitCleaningTask}><UiIcon icon={Workflow} />生成清洗任务</button></div></header>
-        <div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th className="selection-cell">选择</th><th>字段 / 记录</th><th>问题类型</th><th>原始值</th><th>建议修复</th><th>推荐规则</th><th>置信度</th></tr></thead><tbody>{visibleProblemSamples.map((sample) => <tr key={sample.id}><td className="selection-cell"><input type="checkbox" aria-label={`选择问题样本${sample.id}`} checked={selectedSampleIds.includes(sample.id)} onChange={() => toggleProblemSample(sample.id)} /></td><td><strong>{sample.field}</strong> #{sample.id.replace("issue-", "")}</td><td className="warning-text">{sample.problem}</td><td className="before-value">{sample.original}</td><td className="after-value">{sample.suggestion}</td><td>{sample.rule}</td><td>{sample.confidence}</td></tr>)}</tbody></table>{visibleProblemSamples.length === 0 && <div className="table-empty">请选择包含质量问题的字段</div>}</div>
-      </section>
-      <section className="sub-panel sample-panel">
-        <header><div><h3>样例数据</h3><p>展示前 5 条脱敏记录</p></div><button className="reuse-link" onClick={() => notify("样例数据已重新抽样")}>换一批样例</button></header>
-        <div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>customer_id</th><th>customer_name</th><th>mobile_phone</th><th>customer_level</th><th>register_date</th><th>annual_value</th></tr></thead><tbody>
-          {[['10032018', '赵*明', '138****7621', '重点客户', '2022-06-18', '¥ 86,420'], ['10032019', '陈*华', '186****1093', '普通客户', '2023-01-09', '¥ 31,806'], ['10032020', '王*', '139****5218', '战略客户', '2020-11-26', '¥ 268,500'], ['10032021', '刘*宁', '137****4802', '潜在客户', '2024-03-17', '¥ 9,630'], ['10032022', '周*宇', '158****3409', '重点客户', '2021-08-03', '¥ 112,780']].map((row) => <tr key={row[0]}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>)}
-        </tbody></table></div>
-      </section>
-    </article>
-  );
-}
+function DataExploration({ onNavigate }: { onNavigate: (section: string) => void }) { return <DataWorkbench mode="profile" onNavigate={onNavigate} />; }
 
 type MultimodalPreviewKind = "image" | "audio" | "video" | "pdf" | "table" | "json" | "text" | "archive" | "unsupported";
 
@@ -1278,15 +1094,6 @@ const previewKindIcon: Record<MultimodalPreviewKind, LucideIcon> = {
   unsupported: FileText,
 };
 
-const defaultLocalPreviewFiles: LocalPreviewFile[] = [
-  { id: "local-seed-image", name: "篮球扣篮样例.jpg", format: "JPG / 图像", size: "4.8 MB", records: "1 张 · 3840 × 2160", updated: "2026-08-25 09:42", status: "可用", kind: "image", mime: "image/jpeg" },
-  { id: "local-seed-video", name: "赛事视频片段.mp4", format: "MP4 / 视频", size: "86.5 MB", records: "00:42 · 25 FPS", updated: "2026-08-25 09:36", status: "可用", kind: "video", mime: "video/mp4" },
-  { id: "local-seed-audio", name: "客服录音样本.wav", format: "WAV / 音频", size: "118 MB", records: "1,865 段 · 16 kHz", updated: "2026-08-24 18:20", status: "可用", kind: "audio", mime: "audio/wav" },
-  { id: "local-seed-table", name: "金融年报问答集.csv", format: "CSV / 结构化表格", size: "38.6 MB", records: "126,842 条 · 8 字段", updated: "2026-08-24 16:32", status: "可用", kind: "table", mime: "text/csv" },
-  { id: "local-seed-pdf", name: "制度文档汇编.pdf", format: "PDF / PDF 文档", size: "124 MB", records: "380 页 · 可检索", updated: "2026-08-23 15:08", status: "可用", kind: "pdf", mime: "application/pdf" },
-  { id: "local-seed-json", name: "多模态标注样例.jsonl", format: "JSONL / JSON 数据", size: "12.4 MB", records: "18,420 条", updated: "2026-08-23 11:26", status: "可用", kind: "json", mime: "application/x-ndjson" },
-  { id: "local-seed-archive", name: "篮球图像数据集.zip", format: "ZIP / 压缩包", size: "286 MB", records: "2,480 个文件", updated: "2026-08-22 22:16", status: "可用", kind: "archive", mime: "application/zip" },
-];
 
 function getFileExtension(name: string) {
   const extension = name.includes(".") ? name.split(".").pop() : "文件";
@@ -1307,6 +1114,7 @@ function inferPreviewKind(name: string, mime: string): MultimodalPreviewKind {
 }
 
 function formatLocalFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -1496,7 +1304,7 @@ function MultimodalPreview({
 }
 
 function LocalDataManager({ notify }: { notify: Notify }) {
-  const [files, setFiles] = useState<LocalPreviewFile[]>(defaultLocalPreviewFiles);
+  const [files, setFiles] = useState<LocalPreviewFile[]>([]);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"列表" | "卡片">("列表");
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -1566,351 +1374,31 @@ function LocalDataManager({ notify }: { notify: Notify }) {
       <div className="local-preview-capabilities" aria-label="多模态在线预览能力">
         <span><UiIcon icon={FileImage} />图片</span><span><UiIcon icon={FileAudio} />音频</span><span><UiIcon icon={FileVideo} />视频</span><span><UiIcon icon={FileText} />PDF / 文档</span><span><UiIcon icon={FileSpreadsheet} />表格</span><span><UiIcon icon={FileJson} />文本 / JSON</span><b><UiIcon icon={Eye} />浏览器本地安全预览</b>
       </div>
-      <div className="local-summary"><span>文件总数 <b>{files.length}</b></span><span>已解析 <b>{files.filter((file) => file.status === "可用").length}</b></span><span>存储占用 <b>1.65 GB</b></span><span>待处理 <b>{files.filter((file) => file.status !== "可用").length}</b></span></div>
+      <div className="local-summary"><span>文件总数 <b>{files.length}</b></span><span>已解析 <b>{files.filter((file) => file.status === "可用").length}</b></span><span>存储占用 <b>{formatLocalFileSize(files.reduce((total, item) => total + (item.file?.size ?? 0), 0))}</b></span><span>待处理 <b>{files.filter((file) => file.status !== "可用").length}</b></span></div>
       {view === "列表" ? (
         <div className="reuse-table-wrap"><table className="reuse-table local-file-table"><thead><tr><th>文件名称</th><th>格式 / 类型</th><th>大小</th><th>数据量</th><th>更新时间</th><th>解析状态</th><th>操作</th></tr></thead><tbody>{filtered.map((file) => (
           <tr key={file.id}><td><div className="local-file-name"><span className={`local-file-icon ${file.kind}`}><UiIcon icon={previewKindIcon[file.kind]} size={16} /></span><strong>{file.name}</strong></div></td><td>{file.format}</td><td>{file.size}</td><td>{file.records}</td><td>{file.updated}</td><td><Status tone={file.status === "可用" ? "green" : file.status === "解析中" ? "blue" : "orange"}>{file.status}</Status></td><td><button className="reuse-link preview-link" onClick={() => openPreview(file)}><UiIcon icon={Eye} />预览</button>{" "}<button className="reuse-link" onClick={() => notify(`${file.name} 已加入数据集创建向导`)}>创建数据集</button>{" "}<button className="reuse-link danger-link" onClick={() => removeLocalFile(file)}>移除</button></td></tr>
-        ))}</tbody></table>{filtered.length === 0 && <div className="table-empty">未找到匹配的本地文件</div>}</div>
+        ))}</tbody></table>{filtered.length === 0 && <div className="table-empty">{search ? "未找到匹配的本地文件" : "暂无本地文件，请选择实际文件进行导入和预览。"}</div>}</div>
       ) : (
-        <div className="local-file-grid">{filtered.map((file) => <button key={file.id} onClick={() => openPreview(file)}><span className={`local-file-icon ${file.kind}`}><UiIcon icon={previewKindIcon[file.kind]} size={18} /></span><strong>{file.name}</strong><p>{file.format} · {file.size}</p><small>{file.records} · {file.updated}</small><span className="local-card-preview"><UiIcon icon={Eye} />在线预览</span><Status tone={file.status === "可用" ? "green" : file.status === "解析中" ? "blue" : "orange"}>{file.status}</Status></button>)}</div>
+        <div className="local-file-grid">{!filtered.length && <div className="table-empty">{search ? "未找到匹配的本地文件" : "暂无本地文件，请选择实际文件进行导入和预览。"}</div>}{filtered.map((file) => <button key={file.id} onClick={() => openPreview(file)}><span className={`local-file-icon ${file.kind}`}><UiIcon icon={previewKindIcon[file.kind]} size={18} /></span><strong>{file.name}</strong><p>{file.format} · {file.size}</p><small>{file.records} · {file.updated}</small><span className="local-card-preview"><UiIcon icon={Eye} />在线预览</span><Status tone={file.status === "可用" ? "green" : file.status === "解析中" ? "blue" : "orange"}>{file.status}</Status></button>)}</div>
       )}
       {previewFile && <MultimodalPreview key={previewFile.id} file={previewFile} files={files} onSelect={setPreviewId} onClose={() => setPreviewId(null)} onRemove={removeLocalFile} notify={notify} />}
     </article>
   );
 }
 
-function SmartInventory({ notify }: { notify: Notify }) {
-  const domains = [
-    { name: "客户域", icon: "客", assets: 128, tables: 42, coverage: 94, color: "blue" },
-    { name: "交易域", icon: "交", assets: 216, tables: 68, coverage: 88, color: "cyan" },
-    { name: "产品域", icon: "产", assets: 96, tables: 31, coverage: 81, color: "violet" },
-    { name: "风控域", icon: "风", assets: 74, tables: 24, coverage: 76, color: "orange" },
-  ];
-  const [selectedDomain, setSelectedDomain] = useState(domains[0].name);
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(100);
-  const progressRef = useRef(progress);
+function SmartInventory({ onNavigate }: { onNavigate: (section: string) => void }) { return <DataWorkbench mode="inventory" onNavigate={onNavigate} />; }
 
-  useEffect(() => {
-    progressRef.current = progress;
-  }, [progress]);
 
-  useEffect(() => {
-    if (!running) return;
-    const timer = window.setInterval(() => {
-      const next = Math.min(100, progressRef.current + 5);
-      progressRef.current = next;
-      setProgress(next);
-      if (next === 100) {
-        window.clearInterval(timer);
-        setRunning(false);
-        notify("智能数据盘点完成，发现 17 个新增资产");
-      }
-    }, 230);
-    return () => window.clearInterval(timer);
-  }, [notify, running]);
 
-  const selected = domains.find((domain) => domain.name === selectedDomain) ?? domains[0];
-  return (
-    <article className="white-panel inventory-workspace smart-inventory-workspace">
-      <div className="reuse-panel-head inventory-head"><div><h2>智能数据盘点</h2><p>自动识别数据资产、业务领域、敏感等级与上下游关系</p></div><div><span className="inventory-updated">上次盘点：2026-08-22 23:18</span><button className="reuse-primary" disabled={running} onClick={() => { setProgress(0); setRunning(true); }}>{running ? `盘点中 ${progress}%` : "◈ 开始智能盘点"}</button></div></div>
-      {running && <div className="workspace-progress"><Progress value={progress} /><span>正在识别数据源、表结构与业务语义...</span></div>}
-      <div className="inventory-kpis asset-kpis">{[['数据资产', '514', '+17 新增'], ['数据表', '165', '12 个数据源'], ['数据字段', '3,842', '画像完成 92%'], ['敏感字段', '286', '已分级 100%'], ['血缘关系', '1,208', '+64 条关系']].map((item, index) => <div key={item[0]}><span className={`kpi-icon k${index % 4}`}>{['资', '表', '列', '敏', '链'][index]}</span><p>{item[0]}</p><strong>{item[1]}</strong><small>{item[2]}</small></div>)}</div>
-      <div className="domain-grid">{domains.map((domain) => <button key={domain.name} className={selectedDomain === domain.name ? "active" : ""} onClick={() => setSelectedDomain(domain.name)}><span className={domain.color}>{domain.icon}</span><div><strong>{domain.name}</strong><p>{domain.assets} 个资产 · {domain.tables} 张表</p><div className="domain-progress"><i style={{ width: `${domain.coverage}%` }} /></div><small>盘点覆盖率 {domain.coverage}%</small></div><b>›</b></button>)}</div>
-      <div className="inventory-detail-grid">
-        <section className="sub-panel asset-tree-panel"><header><div><h3>{selected.name}资产目录</h3><p>{selected.assets} 个资产，按语义自动归类</p></div><button className="reuse-link" onClick={() => notify(`${selected.name}目录已展开到字段级`)}><UiIcon icon={GitBranch} />展开全部</button></header><div className="asset-tree">{[['基础信息', 26, '客户基本资料、身份标识'], ['行为记录', 34, '访问、咨询、服务轨迹'], ['价值指标', 18, '贡献度、生命周期价值'], ['标签特征', 50, '偏好、等级、风险标签']].map((item) => <button key={item[0]} onClick={() => notify(`已展开${selected.name}${item[0]}目录，共 ${item[1]} 个资产`)}><span><UiIcon icon={ChevronRight} size={12} /></span><i><UiIcon icon={FolderKanban} size={14} /></i><div><strong>{item[0]}</strong><small>{item[2]}</small></div><b>{item[1]}</b></button>)}</div></section>
-        <section className="sub-panel asset-quality-panel"><header><div><h3>盘点质量</h3><p>资产识别与治理准备度</p></div><Status>整体良好</Status></header>{[['语义识别', 96], ['字段画像', 92], ['敏感识别', 100], ['血缘覆盖', 84], ['责任人绑定', 71]].map((item) => <div className="quality-bar" key={item[0]}><span>{item[0]}</span><div><i style={{ width: `${item[1]}%` }} /></div><b>{item[1]}%</b></div>)}<button className="reuse-secondary" onClick={() => notify("已生成资产盘点报告")}>生成盘点报告</button></section>
-      </div>
-      <section className="sub-panel inventory-history"><header><div><h3>最近盘点记录</h3><p>保留最近 30 次盘点结果</p></div></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>任务名称</th><th>数据源</th><th>发现资产</th><th>新增 / 变化</th><th>执行时间</th><th>耗时</th><th>状态</th></tr></thead><tbody>{[['全域数据资产盘点-0822', '全部数据源', '514', '+17 / 23', '2026-08-22 23:18', '18m 42s'], ['生产库增量盘点-0821', '生产业务库', '128', '+4 / 8', '2026-08-21 23:00', '6m 18s'], ['知识文档仓盘点-0820', '知识文档仓', '96', '+12 / 2', '2026-08-20 02:10', '11m 05s']].map((row) => <tr key={row[0]}>{row.map((cell) => <td key={cell}>{cell}</td>)}<td><Status>已完成</Status></td></tr>)}</tbody></table></div></section>
-    </article>
-  );
-}
+function SmartCleaning() { return <DataWorkbench mode="clean" />; }
 
-function nextCleaningVersion(task: CleaningTaskRow) {
-  const match = task.sourceVersion.match(/v(\d+)\.(\d+)/i);
-  if (match) return `v${match[1]}.${Number(match[2]) + task.versions.length}`;
-  return `clean-v1.${task.versions.length}`;
-}
-
-function SmartCleaning({
-  tasks,
-  initialTaskId,
-  updateTask,
-  notify,
-}: {
-  tasks: CleaningTaskRow[];
-  initialTaskId: string;
-  updateTask: (id: string, patch: Partial<CleaningTaskRow>) => void;
-  notify: Notify;
-}) {
-  const ruleCatalog = [
-    { name: "重复数据识别", desc: "基于主键与语义相似度去重" },
-    { name: "空值智能填充", desc: "按字段类型和上下文推荐填充值" },
-    { name: "格式标准化", desc: "统一日期、电话、证件与金额格式" },
-    { name: "异常值处理", desc: "识别极值、离群点和不合理范围" },
-    { name: "敏感信息脱敏", desc: "对手机号、证件号、姓名进行脱敏" },
-  ];
-  const firstTask = tasks.find((task) => task.id === initialTaskId) ?? tasks[0];
-  const [taskId, setTaskId] = useState(firstTask?.id ?? "");
-  const [rules, setRules] = useState(() => ruleCatalog.map((rule) => ({ ...rule, enabled: firstTask?.rules.includes(rule.name) ?? false })));
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(firstTask?.progress ?? 0);
-  const progressRef = useRef(progress);
-  const [view, setView] = useState<"任务执行" | "版本管理">("任务执行");
-  const [compareBaseVersion, setCompareBaseVersion] = useState(firstTask?.versions.at(-1)?.version ?? "");
-  const [compareTargetVersion, setCompareTargetVersion] = useState(firstTask?.activeVersion ?? "");
-  const [rollbackTarget, setRollbackTarget] = useState<CleaningVersionRow | null>(null);
-  const selectedTask = tasks.find((task) => task.id === taskId) ?? tasks[0];
-  const enabledCount = rules.filter((rule) => rule.enabled).length;
-
-  useEffect(() => {
-    progressRef.current = progress;
-  }, [progress]);
-
-  useEffect(() => {
-    if (!running || !selectedTask) return;
-    const timer = window.setInterval(() => {
-      const next = Math.min(100, progressRef.current + 6);
-      progressRef.current = next;
-      setProgress(next);
-      updateTask(selectedTask.id, { progress: next, status: next === 100 ? "已完成" : "运行中" });
-      if (next === 100) {
-        window.clearInterval(timer);
-        setRunning(false);
-        const outputVersion = nextCleaningVersion(selectedTask);
-        const parentVersion = selectedTask.versions.find((version) => version.version === selectedTask.activeVersion) ?? selectedTask.versions[0];
-        const outputIssues = Math.max(0, Math.round(parentVersion.issues * (enabledCount >= 4 ? 0.03 : Math.max(0.08, 0.22 - enabledCount * 0.035))));
-        const outputQuality = parentVersion.version === selectedTask.sourceVersion ? 98.5 : Math.min(99.8, Number((parentVersion.quality + 0.4).toFixed(1)));
-        const version: CleaningVersionRow = {
-          id: `${selectedTask.id}-${outputVersion}-${Date.now()}`,
-          version: outputVersion,
-          parent: selectedTask.activeVersion,
-          created: "刚刚",
-          operator: "高质量数据评估演示",
-          records: selectedTask.recordCount,
-          issues: outputIssues,
-          quality: outputQuality,
-          change: `执行 ${enabledCount} 条清洗规则`,
-        };
-        updateTask(selectedTask.id, { progress: 100, status: "已完成", outputVersion, activeVersion: outputVersion, versions: [version, ...selectedTask.versions] });
-        setCompareBaseVersion(selectedTask.activeVersion);
-        setCompareTargetVersion(outputVersion);
-        notify(`${selectedTask.name} 清洗完成，已生成版本 ${outputVersion}`);
-      }
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [enabledCount, notify, running, selectedTask, updateTask]);
-
-  if (!selectedTask) return <article className="white-panel inventory-workspace"><div className="table-empty">暂无清洗任务，请先从数据探查创建任务</div></article>;
-
-  const emptyCount = selectedTask.samples.filter((sample) => sample.problem === "空值").length;
-  const formatCount = selectedTask.samples.filter((sample) => sample.problem.includes("格式") || sample.problem.includes("日期")).length;
-  const baseVersion = selectedTask.versions.find((version) => version.version === compareBaseVersion) ?? selectedTask.versions.at(-1)!;
-  const targetVersion = selectedTask.versions.find((version) => version.version === compareTargetVersion) ?? selectedTask.versions[0];
-  const qualityDelta = Number((targetVersion.quality - baseVersion.quality).toFixed(1));
-  const issueDelta = targetVersion.issues - baseVersion.issues;
-  const recordDelta = targetVersion.records - baseVersion.records;
-  const ruleHitDelta = Math.max(0, baseVersion.issues - targetVersion.issues);
-
-  function selectCleaningTask(id: string) {
-    const task = tasks.find((item) => item.id === id);
-    if (!task) return;
-    setTaskId(id);
-    setProgress(task.progress);
-    setRunning(task.status === "运行中");
-    setRules(ruleCatalog.map((rule) => ({ ...rule, enabled: task.rules.includes(rule.name) })));
-    setView("任务执行");
-    setCompareBaseVersion(task.versions.at(-1)?.version ?? task.sourceVersion);
-    setCompareTargetVersion(task.activeVersion);
-    setRollbackTarget(null);
-  }
-
-  function applyRules(nextRules: typeof rules) {
-    setRules(nextRules);
-    updateTask(selectedTask.id, { rules: nextRules.filter((rule) => rule.enabled).map((rule) => rule.name) });
-  }
-
-  function startCleaning() {
-    setProgress(0);
-    setRunning(true);
-    setView("任务执行");
-    updateTask(selectedTask.id, { progress: 0, status: "运行中" });
-    notify(`${selectedTask.name} 已开始执行 ${enabledCount} 条清洗规则`);
-  }
-
-  function rollbackVersion() {
-    if (!rollbackTarget) return;
-    updateTask(selectedTask.id, { activeVersion: rollbackTarget.version, outputVersion: rollbackTarget.version });
-    setCompareTargetVersion(rollbackTarget.version);
-    setRollbackTarget(null);
-    notify(`${selectedTask.name} 当前版本已切换为 ${rollbackTarget.version}，历史版本均已保留`);
-  }
-
-  return (
-    <article className="white-panel inventory-workspace cleaning-workspace">
-      <div className="reuse-panel-head inventory-head"><div><h2>智能数据清洗</h2><p>基于探查结果编排清洗规则，预览影响并生成可追溯的新版本</p></div><div><label className="inventory-select">清洗任务<select value={selectedTask.id} disabled={running} onChange={(event) => selectCleaningTask(event.target.value)}>{tasks.map((task) => <option key={task.id} value={task.id}>{task.name}</option>)}</select></label><button className="reuse-primary" disabled={running || enabledCount === 0} onClick={startCleaning}><UiIcon icon={running ? RefreshCw : Play} />{running ? `清洗中 ${progress}%` : selectedTask.status === "已完成" ? "重新执行" : "开始智能清洗"}</button></div></div>
-      <div className="cleaning-task-context"><span><small>目标数据集</small><strong>{selectedTask.dataset}</strong></span><span><small>来源</small><strong>{selectedTask.source} / {selectedTask.table}</strong></span><span><small>源版本</small><strong>{selectedTask.sourceVersion}</strong></span><span><small>当前版本</small><strong>{selectedTask.activeVersion}</strong></span><Status tone={selectedTask.status === "已完成" ? "green" : running ? "blue" : "gray"}>{running ? "运行中" : selectedTask.status}</Status></div>
-      <nav className="cleaning-mode-tabs" aria-label="智能清洗视图">
-        <button className={view === "任务执行" ? "active" : ""} onClick={() => setView("任务执行")}><UiIcon icon={Play} />任务执行</button>
-        <button className={view === "版本管理" ? "active" : ""} onClick={() => setView("版本管理")}><UiIcon icon={GitBranch} />版本管理 <b>{selectedTask.versions.length}</b></button>
-      </nav>
-      {view === "任务执行" && <>
-      <div className="cleaning-kpis">{[["待处理问题", selectedTask.issueCount.toLocaleString(), `涉及 ${selectedTask.fields.length} 个字段`], ["问题样本", selectedTask.samples.length.toString(), "已从探查结果保留"], ["空值样本", emptyCount.toString(), "已匹配填充规则"], ["格式异常", formatCount.toString(), "已匹配标准化规则"], ["预计质量提升", "+4.8", "从 93.7 到 98.5"]].map((item, index) => <div key={item[0]} className={index === 4 ? "highlight" : ""}><span>{item[0]}</span><strong>{item[1]}</strong><small>{item[2]}</small></div>)}</div>
-      <div className="cleaning-grid">
-        <section className="sub-panel rule-panel"><header><div><h3>清洗规则</h3><p>已启用 {enabledCount} / {rules.length} 项</p></div><button className="reuse-link" onClick={() => applyRules(rules.map((rule) => ({ ...rule, enabled: true })))}>全部启用</button></header><div className="rule-list">{rules.map((rule, index) => <div key={rule.name}><span className={`rule-icon r${index}`}>{["重", "空", "格", "异", "敏"][index]}</span><div><strong>{rule.name}</strong><small>{rule.desc}</small></div><button className={`toggle-switch ${rule.enabled ? "on" : ""}`} aria-label={`${rule.enabled ? "关闭" : "启用"}${rule.name}`} onClick={() => applyRules(rules.map((item) => item.name === rule.name ? { ...item, enabled: !item.enabled } : item))}><i /></button></div>)}</div></section>
-        <section className="sub-panel cleaning-run-panel"><header><div><h3>执行流程</h3><p>{running ? "正在处理数据" : progress === 100 ? `已生成 ${selectedTask.outputVersion}` : "等待开始"}</p></div><Status tone={running ? "blue" : progress === 100 ? "green" : "gray"}>{running ? "运行中" : progress === 100 ? "已完成" : "未运行"}</Status></header><div className="cleaning-progress-ring" style={{ "--score": `${progress * 3.6}deg` } as React.CSSProperties}><strong>{progress}%</strong><span>当前进度</span></div><div className="cleaning-steps">{[["数据备份", 10], ["规则校验", 25], ["执行清洗", 70], ["质量复检", 90], ["生成版本", 100]].map((step, index) => <div key={step[0]} className={progress >= step[1] ? "done" : running && progress < step[1] && (index === 0 || progress >= ([0, 10, 25, 70, 90][index])) ? "active" : ""}><i>{progress >= step[1] ? "✓" : index + 1}</i><span>{step[0]}</span></div>)}</div><p className="cleaning-note">清洗过程保留 {selectedTask.sourceVersion}，不会覆盖源数据；完成后生成独立版本。</p></section>
-      </div>
-      <section className="sub-panel cleaning-preview"><header><div><h3>问题与修复预览</h3><p>{selectedTask.samples.length} 条探查问题样本已随任务保留</p></div><button className="reuse-link" onClick={() => notify(`${selectedTask.name} 修复预览已重新计算`)}>重新预览</button></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>字段 / 记录</th><th>问题类型</th><th>原始值</th><th>建议修复</th><th>命中规则</th><th>置信度</th></tr></thead><tbody>{selectedTask.samples.map((sample) => <tr key={sample.id}><td><strong>{sample.field}</strong> #{sample.id.replace("issue-", "")}</td><td>{sample.problem}</td><td className="before-value">{sample.original}</td><td className="after-value">{sample.suggestion}</td><td>{sample.rule}</td><td>{sample.confidence}</td></tr>)}</tbody></table>{selectedTask.samples.length === 0 && <div className="table-empty">当前任务没有保留问题样本</div>}</div></section>
-      </>}
-      {view === "版本管理" && <section className="cleaning-version-workspace">
-        <div className="version-compare-toolbar">
-          <div><h3><UiIcon icon={Rows3} />版本结果对比</h3><p>选择两个不可变版本，核对质量、问题与记录变化</p></div>
-          <div><label>基准版本<select value={baseVersion.version} onChange={(event) => setCompareBaseVersion(event.target.value)}>{selectedTask.versions.map((version) => <option key={version.id} value={version.version}>{version.version}</option>)}</select></label><span>→</span><label>对比版本<select value={targetVersion.version} onChange={(event) => setCompareTargetVersion(event.target.value)}>{selectedTask.versions.map((version) => <option key={version.id} value={version.version}>{version.version}</option>)}</select></label></div>
-        </div>
-        <div className="version-compare-summary">
-          <span><small>数据质量</small><strong>{targetVersion.quality}%</strong><em className={qualityDelta >= 0 ? "positive" : "negative"}>{qualityDelta >= 0 ? "+" : ""}{qualityDelta}</em></span>
-          <span><small>问题记录</small><strong>{targetVersion.issues.toLocaleString()}</strong><em className={issueDelta <= 0 ? "positive" : "negative"}>{issueDelta > 0 ? "+" : ""}{issueDelta.toLocaleString()}</em></span>
-          <span><small>有效记录</small><strong>{targetVersion.records.toLocaleString()}</strong><em>{recordDelta >= 0 ? "+" : ""}{recordDelta.toLocaleString()}</em></span>
-          <span><small>当前生效版本</small><strong>{selectedTask.activeVersion}</strong><Status>可回溯</Status></span>
-        </div>
-        <section className="sub-panel version-difference-panel"><header><div><h3>对比明细</h3><p>{baseVersion.version} → {targetVersion.version}</p></div><span className="version-immutable"><UiIcon icon={ShieldCheck} />版本内容不可变</span></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>指标</th><th>{baseVersion.version}</th><th>{targetVersion.version}</th><th>变化</th><th>判定</th></tr></thead><tbody>
-          <tr><td><strong>问题记录</strong></td><td>{baseVersion.issues.toLocaleString()}</td><td>{targetVersion.issues.toLocaleString()}</td><td className={issueDelta <= 0 ? "version-change-positive" : "version-change-negative"}>{issueDelta > 0 ? "+" : ""}{issueDelta.toLocaleString()}</td><td><Status tone={issueDelta <= 0 ? "green" : "orange"}>{issueDelta <= 0 ? "改善" : "需复核"}</Status></td></tr>
-          <tr><td><strong>数据质量</strong></td><td>{baseVersion.quality}%</td><td>{targetVersion.quality}%</td><td className={qualityDelta >= 0 ? "version-change-positive" : "version-change-negative"}>{qualityDelta >= 0 ? "+" : ""}{qualityDelta}</td><td><Status tone={qualityDelta >= 0 ? "green" : "orange"}>{qualityDelta >= 0 ? "提升" : "下降"}</Status></td></tr>
-          <tr><td><strong>有效记录</strong></td><td>{baseVersion.records.toLocaleString()}</td><td>{targetVersion.records.toLocaleString()}</td><td>{recordDelta >= 0 ? "+" : ""}{recordDelta.toLocaleString()}</td><td><Status tone="blue">一致</Status></td></tr>
-          <tr><td><strong>规则命中</strong></td><td>--</td><td>{ruleHitDelta.toLocaleString()}</td><td className="version-change-positive">已处理 {ruleHitDelta.toLocaleString()}</td><td><Status>已复检</Status></td></tr>
-        </tbody></table></div></section>
-        <section className="sub-panel version-history-panel"><header><div><h3>版本记录</h3><p>每次执行生成新版本；回滚仅切换当前指针</p></div><span>{selectedTask.versions.length} 个版本</span></header><div className="reuse-table-wrap"><table className="reuse-table compact-table"><thead><tr><th>版本</th><th>父版本</th><th>生成时间</th><th>操作人</th><th>记录 / 问题</th><th>质量</th><th>变更说明</th><th>状态与操作</th></tr></thead><tbody>{selectedTask.versions.map((version) => {
-          const isActive = version.version === selectedTask.activeVersion;
-          return <tr key={version.id} className={isActive ? "active-version-row" : ""}><td><strong>{version.version}</strong></td><td>{version.parent}</td><td>{version.created}</td><td>{version.operator}</td><td>{version.records.toLocaleString()} / {version.issues.toLocaleString()}</td><td><strong>{version.quality}%</strong></td><td>{version.change}</td><td>{isActive ? <Status>当前版本</Status> : <><button className="reuse-link" onClick={() => { setCompareBaseVersion(version.version); setCompareTargetVersion(selectedTask.activeVersion); }}>对比</button> <button className="reuse-link rollback-link" onClick={() => setRollbackTarget(version)}>回滚到此版本</button></>}</td></tr>;
-        })}</tbody></table></div></section>
-      </section>}
-      {rollbackTarget && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭回滚确认" onClick={() => setRollbackTarget(null)} /><div className="reuse-dialog version-rollback-dialog"><header><div><h2>确认切换当前版本</h2><p>{selectedTask.name}</p></div><button aria-label="关闭回滚确认" onClick={() => setRollbackTarget(null)}><UiIcon icon={X} /></button></header><section><span className="rollback-version-icon"><UiIcon icon={Undo2} size={20} /></span><div><h3>回滚到 {rollbackTarget.version}</h3><p>当前生效版本将从 <strong>{selectedTask.activeVersion}</strong> 切换到 <strong>{rollbackTarget.version}</strong>。已有版本记录和清洗结果不会删除，之后可再次切回。</p></div></section><footer><button className="reuse-secondary" onClick={() => setRollbackTarget(null)}>取消</button><button className="reuse-primary" onClick={rollbackVersion}><UiIcon icon={Undo2} />确认回滚</button></footer></div></div>}
-    </article>
-  );
-}
-
-function InventoryPage({
-  initialSection,
-  sources,
-  cleaningTasks,
-  openDialog,
-  updateSource,
-  createCleaningTask,
-  updateCleaningTask,
-  notify,
-}: {
-  initialSection: string;
-  sources: SourceRow[];
-  cleaningTasks: CleaningTaskRow[];
-  openDialog: () => void;
-  updateSource: (name: string, patch: Partial<SourceRow>) => void;
-  createCleaningTask: (task: CleaningTaskDraft) => string;
-  updateCleaningTask: (id: string, patch: Partial<CleaningTaskRow>) => void;
-  notify: Notify;
-}) {
-  const [section, setSection] = useState(initialSection);
-  const [search, setSearch] = useState("");
-  const [selectedSource, setSelectedSource] = useState(sources[0]?.name ?? "");
-  const [editingSourceName, setEditingSourceName] = useState<string | null>(null);
-  const [endpointDraft, setEndpointDraft] = useState("");
-  const [strategyDraft, setStrategyDraft] = useState("");
-  const [initialCleaningTaskId, setInitialCleaningTaskId] = useState(cleaningTasks[0]?.id ?? "");
-  const timers = useRef<number[]>([]);
-  const previousSourceCount = useRef(sources.length);
-  const filtered = sources.filter((source) => source.name.toLowerCase().includes(search.toLowerCase()));
-  const selected = sources.find((source) => source.name === selectedSource) ?? sources[0];
-  const editingSource = sources.find((source) => source.name === editingSourceName);
-
-  useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
-
-  useEffect(() => {
-    if (sources.length > previousSourceCount.current && sources[0]) setSelectedSource(sources[0].name);
-    previousSourceCount.current = sources.length;
-  }, [sources]);
-
-  function statusTone(status: SourceRow["status"]): "green" | "blue" | "orange" | "gray" {
-    if (status === "正常") return "green";
-    if (status === "测试中" || status === "同步中") return "blue";
-    if (status === "异常") return "orange";
-    return "gray";
-  }
-
-  function testSource(source: SourceRow) {
-    if (source.status === "测试中" || source.status === "同步中") return;
-    updateSource(source.name, { status: "测试中", progress: 20, syncResult: "正在验证网络、身份凭据和最小权限" });
-    notify(`${source.name} 正在执行连接测试`);
-    const timer = window.setTimeout(() => {
-      const failed = !source.endpoint.trim() || source.endpoint.toLowerCase().includes("invalid");
-      updateSource(source.name, failed
-        ? { status: "异常", progress: 0, syncResult: "连接失败：请检查地址和访问凭据" }
-        : { status: "正常", progress: 100, syncResult: "连接测试通过，可执行数据同步" });
-      notify(failed ? `${source.name} 连接测试失败` : `${source.name} 连接测试成功`);
-    }, 850);
-    timers.current.push(timer);
-  }
-
-  function syncSource(source: SourceRow) {
-    if (source.status !== "正常") {
-      notify(`${source.name} 需先通过连接测试`);
-      return;
-    }
-    updateSource(source.name, { status: "同步中", progress: 8, syncResult: "正在读取数据目录和增量位点" });
-    notify(`${source.name} 同步任务已启动`);
-    [28, 52, 76, 100].forEach((progress, index) => {
-      const timer = window.setTimeout(() => {
-        if (progress < 100) {
-          updateSource(source.name, { progress, syncResult: progress < 50 ? "正在读取结构与元数据" : "正在写入数据资产目录" });
-          return;
-        }
-        updateSource(source.name, {
-          status: "正常",
-          progress: 100,
-          updated: "刚刚",
-          summary: source.summary === "等待首次同步" ? "已识别 8 张表" : source.summary,
-          scale: source.scale === "--" ? "1.6 GB" : source.scale,
-          syncResult: "同步完成：新增 8 张表、24,680 条记录，失败 0 条",
-        });
-        notify(`${source.name} 同步完成，可进入数据探查`);
-      }, 500 + index * 520);
-      timers.current.push(timer);
-    });
-  }
-
-  function openSourceEditor(source: SourceRow) {
-    setEditingSourceName(source.name);
-    setEndpointDraft(source.endpoint);
-    setStrategyDraft(source.strategy);
-  }
-
-  function saveSourceConfiguration(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editingSource) return;
-    updateSource(editingSource.name, {
-      endpoint: endpointDraft,
-      strategy: strategyDraft,
-      status: "测试中",
-      progress: 20,
-      syncResult: "配置已保存，正在重新验证连接",
-    });
-    setEditingSourceName(null);
-    notify(`${editingSource.name} 配置已保存，正在重新验证`);
-    const timer = window.setTimeout(() => {
-      const failed = !endpointDraft.trim() || endpointDraft.toLowerCase().includes("invalid");
-      updateSource(editingSource.name, failed
-        ? { status: "异常", progress: 0, syncResult: "配置验证失败，请重新检查连接地址" }
-        : { status: "正常", progress: 100, syncResult: "新配置验证通过，可立即同步" });
-      notify(failed ? `${editingSource.name} 新配置验证失败` : `${editingSource.name} 新配置验证通过`);
-    }, 900);
-    timers.current.push(timer);
-  }
-
-  function createTaskFromExploration(task: CleaningTaskDraft) {
-    const id = createCleaningTask(task);
-    setInitialCleaningTaskId(id);
-    setSection("智能数据清洗");
-    notify(`${task.name} 已创建并进入智能数据清洗`);
-  }
-
+function InventoryPage({ initialSection, onSectionChange, notify }: { initialSection: string; onSectionChange: (section: string) => void; notify: Notify }) {
+  const [requestedSection, setSectionState] = useState(initialSection === "真实文件数据工作台" ? "本地数据管理" : initialSection);
+  const section = modules[1].children.includes(requestedSection) ? requestedSection : "数据库管理";
+  function setSection(next: string) { const visible = modules[1].children.includes(next) ? next : "数据库管理"; setSectionState(visible); onSectionChange(visible); }
+  const [databaseView, setDatabaseView] = useState<"assets" | "connections">("connections");
+  const [fileView, setFileView] = useState<"structured" | "preview">("structured");
   return (
     <section className="reuse-content-page">
       <div className="reuse-page-tabs">
@@ -1920,186 +1408,22 @@ function InventoryPage({
           </button>
         ))}
       </div>
-      {section === "数据库管理" && <article className="white-panel reuse-list-panel inventory-database-panel">
-        <div className="reuse-panel-head">
-          <div>
-            <h2>{section}</h2>
-            <p>统一管理数据连接、数据文件和盘点结果</p>
-          </div>
-          <div>
-            <label className="reuse-search">
-              <UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
-            </label>
-            <button className="reuse-primary" onClick={openDialog}><UiIcon icon={Plus} />新建数据连接</button>
-          </div>
-        </div>
-        <div className="source-cards" aria-label="数据源选择">
-          {filtered.map((item) => {
-            const SourceIcon = item.type.includes("MySQL")
-              ? Database
-              : item.type.includes("本地")
-                ? FolderKanban
-                : item.type.includes("SFTP")
-                  ? Upload
-                  : Workflow;
-            return (
-              <button
-                key={item.name}
-                className={`source-item ${selectedSource === item.name ? "active" : ""}`}
-                onClick={() => setSelectedSource(item.name)}
-              >
-                <span className="source-symbol"><UiIcon icon={SourceIcon} size={16} /></span>
-                <div>
-                  <strong>{item.name}</strong>
-                  <p>{item.type} · {item.summary}</p>
-                  <small>最近同步：{item.updated}</small>
-                </div>
-                <Status tone={statusTone(item.status)}>{item.status === "正常" ? "连接正常" : item.status}</Status>
-              </button>
-            );
-          })}
-        </div>
-        {selected && (
-          <div className="source-detail-strip">
-            <span>当前连接</span>
-            <strong>{selected.name}</strong>
-            <i />
-            <span>{selected.type}</span>
-            <span>{selected.scale}</span>
-            <span>{selected.strategy}</span>
-            <button className="reuse-link" disabled={selected.status === "测试中" || selected.status === "同步中"} onClick={() => testSource(selected)}>{selected.status === "测试中" ? "测试中..." : "测试连接"}</button>
-            <button className="reuse-link" disabled={selected.status !== "正常"} onClick={() => syncSource(selected)}>{selected.status === "同步中" ? `同步中 ${selected.progress}%` : "立即同步"}</button>
-            <button className="reuse-link" disabled={selected.status !== "正常" || selected.updated === "尚未同步"} onClick={() => setSection("数据探查")}>进入数据探查</button>
-          </div>
-        )}
-        {selected && <div className={`source-sync-state ${selected.status.toLowerCase()}`}><Progress value={selected.progress} /><span>{selected.syncResult}</span><b>{selected.progress}%</b></div>}
-        <div className="reuse-table-wrap">
-          <table className="reuse-table">
-            <thead>
-              <tr>
-                <th>数据源名称</th><th>连接类型</th><th>数据规模</th><th>同步策略</th><th>最近同步</th><th>状态</th><th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row) => (
-                <tr key={row.name}>
-                  <td><strong>{row.name}</strong></td>
-                  <td>{row.type}</td>
-                  <td>{row.scale}</td>
-                  <td>{row.strategy}</td>
-                  <td>{row.updated}</td>
-                  <td><Status tone={statusTone(row.status)}>{row.status}</Status></td>
-                  <td>
-                    <button className="reuse-link" onClick={() => setSelectedSource(row.name)}>查看</button>{" "}
-                    <button className="reuse-link" onClick={() => openSourceEditor(row)}>配置</button>{" "}
-                    <button className="reuse-link" disabled={row.status !== "正常"} onClick={() => syncSource(row)}>同步</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filtered.length === 0 && <div className="table-empty">未找到匹配的数据连接</div>}
-        </div>
-      </article>}
-      {section === "数据探查" && <DataExploration sources={sources} createCleaningTask={createTaskFromExploration} notify={notify} />}
-      {section === "本地数据管理" && <LocalDataManager notify={notify} />}
-      {section === "智能数据盘点" && <SmartInventory notify={notify} />}
-      {section === "智能数据清洗" && <SmartCleaning tasks={cleaningTasks} initialTaskId={initialCleaningTaskId} updateTask={updateCleaningTask} notify={notify} />}
-      {editingSource && <div className="dialog-backdrop connection-editor-backdrop"><button className="dialog-dismiss" aria-label="关闭连接配置" onClick={() => setEditingSourceName(null)} /><form className="reuse-dialog connection-editor" onSubmit={saveSourceConfiguration}><header><div><h2>配置数据连接</h2><p>{editingSource.name} · 修改后将自动重新验证</p></div><button type="button" aria-label="关闭连接配置" onClick={() => setEditingSourceName(null)}><UiIcon icon={X} /></button></header><label>连接类型<input value={editingSource.type} readOnly /></label><label>连接地址<input required value={endpointDraft} onChange={(event) => setEndpointDraft(event.target.value)} /></label><label>同步策略<select value={strategyDraft} onChange={(event) => setStrategyDraft(event.target.value)}><option>手动触发</option><option>每 30 分钟</option><option>每日 02:00</option><option>准实时</option></select></label><div className="connection-config-summary"><span><small>当前状态</small><Status tone={statusTone(editingSource.status)}>{editingSource.status}</Status></span><span><small>最近结果</small><strong>{editingSource.syncResult}</strong></span></div><footer><button type="button" className="reuse-secondary" onClick={() => setEditingSourceName(null)}>取消</button><button className="reuse-primary"><UiIcon icon={Save} />保存并验证</button></footer></form></div>}
+      {section === "数据库管理" && <div className="reuse-page-tabs" aria-label="数据库管理视图"><button className={databaseView === "assets" ? "active" : ""} onClick={() => setDatabaseView("assets")}>数据资产</button><button className={databaseView === "connections" ? "active" : ""} onClick={() => setDatabaseView("connections")}>数据连接</button></div>}
+      {section === "数据库管理" && databaseView === "assets" && <DataWorkbench mode="assets" onNavigate={setSection} />}
+      {section === "数据库管理" && databaseView === "connections" && <DatabaseConnections onNavigate={setSection} />}
+      {section === "数据探查" && <DataExploration onNavigate={setSection} />}
+      {section === "本地数据管理" && <><div className="reuse-page-tabs" aria-label="本地数据视图"><button className={fileView === "structured" ? "active" : ""} onClick={() => setFileView("structured")}>结构化文件</button><button className={fileView === "preview" ? "active" : ""} onClick={() => setFileView("preview")}>多模态文件预览</button></div>{fileView === "structured" ? <DataWorkbench key="files" mode="files" onNavigate={setSection} /> : <LocalDataManager notify={notify} />}</>}
+      {section === "智能数据盘点" && <SmartInventory onNavigate={setSection} />}
+      {section === "智能数据清洗" && <SmartCleaning />}
+
     </section>
   );
 }
 
-function GovernancePage({
-  projects,
-  openDialog,
-  copyProject,
-  deleteProject,
-  enterWorkspace,
-  notify,
-}: {
-  projects: ProjectRow[];
-  openDialog: () => void;
-  copyProject: (project: ProjectRow) => void;
-  deleteProject: (project: ProjectRow) => void;
-  enterWorkspace: (project: ProjectRow) => void;
-  notify: Notify;
-}) {
-  const [section, setSection] = useState("开发项目管理");
-  const [search, setSearch] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<ProjectRow | null>(null);
-  const filtered = projects.filter((row) => row.name.toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <section className="reuse-content-page">
-      <div className="reuse-page-tabs">
-        {["开发项目管理", "定时任务管理", "定时任务抽取日志"].map((item) => (
-          <button className={section === item ? "active" : ""} key={item} onClick={() => setSection(item)}>
-            {item}
-          </button>
-        ))}
-      </div>
-      <article className="white-panel reuse-list-panel">
-        <div className="reuse-panel-head">
-          <div>
-            <h2>{section}</h2>
-            <p>当前项目：高质量数据集评估演示</p>
-          </div>
-          <div>
-            <button className="reuse-primary" onClick={openDialog}><UiIcon icon={Plus} />新建项目</button>
-            <label className="reuse-search">
-              <UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
-            </label>
-            <button className="reuse-secondary" onClick={() => notify(`已筛选出 ${filtered.length} 个项目`)}>搜索</button>
-          </div>
-        </div>
-        {section === "开发项目管理" ? (
-          <div className="reuse-table-wrap">
-            <table className="reuse-table project-table">
-              <thead>
-                <tr>
-                  <th>名称</th><th>项目类型</th><th>概览</th><th>创建人</th><th>创建时间</th><th>最近更新人</th><th>最近更新时间</th><th>标记</th><th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((row, index) => (
-                  <tr key={`${row.name}-${row.created}-${row.updated}-${index}`}>
-                    <td>
-                      <button className="project-name project-entry" onClick={() => enterWorkspace(row)}>
-                        <span>◉</span><strong>{row.name}</strong>
-                      </button>
-                    </td>
-                    <td>普通项目</td><td>{row.overview}</td><td>高质量数据评估演示</td><td>{row.created}</td>
-                    <td>高质量数据评估演示</td><td>{row.updated}</td>
-                    <td><button className="tag-add" aria-label={`标记${row.name}`} onClick={() => notify(`${row.name} 已添加重点标记`)}><UiIcon icon={Star} size={13} /></button></td>
-                    <td>
-                      <button className="reuse-link" onClick={() => enterWorkspace(row)}>ETL</button>{" "}
-                      <button className="reuse-link" onClick={() => copyProject(row)}>复制</button>{" "}
-                      <button className="reuse-link" onClick={() => notify(`已打开 ${row.name} 的重命名编辑框`)}>重命名</button>{" "}
-                      <button className="reuse-link danger" onClick={() => setDeleteTarget(row)}>删除</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {filtered.length === 0 && <div className="table-empty">没有匹配的治理项目</div>}
-          </div>
-        ) : (
-          <div className="schedule-empty">
-            <span>▤</span>
-            <h3>{section}</h3>
-            <p>暂无运行中的记录，可从治理工作间创建定时任务。</p>
-            <button className="reuse-primary" onClick={() => notify("定时任务创建向导已准备")}><UiIcon icon={CalendarClock} />创建定时任务</button>
-          </div>
-        )}
-        <footer className="reuse-pagination">
-          <span>共 {section === "开发项目管理" ? filtered.length : 0} 条</span>
-          <button disabled>‹</button><button className="active" onClick={() => notify("当前已是第 1 页")}>1</button><button disabled>›</button>
-        </footer>
-      </article>
-      {deleteTarget && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="取消删除项目" onClick={() => setDeleteTarget(null)} /><section className="reuse-dialog workbench-delete-dialog project-delete-dialog"><header><div><h2>删除治理项目</h2><p>项目删除后将从本地业务状态中移除</p></div><button aria-label="关闭删除项目确认" onClick={() => setDeleteTarget(null)}><UiIcon icon={X} /></button></header><section><span><UiIcon icon={TriangleAlert} size={20} /></span><div><h3>确认删除“{deleteTarget.name}”</h3><p>该项目的流程节点、血缘连线、运行配置及项目内任务将一并删除。平台中的数据源和其他治理项目不会受影响。</p></div></section><div className="project-delete-summary"><span><small>项目概览</small><strong>{deleteTarget.overview}</strong></span><span><small>创建时间</small><strong>{deleteTarget.created}</strong></span><span><small>最近更新</small><strong>{deleteTarget.updated}</strong></span></div><footer><button className="reuse-secondary" onClick={() => setDeleteTarget(null)}>取消</button><button className="reuse-danger" onClick={() => { deleteProject(deleteTarget); setDeleteTarget(null); }}><UiIcon icon={Trash2} />确认删除项目</button></footer></section></div>}
-    </section>
-  );
+function GovernancePage({ notify }: { notify: Notify }) {
+  return <section className="reuse-content-page">
+    <DataProjects renderWorkflow={(project, assets, onBack) => <ProjectCleaningWorkflow key={project.id} project={project} assets={assets} onBack={onBack} notify={notify} />} />
+  </section>;
 }
 
 type WorkbenchNode = {
@@ -2109,6 +1433,9 @@ type WorkbenchNode = {
   meta: string;
   position: { left: number; top: number };
   placed?: boolean;
+  stage?: GovernanceStage;
+  dataType?: GovernanceDataType;
+  templateId?: string;
 };
 
 type WorkbenchMediaAsset = {
@@ -2132,6 +1459,7 @@ type GovernanceNodeConfig = {
   trigger: "按上游变更触发" | "手动触发" | "定时触发";
   keepAudit: boolean;
   validatedAt?: string;
+  parameters?: Record<string, string>;
 };
 
 type GovernanceRecipeProfile = {
@@ -2152,7 +1480,7 @@ const governanceRecipeProfiles: Record<GovernanceRecipeCategory, GovernanceRecip
   规范性治理: { description: "统一编码、日期、单位、枚举与字段格式。", algorithms: ["格式标准化", "编码字典映射", "时间与单位统一"], parameterLabel: "标准化模板", parameterOptions: ["平台通用规范", "当前业务域规范", "严格发布规范"], defaultThreshold: 95, format: "规范化数据集", engine: "标准化规则引擎", tag: "规范化" },
   准确性治理: { description: "通过统计分布与业务规则发现错误值。", algorithms: ["异常值处理", "业务规则校验", "跨源一致性核验"], parameterLabel: "异常处理策略", parameterOptions: ["自动修正后复检", "隔离异常记录", "仅输出修正建议"], defaultThreshold: 88, format: "校验结果 + 修正集", engine: "准确性规则引擎", tag: "准确性" },
   安全治理: { description: "识别敏感信息并按策略脱敏、泛化或隔离。", algorithms: ["敏感信息脱敏", "敏感字段识别", "访问水印注入"], parameterLabel: "安全策略", parameterOptions: ["掩码脱敏", "不可逆哈希", "隔离敏感样本"], defaultThreshold: 98, format: "合规数据集", engine: "隐私与合规引擎", tag: "安全" },
-  多模态治理: { description: "处理图像可用性、内容质量与跨模态对齐。", algorithms: ["图像格式标准化", "图像质量检测", "图文对齐校验"], parameterLabel: "处理预设", parameterOptions: ["保留原始分辨率", "训练数据标准预设", "严格质量门禁"], defaultThreshold: 90, format: "标准多模态样本", engine: "多模态治理引擎", tag: "多模态" },
+  多模态治理: { description: "处理图像可用性、内容质量与跨模态对齐。", algorithms: ["图像格式标准化", "图像质量检测", "图文对齐校验", "音频格式标准化", "视频帧提取"], parameterLabel: "处理预设", parameterOptions: ["保留原始分辨率", "训练数据标准预设", "严格质量门禁"], defaultThreshold: 90, format: "标准多模态样本", engine: "多模态治理引擎", tag: "多模态" },
   文档治理: { description: "解析文档版面、OCR 文本、表格与段落结构。", algorithms: ["金融文档版面解析", "OCR 内容纠错", "表格结构还原"], parameterLabel: "解析模式", parameterOptions: ["OCR + 版面分析", "仅文本提取", "多模态文档解析"], defaultThreshold: 86, format: "Markdown + JSON", engine: "文档智能解析引擎", tag: "文档解析" },
 };
 
@@ -2453,15 +1781,61 @@ function getWorkbenchEdgeStyle(edge: WorkbenchEdge, nodes: WorkbenchNode[]) {
   return { left, top, width: Math.hypot(deltaX, deltaY), rotate: Math.atan2(deltaY, deltaX) * 180 / Math.PI };
 }
 
+function ProjectCleaningWorkflow({ project, assets, onBack, notify }: {
+  project: { id: string; name: string; permission: string };
+  assets: Array<{ id: string; name: string; versions: number }>;
+  onBack: () => void;
+  notify: Notify;
+}) {
+  const [loaded, setLoaded] = useState<ProjectRow | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/data-projects?id=${encodeURIComponent(project.id)}&workflow=1`, { cache: "no-store" }).then(async response => {
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "流程读取失败");
+      if (cancelled) return;
+      const workspace: NonNullable<ProjectRow["workspace"]> = result.workspace ?? { nodes: [], edges: [] };
+      const assetIds = new Set(assets.map(asset => `asset-${asset.id}`));
+      const nodes = workspace.nodes.filter(node => !node.id.startsWith("asset-") || assetIds.has(node.id));
+      for (const asset of assets) {
+        const id = `asset-${asset.id}`;
+        if (!nodes.some(node => node.id === id)) nodes.push({ id, label: asset.name, kind: "dataset", meta: `${asset.versions} 个数据版本`, placed: false, position: { left: 44, top: 100 + nodes.length * 86 } });
+      }
+      const nodeIds = new Set(nodes.map(node => node.id));
+      setLoaded({ name: project.name, overview: `${assets.length} 个数据资产`, created: "", updated: "", isEmpty: true, workspace: { ...workspace, nodes, edges: workspace.edges.filter(edge => nodeIds.has(edge.from) && nodeIds.has(edge.to)) } });
+    }).catch(error => { if (!cancelled) setError(error.message); });
+    return () => { cancelled = true; };
+  }, [project.id, project.name, assets]);
+  if (error) return <p className="data-notice is-error" role="alert">{error}</p>;
+  if (!loaded) return <p className="data-notice" role="status">正在读取项目清洗工作流…</p>;
+  return <div className="project-cleaning-workflow">
+    {project.permission === "viewer" && <p className="data-notice">只读模式 · 可查看流程，编辑请联系项目所有者。</p>}
+    <fieldset disabled={project.permission === "viewer"} aria-label="项目清洗工作流">
+      <GovernanceWorkbench project={loaded} onBack={onBack} embedded notify={notify} projectAssets={assets} executionProjectId={project.id} onSave={async workspace => {
+        const response = await fetch("/api/data-projects", { method: "POST", headers: { "Content-Type": "application/json", "x-platform-request": "1" }, body: JSON.stringify({ mode: "workflow", projectId: project.id, workspace }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "流程保存失败");
+      }} />
+    </fieldset>
+  </div>;
+}
+
 function GovernanceWorkbench({
   project,
   onBack,
   onSave,
   notify,
+  embedded = false,
+  projectAssets,
+  executionProjectId,
 }: {
+  embedded?: boolean;
+  executionProjectId?: string;
+  projectAssets?: Array<{ id: string; name: string; versions: number }>;
   project: ProjectRow;
   onBack: () => void;
-  onSave: (workspace: { nodes: WorkbenchNode[]; edges: WorkbenchEdge[]; mediaAssets?: Record<string, WorkbenchMediaAsset[]>; nodeConfigs?: Record<string, GovernanceNodeConfig> }) => void;
+  onSave: (workspace: { nodes: WorkbenchNode[]; edges: WorkbenchEdge[]; annotationReviews?: Record<string, { completed: number[]; shapes: Record<number, AnnotationShape[]>; files: WorkbenchMediaAsset[] }>; mediaAssets?: Record<string, WorkbenchMediaAsset[]>; nodeConfigs?: Record<string, GovernanceNodeConfig> }) => void | Promise<void>;
   notify: Notify;
 }) {
   const startsEmpty = project.isEmpty === true || /^0\s+Datasets\s+0\s+Recipes/i.test(project.overview.trim());
@@ -2475,7 +1849,7 @@ function GovernanceWorkbench({
   }));
   const [resourceType, setResourceType] = useState<"数据集" | "Recipe">("数据集");
   const [resourceSearch, setResourceSearch] = useState("");
-  const [selectedNodeId, setSelectedNodeId] = useState("image-label");
+  const [selectedNodeId, setSelectedNodeId] = useState(embedded ? "" : "image-label");
   const [inspectorTab, setInspectorTab] = useState<"配置" | "质量" | "血缘">("配置");
   const [zoom, setZoom] = useState(90);
   const [running, setRunning] = useState(false);
@@ -2486,14 +1860,41 @@ function GovernanceWorkbench({
   const [currentRunWillFail, setCurrentRunWillFail] = useState(false);
   const [hasSimulatedFailure, setHasSimulatedFailure] = useState(false);
   const [runStates, setRunStates] = useState<Record<string, WorkbenchNodeRunState>>(() => Object.fromEntries(initialNodes.map((node) => [node.id, {
-    status: node.kind === "annotation" ? "运行中" : node.kind === "dataset" ? "未运行" : "成功",
+    status: embedded ? "未运行" : node.kind === "annotation" ? "运行中" : node.kind === "dataset" ? "未运行" : "成功",
     duration: node.kind === "recipe" ? "00:34" : "--",
     detail: node.meta,
   }])));
+  const [executionOutputs, setExecutionOutputs] = useState<Record<string, { files?: WorkbenchMediaAsset[]; table?: { columns: string[]; rows: Record<string, string>[] }; report?: unknown }>>({});
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [saved, setSaved] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [nodeDialogOpen, setNodeDialogOpen] = useState(false);
-  const [nodeDraftKind, setNodeDraftKind] = useState<WorkbenchNode["kind"]>("recipe");
+  const nodeDialogRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!nodeDialogOpen) return;
+    const trigger = document.activeElement as HTMLElement | null;
+    nodeDialogRef.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
+    function handleDialogKey(event: KeyboardEvent) {
+      if (event.key === "Escape") { event.preventDefault(); setNodeDialogOpen(false); }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(nodeDialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)') ?? []).filter(control => control.getClientRects().length > 0);
+      const first = controls[0]; const last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+    window.addEventListener("keydown", handleDialogKey);
+    return () => { window.removeEventListener("keydown", handleDialogKey); if (trigger?.isConnected) trigger.focus(); };
+  }, [nodeDialogOpen]);
+  const [nodeDraftStage, setNodeDraftStage] = useState<GovernanceStage>("数据处理");
+  const [nodeDraftDataType, setNodeDraftDataType] = useState<"全部" | GovernanceDataType>("全部");
+  const [nodeDraftTemplateId, setNodeDraftTemplateId] = useState("field-clean");
+  const nodeDraftTemplate = governanceNodeTemplates.find(item => item.id === nodeDraftTemplateId)!;
+  const nodeDraftKind = nodeDraftTemplate.kind;
+  const availableNodeTemplates = governanceNodeTemplates.filter(item => item.stage === nodeDraftStage && (nodeDraftDataType === "全部" || item.dataType === nodeDraftDataType));
+  function chooseNodeStage(stage: GovernanceStage, dataType: "全部" | GovernanceDataType = nodeDraftDataType) {
+    setNodeDraftStage(stage); setNodeDraftDataType(dataType); setNodeDraftName("");
+    setNodeDraftTemplateId(governanceNodeTemplates.find(item => item.stage === stage && (dataType === "全部" || item.dataType === dataType))!.id);
+  }
   const [nodeDraftName, setNodeDraftName] = useState("");
   const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkbenchNode | null>(null);
@@ -2530,6 +1931,7 @@ function GovernanceWorkbench({
     if (typeof window === "undefined") return defaults;
     try { return JSON.parse(window.localStorage.getItem("hq-annotation-shapes") ?? "") || defaults; } catch { return defaults; }
   });
+  const [annotationReviews, setAnnotationReviews] = useState<Record<string, { completed: number[]; shapes: Record<number, AnnotationShape[]>; files: WorkbenchMediaAsset[] }>>(project.workspace?.annotationReviews ?? {});
   const [annotationHistory, setAnnotationHistory] = useState<Array<{ sample: number; shapes: AnnotationShape[] }>>([]);
   const [drawingStart, setDrawingStart] = useState<{ x: number; y: number } | null>(null);
   const [draftRect, setDraftRect] = useState<AnnotationShape | null>(null);
@@ -2562,7 +1964,7 @@ function GovernanceWorkbench({
   const isRecipeNode = selectedNode.kind === "recipe";
   const selectedRecipeConfig = isRecipeNode ? nodeConfigs[selectedNode.id] ?? createGovernanceNodeConfig(selectedNode) : null;
   const selectedRecipeProfile = selectedRecipeConfig ? governanceRecipeProfiles[selectedRecipeConfig.category] : null;
-  const selectedRecipeConfigIssues = selectedRecipeConfig ? getGovernanceConfigIssues(selectedRecipeConfig) : [];
+  const selectedRecipeConfigIssues = embedded ? (selectedNode.templateId === "null-fill" && !selectedRecipeConfig?.parameters?.defaultValue ? ["缺失值填充值"] : []) : selectedRecipeConfig ? getGovernanceConfigIssues(selectedRecipeConfig) : [];
   const resources = nodes.filter((node) => resourceType === "数据集"
     ? node.kind === "dataset" || node.kind === "output"
     : node.kind === "recipe" || node.kind === "annotation");
@@ -2590,10 +1992,10 @@ function GovernanceWorkbench({
   const fallbackAnnotationSource = directAnnotationImageAssets.length === 0 && imageAssetSources.length === 1 ? imageAssetSources[0] : null;
   const annotationImageAssets = directAnnotationImageAssets.length > 0 ? directAnnotationImageAssets : fallbackAnnotationSource?.assets ?? [];
   const currentAnnotationAsset = annotationImageAssets[annotationSampleIndex] ?? null;
-  const connectedAnnotationSourceKey = directAnnotationImageAssets.length > 0
+  const connectedAnnotationSourceKey = selectedNode.id + ":" + (directAnnotationImageAssets.length > 0
     ? [...directAnnotationImageSourceIds].sort().join("|")
-    : fallbackAnnotationSource?.nodeId ?? "";
-  const pendingAnnotationCount = Math.max(0, Math.round(12680 * (100 - annotationProgress) / 100));
+    : fallbackAnnotationSource?.nodeId ?? "");
+  const pendingAnnotationCount = embedded ? Math.max(0, annotationImageAssets.length - completedAnnotationSamples.length) : Math.max(0, Math.round(12680 * (100 - annotationProgress) / 100));
   const assignedAnnotationCount = annotationAssignments.filter((assignment) => assignment.status === "进行中").reduce((sum, assignment) => sum + assignment.count, 0);
   const unassignedAnnotationCount = Math.max(0, pendingAnnotationCount - assignedAnnotationCount);
   const selectedAssignmentTotal = selectedAssignmentIds.reduce((sum, id) => sum + (assignmentCounts[id] ?? 0), 0);
@@ -2611,7 +2013,7 @@ function GovernanceWorkbench({
   }, [annotationAssignmentsByNode, project.name]);
 
   useEffect(() => {
-    if (!running) return;
+    if (!running || embedded) return;
     const timer = window.setInterval(() => {
       const next = Math.min(100, runProgressRef.current + (runMode === "node" ? 12 : 8));
       runProgressRef.current = next;
@@ -2666,7 +2068,7 @@ function GovernanceWorkbench({
       }
     }, 360);
     return () => window.clearInterval(timer);
-  }, [activeRunNodeId, currentRunWillFail, nodes, notify, project.name, runMode, running, runtimeNodes]);
+  }, [activeRunNodeId, currentRunWillFail, nodes, notify, project.name, runMode, running, runtimeNodes, embedded]);
 
   useEffect(() => {
     if (!annotationWorkspaceOpen) return;
@@ -2798,7 +2200,29 @@ function GovernanceWorkbench({
     notify("已撤销最近一次标注操作");
   }
 
+  async function executeRealWorkflow(targetId?: string) {
+    if (running) return;
+    const placed = nodes.filter(node => node.placed !== false);
+    setRunning(true); setRunProgress(0); setFailedNodeId(null); setExecutionOutputs({});
+    setRunMode(targetId ? "node" : "flow"); setActiveRunNodeId(targetId ?? null); setRunDialogOpen(true);
+    setRunStates(Object.fromEntries(placed.map(node => [node.id, { status: "等待中", duration: "--", detail: "等待执行服务返回真实结果" }])));
+    try {
+      const response = await fetch("/api/governance", { method: "POST", headers: { "Content-Type": "application/json", "x-platform-request": "1" }, body: JSON.stringify({ projectId: executionProjectId, targetId, workspace: { nodes: placed, edges: edges.filter(edge => placed.some(node => node.id === edge.from) && placed.some(node => node.id === edge.to)), nodeConfigs, mediaAssets: datasetMediaAssets }, annotations: annotationReviews }) });
+      const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "执行请求失败");
+      setExecutionOutputs(result.outputs ?? {});
+      setDatasetMediaAssets(current => ({ ...current, ...Object.fromEntries(Object.entries(result.outputs ?? {}).filter(([id]) => nodes.find(node => node.id === id)?.kind !== "dataset").map(([id, output]) => [id, (output as { files?: WorkbenchMediaAsset[] }).files ?? []])) }));
+      setRunStates(current => ({ ...current, ...Object.fromEntries(result.results.map((item: { id: string; status: "成功" | "失败"; durationMs: number; error?: string; records?: number; files?: number; outputId?: string; report?: { issueCount?: number } }) => [item.id, { status: item.status, duration: `${(item.durationMs / 1000).toFixed(2)} 秒`, detail: item.error ?? `${item.records !== undefined ? `${item.records} 条记录` : `${item.files ?? 0} 个文件`}${item.report ? ` · ${item.report.issueCount ?? 0} 个质量问题` : ""}${item.outputId ? " · 已保存新版本" : " · 已生成可下载结果"}` }])) }));
+      setFailedNodeId(result.failedNodeId ?? null); setRunProgress(result.failedNodeId ? Math.round(result.results.filter((item: { status: string }) => item.status === "成功").length / placed.length * 100) : 100);
+      notify(result.failedNodeId ? "执行已中断，请查看节点失败原因" : "真实处理完成，可下载节点输出");
+    } catch (error) {
+      const id = targetId ?? placed[0]?.id;
+      if (id) { setFailedNodeId(id); setRunStates(current => ({ ...current, [id]: { status: "失败", duration: "--", detail: (error as Error).message } })); }
+      notify((error as Error).message);
+    } finally { setRunning(false); }
+  }
+
   function runFlow() {
+    if (embedded) { void executeRealWorkflow(); return; }
     const invalidRecipeNode = runtimeNodes.find((node) => node.kind === "recipe" && getGovernanceConfigIssues(nodeConfigs[node.id] ?? createGovernanceNodeConfig(node)).length > 0);
     if (invalidRecipeNode) {
       setSelectedNodeId(invalidRecipeNode.id);
@@ -2855,19 +2279,25 @@ function GovernanceWorkbench({
 
   function addWorkbenchNode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const label = nodeDraftName.trim();
+    const label = nodeDraftName.trim() || nodeDraftTemplate.name;
     if (!label) return;
-    const sameKindCount = nodes.filter((node) => node.kind === nodeDraftKind).length;
-    const baseLeft = nodeDraftKind === "dataset" ? 44 : nodeDraftKind === "output" ? 996 : 620;
+    const sameKindCount = nodes.filter(node => node.stage === nodeDraftStage).length;
+    const baseLeft = [44, 360, 680, 996][governanceStages.indexOf(nodeDraftStage)];
     const node: WorkbenchNode = {
       id: `node-${Date.now()}`,
       label,
       kind: nodeDraftKind,
-      meta: nodeDraftKind === "dataset" ? "待接入数据集" : nodeDraftKind === "output" ? "待发布数据集" : nodeDraftKind === "annotation" ? "待配置标注任务" : "待配置 Recipe",
+      stage: nodeDraftStage, dataType: nodeDraftTemplate.dataType, templateId: nodeDraftTemplate.id,
+      meta: `${nodeDraftStage} · ${nodeDraftTemplate.dataType} · ${nodeDraftTemplate.name}`,
       position: { left: Math.min(996, baseLeft + (sameKindCount % 2) * 188), top: 310 + Math.floor(sameKindCount / 2) * 86 },
     };
     setNodes((current) => [...current, node]);
-    if (node.kind === "recipe") setNodeConfigs((current) => ({ ...current, [node.id]: createGovernanceNodeConfig(node) }));
+    if (node.kind === "recipe") {
+      const config = createGovernanceNodeConfig(node);
+      const category = nodeDraftTemplate.category ?? config.category;
+      const profile = governanceRecipeProfiles[category];
+      setNodeConfigs(current => ({ ...current, [node.id]: { ...config, category, algorithm: nodeDraftTemplate.algorithm ?? profile.algorithms[0], threshold: profile.defaultThreshold, strategy: profile.parameterOptions[1] ?? profile.parameterOptions[0], keyFields: embedded ? "" : nodeDraftTemplate.dataType === "结构化" ? "id" : "file_id", parameters: Object.fromEntries((governanceTemplateParameters[nodeDraftTemplate.id] ?? []).map(parameter => [parameter.key, parameter.options[0]])) } }));
+    }
     setRunStates((current) => ({ ...current, [node.id]: { status: "未运行", duration: "--", detail: "等待配置与连接" } }));
     setSelectedNodeId(node.id);
     setInspectorTab("配置");
@@ -2904,6 +2334,7 @@ function GovernanceWorkbench({
   }
 
   function runNode(id: string) {
+    if (embedded) { void executeRealWorkflow(id); return; }
     const node = nodes.find((item) => item.id === id);
     if (!node) return;
     setRunProgress(8);
@@ -3048,9 +2479,9 @@ function GovernanceWorkbench({
     if (!annotationImageAssets.length || connectedAnnotationSourceKey !== annotationSourceKey) {
       setAnnotationSourceKey(connectedAnnotationSourceKey);
       setAnnotationSampleIndex(0);
-      setAnnotationShapes({});
+      setAnnotationShapes(annotationReviews[selectedNode.id]?.shapes ?? {});
       setAnnotationHistory([]);
-      setCompletedAnnotationSamples([]);
+      setCompletedAnnotationSamples(annotationReviews[selectedNode.id]?.completed ?? []);
       setDifficultAnnotationSamples([]);
       setSelectedAnnotationId(null);
     } else if (annotationSampleIndex >= annotationImageAssets.length) {
@@ -3069,7 +2500,7 @@ function GovernanceWorkbench({
     notify("标注规范检查完成，已展示规则明细");
   }
 
-  const datasetCatalog = [
+  const datasetCatalog = projectAssets ? projectAssets.map(asset => ({ id: asset.id, name: asset.name, type: "项目数据资产", scale: `${asset.versions} 个版本`, source: "当前治理项目", updated: "" })) : [
     { id: "catalog-basketball", name: "篮球原始图像", type: "图像数据集", scale: "12,680 个文件", source: "数据评估文件仓", updated: "5 分钟前" },
     { id: "catalog-finance", name: "金融年报文档", type: "文档数据集", scale: "1,286 个文件", source: "知识文档仓", updated: "2 小时前" },
     { id: "catalog-sft", name: "SFT 问答数据集", type: "文本数据集", scale: "38,420 条", source: "生产业务库", updated: "18 分钟前" },
@@ -3094,7 +2525,8 @@ function GovernanceWorkbench({
     const autoConnectImages = datasetImportMode === "本地文件导入" && onlyImages && Boolean(targetAnnotation);
     const existingLocalNode = datasetImportMode === "本地文件导入" ? nodes.find((node) => node.kind === "dataset" && node.label === inferredName) ?? null : null;
     const newNodes = imports.filter((item) => !existingLabels.has(item.name)).map((item, index) => ({
-      id: `dataset-${Date.now()}-${index}`,
+      id: projectAssets && datasetImportMode === "资产库选择" ? `asset-${item.id}` : `dataset-${Date.now()}-${index}`,
+      templateId: datasetImportMode === "本地文件导入" ? (localDatasetFiles.length === 1 && /\.(csv|jsonl?)$/i.test(localDatasetFiles[0].name) ? "table-input" : "file-input") : "table-input",
       label: item.name,
       kind: "dataset" as const,
       meta: item.scale,
@@ -3106,7 +2538,8 @@ function GovernanceWorkbench({
       return;
     }
     if (datasetImportMode === "本地文件导入") {
-      const imageFiles = localDatasetFiles.filter((file) => file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name));
+      const imageFiles = embedded ? localDatasetFiles : localDatasetFiles.filter((file) => file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name));
+      if (imageFiles.length > 20 || imageFiles.some(file => file.size > 1024 * 1024)) { notify("最多上传 20 个文件，每个不超过 1 MiB"); return; }
       let assets: WorkbenchMediaAsset[];
       try {
         assets = await Promise.all(imageFiles.map(async (file) => ({
@@ -3186,7 +2619,9 @@ function GovernanceWorkbench({
       notify("存在尺寸过小的目标框，请修正后再提交");
       return;
     }
-    setCompletedAnnotationSamples((current) => current.includes(annotationSampleIndex) ? current : [...current, annotationSampleIndex]);
+    const completed = completedAnnotationSamples.includes(annotationSampleIndex) ? completedAnnotationSamples : [...completedAnnotationSamples, annotationSampleIndex];
+    setCompletedAnnotationSamples(completed);
+    setAnnotationReviews(current => ({ ...current, [selectedNode.id]: { completed, shapes: annotationShapes, files: annotationImageAssets } }));
     setAnnotationProgress((current) => Math.min(100, current + (completedAnnotationSamples.includes(annotationSampleIndex) ? 0 : .1)));
     notify(andNext ? "标注结果已保存，已进入下一条样本" : "当前样本的标注结果已保存");
     if (andNext) changeAnnotationSample(annotationSampleIndex + 1);
@@ -3242,7 +2677,7 @@ function GovernanceWorkbench({
     const objectShapes = currentShapes.filter((shape) => shape.type !== "point");
     const pointCount = currentShapes.filter((shape) => shape.type === "point").length;
     return <section className="annotation-workspace">
-      <header className="annotation-workspace-head"><div><button onClick={() => setAnnotationWorkspaceOpen(false)}><UiIcon icon={ArrowLeft} />返回治理工作间</button><span /><div><strong>{selectedNode.label}</strong><small>{annotationTeam} · {annotationType}{currentAnnotationAsset ? ` · ${currentAnnotationAsset.name}` : ""}</small></div></div><div><Status tone={currentAnnotationAsset ? "blue" : "gray"}>{currentAnnotationAsset ? "标注中" : "等待图片"}</Status><span>{annotationSavedAt}</span><span>已完成 {completedAnnotationSamples.filter((index) => index < samples.length).length} / {samples.length}</span><div className="annotation-zoom"><button aria-label="缩小画布" title="缩小画布" onClick={() => setAnnotationZoom((value) => Math.max(70, value - 10))}><UiIcon icon={Minus} /></button><button title="恢复 100%" onClick={() => setAnnotationZoom(100)}>{annotationZoom}%</button><button aria-label="放大画布" title="放大画布" onClick={() => setAnnotationZoom((value) => Math.min(150, value + 10))}><UiIcon icon={ZoomIn} /></button></div><button disabled={!currentAnnotationAsset} onClick={applyAiPrelabel}><UiIcon icon={Sparkles} />AI 预标注</button><button disabled={!currentAnnotationAsset} onClick={toggleSelectedAnnotationVisibility}><UiIcon icon={Eye} />对象显隐</button><button disabled={!currentAnnotationAsset} onClick={clearCurrentAnnotations}><UiIcon icon={Trash2} />清空</button><button aria-label="查看快捷键" title="快捷键" onClick={() => setAnnotationShortcutsOpen(true)}><UiIcon icon={KeyRound} /></button><button disabled={!currentAnnotationAsset} onClick={() => saveAnnotationSample(false)}><UiIcon icon={Save} />保存进度</button><button className="primary" disabled={!currentAnnotationAsset} onClick={() => saveAnnotationSample(true)}><UiIcon icon={Check} />提交并下一条</button></div></header>
+      <header className="annotation-workspace-head"><div><button onClick={() => setAnnotationWorkspaceOpen(false)}><UiIcon icon={ArrowLeft} />返回治理工作间</button><span /><div><strong>{selectedNode.label}</strong><small>{annotationTeam} · {annotationType}{currentAnnotationAsset ? ` · ${currentAnnotationAsset.name}` : ""}</small></div></div><div><Status tone={currentAnnotationAsset ? "blue" : "gray"}>{currentAnnotationAsset ? "标注中" : "等待图片"}</Status><span>{annotationSavedAt}</span><span>已完成 {completedAnnotationSamples.filter((index) => index < samples.length).length} / {samples.length}</span><div className="annotation-zoom"><button aria-label="缩小画布" title="缩小画布" onClick={() => setAnnotationZoom((value) => Math.max(70, value - 10))}><UiIcon icon={Minus} /></button><button title="恢复 100%" onClick={() => setAnnotationZoom(100)}>{annotationZoom}%</button><button aria-label="放大画布" title="放大画布" onClick={() => setAnnotationZoom((value) => Math.min(150, value + 10))}><UiIcon icon={ZoomIn} /></button></div><button disabled={embedded || !currentAnnotationAsset} onClick={applyAiPrelabel}><UiIcon icon={Sparkles} />AI 预标注</button><button disabled={!currentAnnotationAsset} onClick={toggleSelectedAnnotationVisibility}><UiIcon icon={Eye} />对象显隐</button><button disabled={!currentAnnotationAsset} onClick={clearCurrentAnnotations}><UiIcon icon={Trash2} />清空</button><button aria-label="查看快捷键" title="快捷键" onClick={() => setAnnotationShortcutsOpen(true)}><UiIcon icon={KeyRound} /></button><button disabled={!currentAnnotationAsset} onClick={() => saveAnnotationSample(false)}><UiIcon icon={Save} />保存进度</button><button className="primary" disabled={!currentAnnotationAsset} onClick={() => saveAnnotationSample(true)}><UiIcon icon={Check} />提交并下一条</button></div></header>
       <div className="annotation-workspace-body">
         <aside className="annotation-sample-queue"><header><strong>样本队列</strong><small>{completedAnnotationSamples.filter((index) => index < samples.length).length} / {samples.length} 已完成</small></header><label><UiIcon icon={Search} /><input placeholder="搜索真实文件名" /></label>{samples.length === 0 && <div className="annotation-sample-empty"><UiIcon icon={FileImage} /><strong>未读取到图片</strong><small>返回治理工作间，导入图片数据集并连接到此标注节点。</small></div>}{samples.map((sample, index) => <button key={sample.url} className={`${annotationSampleIndex === index ? "active" : ""} ${difficultAnnotationSamples.includes(index) ? "difficult" : ""}`} onClick={() => changeAnnotationSample(index)}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{sample.name}</strong><small>{difficultAnnotationSamples.includes(index) ? "疑难样本" : completedAnnotationSamples.includes(index) ? "已完成" : index === annotationSampleIndex ? "标注中" : "待标注"}</small></div><UiIcon icon={ChevronRight} /></button>)}</aside>
         <main className="annotation-stage"><nav><div>{(["矩形框", "关键点", "多边形"] as const).map((tool) => <button key={tool} className={annotationTool === tool ? "active" : ""} onClick={() => { setAnnotationTool(tool); setPolygonPoints([]); }}>{tool}</button>)}{annotationTool === "多边形" && polygonPoints.length > 0 && <button className="finish-polygon" onClick={finishPolygon}>完成多边形 ({polygonPoints.length})</button>}</div><div><button onClick={undoAnnotation}><UiIcon icon={Undo2} />撤销</button><button onClick={() => { setDraftRect(null); setPolygonPoints([]); notify("画布已适配窗口"); }}><UiIcon icon={LocateFixed} />适配画布</button><span>100%</span></div></nav><div ref={annotationCanvasRef} className={`annotation-canvas tool-${annotationTool}`} onPointerDown={annotationCanvasPointerDown} onPointerMove={annotationCanvasPointerMove} onPointerUp={annotationCanvasPointerUp}><div className="court-lines"><i /><i /><i /></div><div className="player player-a" /><div className="player player-b" /><div className="ball-object" /><svg className="annotation-svg" viewBox="0 0 100 100" preserveAspectRatio="none">{currentShapes.map((shape) => shape.type === "rect" ? <g key={shape.id} className={selectedAnnotationId === shape.id ? "selected" : ""} onPointerDown={(event) => { event.stopPropagation(); setSelectedAnnotationId(shape.id); }}><rect x={shape.x} y={shape.y} width={shape.width} height={shape.height} fill={`${shape.color}18`} stroke={shape.color} vectorEffect="non-scaling-stroke" /><text x={(shape.x ?? 0) + .5} y={Math.max(3, (shape.y ?? 0) - 1)} fill={shape.color}>{shape.label}</text></g> : shape.type === "point" ? <circle key={shape.id} className={selectedAnnotationId === shape.id ? "selected" : ""} cx={shape.x} cy={shape.y} r="0.8" fill={shape.color} stroke="#4d4210" vectorEffect="non-scaling-stroke" onPointerDown={(event) => { event.stopPropagation(); setSelectedAnnotationId(shape.id); }} /> : <polygon key={shape.id} className={selectedAnnotationId === shape.id ? "selected" : ""} points={(shape.points ?? []).map((point) => `${point.x},${point.y}`).join(" ")} fill={`${shape.color}25`} stroke={shape.color} vectorEffect="non-scaling-stroke" onPointerDown={(event) => { event.stopPropagation(); setSelectedAnnotationId(shape.id); }} />)}{draftRect && <rect className="draft" x={draftRect.x} y={draftRect.y} width={draftRect.width} height={draftRect.height} fill="rgba(46,127,232,.1)" stroke={draftRect.color} vectorEffect="non-scaling-stroke" />}{polygonPoints.length > 0 && <><polyline className="draft" points={polygonPoints.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="#8a5bd3" vectorEffect="non-scaling-stroke" />{polygonPoints.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r=".65" fill="#fff" stroke="#8a5bd3" vectorEffect="non-scaling-stroke" />)}</>}</svg><div className="canvas-tip">当前工具：{annotationTool} · {annotationTool === "矩形框" ? "拖拽创建目标框" : annotationTool === "关键点" ? "点击添加关键点" : "依次点击顶点后完成多边形"} · Delete 删除选中对象</div></div><footer><span>样本 {annotationSampleIndex + 1} / {samples.length} · {currentShapes.length} 个标注</span><div><button disabled={annotationSampleIndex === 0} onClick={() => changeAnnotationSample(annotationSampleIndex - 1)}>上一条</button><button className={difficultAnnotationSamples.includes(annotationSampleIndex) ? "active" : ""} onClick={() => { setDifficultAnnotationSamples((current) => current.includes(annotationSampleIndex) ? current.filter((index) => index !== annotationSampleIndex) : [...current, annotationSampleIndex]); notify("疑难样本状态已更新"); }}><UiIcon icon={TriangleAlert} />{difficultAnnotationSamples.includes(annotationSampleIndex) ? "取消疑难" : "标记疑难"}</button><button className="primary" onClick={() => saveAnnotationSample(true)}>保存并下一条</button></div></footer></main>
@@ -3253,58 +2688,65 @@ function GovernanceWorkbench({
   }
 
   return (
-    <section className="governance-workbench">
+    <section className={`governance-workbench${embedded ? " embedded-workbench" : ""}`}>
       <header className="workbench-project-head">
         <div className="workbench-breadcrumb">
-          <button onClick={onBack}>‹ 治理项目管理</button><span>/</span>
-          <div><strong>{project.name}</strong><small>{project.overview}</small></div>
-          <i className={saved ? "saved" : ""}>{saved ? "✓ 已保存" : "● 有未保存修改"}</i>
+          {embedded ? <strong>清洗工作流</strong> : <><button onClick={onBack}>‹ 治理项目管理</button><span>/</span><div><strong>{project.name}</strong><small>{project.overview}</small></div></>}
+          <i role="status" className={saved ? "saved" : ""}>{saved ? "✓ 已保存" : "● 有未保存修改"}</i>
         </div>
         <div className="workbench-actions">
-          <button title="撤销" aria-label="撤销" disabled={nodes.length === 0} onClick={() => notify("已撤销上一步画布操作")}><UiIcon icon={Undo2} /></button>
+          {!embedded && <><button title="撤销" aria-label="撤销" disabled={nodes.length === 0} onClick={() => notify("已撤销上一步画布操作")}><UiIcon icon={Undo2} /></button>
           <button title="重做" aria-label="重做" disabled={nodes.length === 0} onClick={() => notify("已重做画布操作")}><UiIcon icon={Redo2} /></button>
-          <button className="workbench-save" onClick={() => { onSave({ nodes, edges, mediaAssets: datasetMediaAssets, nodeConfigs }); setSaved(true); notify("项目流程已保存"); }}><UiIcon icon={Save} />保存</button>
-          <button disabled={nodes.length === 0} onClick={() => notify("已打开定时任务配置")}><UiIcon icon={CalendarClock} />定时任务</button>
-          <button className="workbench-run" disabled={running || runtimeNodes.length === 0} onClick={runFlow}><UiIcon icon={running ? RefreshCw : Play} />{running ? `运行中 ${runProgress}%` : "运行全部"}</button>
+          </>}
+          <button className="workbench-save" disabled={saving || running || (embedded && saved)} onClick={async () => { setSaving(true); try { await onSave({ nodes, edges, mediaAssets: datasetMediaAssets, nodeConfigs, annotationReviews }); setSaved(true); notify("项目流程已保存"); } catch (error) { setSaved(false); notify((error as Error).message); } finally { setSaving(false); } }}><UiIcon icon={Save} />{saving ? "保存中…" : "保存"}</button>
+          {!embedded && <button disabled={nodes.length === 0} onClick={() => notify("已打开定时任务配置")}><UiIcon icon={CalendarClock} />定时任务</button>}
+          {embedded && <span className="workflow-demo-label">真实执行 · 保留原始数据</span>}
+          <button className="workbench-run" title={runtimeNodes.length === 0 ? "添加并配置治理节点后可运行" : "按连线顺序处理真实数据"} disabled={running || runtimeNodes.length === 0} onClick={runFlow}><UiIcon icon={running ? RefreshCw : Play} />{running ? `运行中 ${runProgress}%` : "运行全部"}</button>
         </div>
       </header>
 
-      <nav className="workbench-view-tabs">
+      {!embedded && <nav className="workbench-view-tabs">
         <div>
           <button className="active">数据流程</button>
         </div>
         <div className="canvas-view-actions">
           <button aria-label="缩小画布" onClick={() => setZoom((value) => Math.max(60, value - 10))}><UiIcon icon={Minus} /></button><span>{zoom}%</span><button aria-label="放大画布" onClick={() => setZoom((value) => Math.min(130, value + 10))}><UiIcon icon={ZoomIn} /></button>
         </div>
-      </nav>
+      </nav>}
 
-      <div className={`workbench-body ${nodes.length === 0 ? "empty-workbench" : ""}`}>
+      <div className={`workbench-body ${nodes.length === 0 ? "empty-workbench" : ""} ${embedded && !selectedNodeId ? "inspector-hidden" : ""}`}>
         <aside className="flow-resource-panel">
           <header><strong>项目资源</strong><button aria-label="选择导入数据集" title="选择导入数据集" onClick={() => setDatasetImportOpen(true)}><UiIcon icon={Plus} /></button></header>
           <div className="resource-tabs">
-            {(["数据集", "Recipe"] as const).map((item) => <button key={item} className={resourceType === item ? "active" : ""} onClick={() => setResourceType(item)}>{item}<b>{resourceCount[item]}</b></button>)}
+            {(["数据集", "Recipe"] as const).map((item) => <button key={item} className={resourceType === item ? "active" : ""} onClick={() => setResourceType(item)}>{embedded && item === "Recipe" ? "治理节点" : item}<b>{resourceCount[item]}</b></button>)}
           </div>
-          <label className="resource-search"><UiIcon icon={Search} /><input value={resourceSearch} onChange={(event) => setResourceSearch(event.target.value)} placeholder={`搜索${resourceType}`} /></label>
+          <label className="resource-search"><UiIcon icon={Search} /><input value={resourceSearch} onChange={(event) => setResourceSearch(event.target.value)} aria-label="搜索项目资源" placeholder={`搜索${embedded && resourceType === "Recipe" ? "治理节点" : resourceType}`} /></label>
           <div className="resource-list">
+            {filteredResources.length === 0 && <div className="resource-empty">
+              <span><UiIcon icon={resourceType === "数据集" ? Database : Blocks} size={22} /></span>
+              <strong>{resourceSearch ? "未找到匹配资源" : `暂无${resourceType}`}</strong>
+              <p>{resourceSearch ? "试试其他关键词" : resourceType === "数据集" ? "导入数据资产，开始搭建治理流程" : "添加治理节点，编排数据处理步骤"}</p>
+              {!resourceSearch && <button onClick={() => resourceType === "数据集" ? setDatasetImportOpen(true) : setNodeDialogOpen(true)}><UiIcon icon={Plus} size={14} />{resourceType === "数据集" ? "导入数据集" : "添加治理节点"}</button>}
+            </div>}
             {filteredResources.map((node) => (
-              <button key={node.id} className={`${selectedNodeId === node.id ? "active" : ""} ${node.placed === false ? "unplaced" : ""}`} onClick={() => selectNode(node.id)}>
+              <button key={node.id} title={node.label} aria-pressed={selectedNodeId === node.id} className={`${selectedNodeId === node.id ? "active" : ""} ${node.placed === false ? "unplaced" : ""}`} onClick={() => selectNode(node.id)}>
                 <span className={node.kind}><UiIcon icon={getWorkbenchNodeIcon(node.kind)} size={15} /></span>
                 <div><strong>{node.label}</strong><small>{node.meta}{node.placed === false ? " · 待加入画布" : ""}</small></div><i><UiIcon icon={ChevronRight} size={13} /></i>
               </button>
             ))}
           </div>
-          <footer><span className={failedNodeId ? "has-failure" : ""}><UiIcon icon={failedNodeId ? TriangleAlert : nodes.length ? CircleCheck : Database} size={11} />{failedNodeId ? "1 个节点等待重试" : nodes.length ? `${successfulNodeCount} 个节点已成功运行` : "暂无项目资源"}</span><button aria-label="刷新项目资源" onClick={() => notify("已刷新项目资源")}><UiIcon icon={RefreshCw} size={13} /></button></footer>
+          <footer><span className={failedNodeId ? "has-failure" : ""}><UiIcon icon={failedNodeId ? TriangleAlert : nodes.length ? CircleCheck : Database} size={11} />{failedNodeId ? "1 个节点等待重试" : embedded ? `${resourceCount.数据集} 项数据 · ${resourceCount.Recipe} 个治理节点` : nodes.length ? `${successfulNodeCount} 个节点已成功运行` : "暂无项目资源"}</span><button aria-label="刷新项目资源" onClick={() => notify("已刷新项目资源")}><UiIcon icon={RefreshCw} size={13} /></button></footer>
         </aside>
 
         <main className="flow-canvas-shell">
           <header className="flow-canvas-head">
-            <div><span className="live-dot" /><strong>主流程</strong><small>最近保存：刚刚</small></div>
-            <div><button onClick={() => setNodeDialogOpen(true)}><UiIcon icon={Plus} />添加节点</button><button disabled={nodes.length === 0} className={connectingFromId ? "active" : ""} onClick={startConnecting}><UiIcon icon={Link2} />{connectingFromId ? "取消连线" : "连接节点"}</button><button disabled={nodes.length === 0} onClick={() => notify("流程筛选器已展开")}><UiIcon icon={Filter} />筛选</button><button disabled={nodes.length === 0} onClick={() => notify("流程已导出为 PNG")}><UiIcon icon={Download} />导出</button><button disabled={nodes.length === 0} onClick={() => notify("已定位全部流程节点")}><UiIcon icon={LocateFixed} />定位</button></div>
+            <div><span className="live-dot" /><strong>{embedded ? "流程画布" : "主流程"}</strong><small>{embedded ? `${canvasNodes.length} 个节点 · ${edges.length} 条连线` : "最近保存：刚刚"}</small></div>
+            <div><button onClick={() => setNodeDialogOpen(true)}><UiIcon icon={Plus} />添加节点</button><button disabled={embedded ? !selectedNodeId || selectedNode.placed === false || canvasNodes.length < 2 : nodes.length === 0} className={connectingFromId ? "active" : ""} onClick={startConnecting}><UiIcon icon={Link2} />{connectingFromId ? "取消连线" : "连接节点"}</button>{!embedded && <><button disabled={nodes.length === 0} onClick={() => notify("流程筛选器已展开")}><UiIcon icon={Filter} />筛选</button><button disabled={nodes.length === 0} onClick={() => notify("流程已导出为 PNG")}><UiIcon icon={Download} />导出</button><button disabled={nodes.length === 0} onClick={() => notify("已定位全部流程节点")}><UiIcon icon={LocateFixed} />定位</button></>}{embedded && <span className="canvas-view-actions"><button aria-label="缩小画布" onClick={() => setZoom(value => Math.max(60, value - 10))}><UiIcon icon={Minus} /></button><span>{zoom}%</span><button aria-label="放大画布" onClick={() => setZoom(value => Math.min(130, value + 10))}><UiIcon icon={ZoomIn} /></button></span>}</div>
           </header>
           <div className="flow-canvas-viewport">
             {connectingFromId && <div className="connection-mode-banner"><UiIcon icon={Link2} /><span>上游：<strong>{nodes.find((node) => node.id === connectingFromId)?.label}</strong>，点击下游节点完成连接</span><button onClick={() => setConnectingFromId(null)}>取消</button></div>}
-            <div className={`flow-canvas ${canvasNodes.length === 0 ? "is-empty" : ""}`} style={{ height: canvasHeight, transform: `scale(${zoom / 100})` }}>
-              {canvasNodes.length > 0 && <><div className="flow-lane-label lane-input">原始数据</div><div className="flow-lane-label lane-process">治理处理</div><div className="flow-lane-label lane-output">高质量数据</div></>}
+            <div className={`flow-canvas ${canvasNodes.length === 0 ? "is-empty" : ""}`} style={canvasNodes.length ? { height: canvasHeight, transform: `scale(${zoom / 100})` } : undefined}>
+              {canvasNodes.length > 0 && (embedded ? governanceStages.map((stage, index) => <div key={stage} className="flow-lane-label" style={{ left: [44, 360, 680, 996][index] }}>{stage}</div>) : <><div className="flow-lane-label lane-input">原始数据</div><div className="flow-lane-label lane-process">治理处理</div><div className="flow-lane-label lane-output">高质量数据</div></>)}
               {edges.map((edge) => {
                 const style = getWorkbenchEdgeStyle(edge, canvasNodes);
                 return style && <i key={edge.id} className="flow-edge" style={{ left: style.left, top: style.top, width: style.width, transform: `rotate(${style.rotate}deg)` }}><b /></i>;
@@ -3323,7 +2765,8 @@ function GovernanceWorkbench({
                   <div><strong>{node.label}</strong><small>{node.meta}</small></div><i>{nodeRunState === "失败" ? "运行失败" : nodeRunState === "运行中" && node.kind === "annotation" ? `${annotationProgress.toFixed(1)}%` : nodeRunState}</i>
                 </button>
               );})}
-              {canvasNodes.length === 0 && <div className="flow-canvas-empty">
+              {canvasNodes.length === 0 && embedded && <div className="workflow-start"><span><UiIcon icon={Workflow} size={28} /></span><h3>开始编排清洗流程</h3><p>{nodes.some(node => node.kind === "dataset") ? "将项目数据加入画布，再添加治理节点。" : "先关联项目数据资产，再编排清洗步骤。"}</p><button className="reuse-primary" onClick={() => { const source = nodes.find(node => node.kind === "dataset"); if (!source) { onBack(); return; } setNodes(current => current.map(node => node.id === source.id ? { ...node, placed: true, position: { left: 44, top: 100 } } : node)); setSelectedNodeId(source.id); setSaved(false); }}><UiIcon icon={Plus} />{nodes.some(node => node.kind === "dataset") ? "添加数据到画布" : "关联数据资产"}</button><small>选择节点配置 · 连接处理步骤 · 保存流程</small></div>}
+              {canvasNodes.length === 0 && !embedded && <div className="flow-canvas-empty">
                 <header><span><UiIcon icon={Workflow} size={23} /></span><div><small>新建治理流程</small><strong>从数据资产开始搭建质量治理链路</strong><p>按“数据接入—治理处理—质量交付”的顺序添加并连接节点。</p></div></header>
                 <div className="empty-flow-steps">
                   <div><span className="dataset"><UiIcon icon={Database} size={17} /></span><i>01</i><strong>添加数据资产</strong><p>选择已接入的数据集，定义流程输入。</p></div><b><UiIcon icon={ChevronRight} size={17} /></b>
@@ -3337,10 +2780,22 @@ function GovernanceWorkbench({
           {canvasNodes.length > 0 && <div className="canvas-minimap"><i /><i /><i /><i /><span /></div>}
         </main>
 
-        {nodes.length > 0 && <aside className="node-inspector">
-          <header><div><span className={selectedNode.kind}><UiIcon icon={getWorkbenchNodeIcon(selectedNode.kind)} size={16} /></span><div><strong>{selectedNode.label}</strong><small>{selectedProfile.typeLabel} · {selectedNode.meta}</small></div></div><div className="node-inspector-actions"><button aria-label="从当前节点连接" title="从当前节点连接" onClick={startConnecting}><UiIcon icon={Link2} /></button><button aria-label="删除当前节点" title="删除当前节点" disabled={running} onClick={() => setDeleteTarget(selectedNode)}><UiIcon icon={Trash2} /></button><button aria-label="更多节点操作" onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}><UiIcon icon={MoreHorizontal} /></button></div></header>
+        {nodes.length > 0 && (!embedded || selectedNodeId) && <aside className="node-inspector">
+          <header><div><span className={selectedNode.kind}><UiIcon icon={getWorkbenchNodeIcon(selectedNode.kind)} size={16} /></span><div><strong>{selectedNode.label}</strong><small>{selectedNode.stage ? `${selectedNode.stage} · ${selectedNode.dataType}` : `${selectedProfile.typeLabel} · ${selectedNode.meta}`}</small></div></div><div className="node-inspector-actions">{embedded && <button aria-label="关闭节点配置" title="关闭节点配置" onClick={() => setSelectedNodeId("")}><UiIcon icon={X} /></button>}<button aria-label="从当前节点连接" title="从当前节点连接" onClick={startConnecting}><UiIcon icon={Link2} /></button><button aria-label="删除当前节点" title="删除当前节点" disabled={running} onClick={() => setDeleteTarget(selectedNode)}><UiIcon icon={Trash2} /></button><button aria-label="更多节点操作" onClick={() => notify(`${selectedNode.label} 的更多操作已展开`)}><UiIcon icon={MoreHorizontal} /></button></div></header>
           <div className="inspector-tabs">{(["配置", "质量", "血缘"] as const).map((tab) => <button className={inspectorTab === tab ? "active" : ""} key={tab} onClick={() => setInspectorTab(tab)}>{tab}</button>)}</div>
           {inspectorTab === "配置" && <div className="inspector-content">
+            {embedded && selectedNode.kind === "dataset" && !selectedNode.id.startsWith("asset-") && <label>上传节点输入<input type="file" multiple={selectedNode.templateId !== "table-input"} accept={selectedNode.templateId === "table-input" ? ".csv,.json,.jsonl" : ".txt,.md,.pdf,.png,.jpg,.jpeg,.webp,.wav,.mp3,.mp4"} onChange={async event => {
+              const files = Array.from(event.target.files ?? []);
+              if (files.length > 20 || files.some(file => file.size > 1024 * 1024)) { notify("最多 20 个文件，每个不超过 1 MiB"); return; }
+              try { const media = await Promise.all(files.map(async file => ({ name: file.name, type: file.type, size: file.size, url: await readFileAsDataUrl(file) }))); setDatasetMediaAssets(current => ({ ...current, [selectedNode.id]: media })); setSaved(false); notify(`已读取 ${files.length} 个真实输入文件`); } catch { notify("文件读取失败"); }
+            }} /><small>{(datasetMediaAssets[selectedNode.id] ?? []).map(file => file.name).join("、") || "请选择本地文件"}</small></label>}
+            {embedded && selectedNode.templateId === "file-input" && <label>粘贴文本<textarea aria-label="粘贴文本" maxLength={200000} placeholder="可粘贴文本作为输入，或使用上方文件上传" onChange={event => {
+              const text = event.target.value; const bytes = new TextEncoder().encode(text);
+              const file = { name: "input.txt", type: "text/plain", size: bytes.length, url: "data:text/plain;base64," + btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join("")) };
+              setDatasetMediaAssets(current => ({ ...current, [selectedNode.id]: text ? [file] : [] })); setSaved(false);
+            }} /></label>}
+            {embedded && executionOutputs[selectedNode.id] && <div className="node-output-results"><strong>真实运行结果</strong>{(executionOutputs[selectedNode.id].files ?? []).map((file, index) => <a key={index} href={file.url} download={file.name}>{file.name} · 下载</a>)}{executionOutputs[selectedNode.id].table && <small>{executionOutputs[selectedNode.id].table!.rows.length} 条记录</small>}{executionOutputs[selectedNode.id].report !== undefined && <pre>{JSON.stringify(executionOutputs[selectedNode.id].report, null, 2)}</pre>}</div>}
+
             {isAnnotationNode ? <>
               <div className="annotation-config-head"><div><h4>标注任务配置</h4><small>剩余 {unassignedAnnotationCount.toLocaleString()} 个样本待分派</small></div><Status tone="blue">进行中</Status></div>
               <label>标注任务类型<select value={annotationType} onChange={(event) => { setAnnotationType(event.target.value); setSaved(false); }}><option>目标检测 + 关键点</option><option>目标检测</option><option>图像分类</option><option>实例分割</option></select></label>
@@ -3350,21 +2805,28 @@ function GovernanceWorkbench({
                 <div className="annotation-labels">{annotationLabels.map((label) => <span key={label}>{label}<button aria-label={`删除${label}`} onClick={() => { setAnnotationLabels((current) => current.filter((item) => item !== label)); setSaved(false); }}><UiIcon icon={X} size={9} /></button></span>)}</div>
                 <div className="annotation-label-add"><input value={annotationLabelDraft} onChange={(event) => setAnnotationLabelDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addAnnotationLabel(); } }} placeholder="新增类别名称" /><button onClick={addAnnotationLabel}><UiIcon icon={Plus} size={11} />添加</button></div>
               </div>
-              <div className="annotation-option-list">
+              {!embedded && <div className="annotation-option-list">
                 <div><span><strong>AI 预标注</strong><small>生成初始框，人工确认后提交</small></span><button className={aiPrelabel ? "on" : ""} aria-pressed={aiPrelabel} onClick={() => { setAiPrelabel(!aiPrelabel); setSaved(false); }}><i /></button></div>
                 <div><span><strong>双人复核</strong><small>高风险样本由第二位标注员复核</small></span><button className={doubleReview ? "on" : ""} aria-pressed={doubleReview} onClick={() => { setDoubleReview(!doubleReview); setSaved(false); }}><i /></button></div>
               </div>
-              <label>执行团队<select value={annotationTeam} onChange={(event) => { setAnnotationTeam(event.target.value); setSaved(false); }}><option>视觉标注一组</option><option>视觉标注二组</option><option>外部协作团队</option></select></label>
+              }<label>执行团队<select value={annotationTeam} onChange={(event) => { setAnnotationTeam(event.target.value); setSaved(false); }}><option>视觉标注一组</option><option>视觉标注二组</option><option>外部协作团队</option></select></label>
               <label className="sampling-field"><span>质检抽样比例 <b>{samplingRate}%</b></span><input type="range" min="5" max="30" step="5" value={samplingRate} onChange={(event) => { setSamplingRate(Number(event.target.value)); setSaved(false); }} /></label>
-              <div className="annotation-progress-summary"><span><small>已完成</small><strong>{Math.round(12680 * annotationProgress / 100).toLocaleString()}</strong></span><span><small>待复核</small><strong>386</strong></span><span><small>已驳回</small><strong>42</strong></span></div>
+              <div className="annotation-progress-summary"><span><small>已完成</small><strong>{(embedded ? completedAnnotationSamples.length : Math.round(12680 * annotationProgress / 100)).toLocaleString()}</strong></span><span><small>待复核</small><strong>{embedded ? 0 : 386}</strong></span><span><small>已驳回</small><strong>{embedded ? 0 : 42}</strong></span></div>
               <button className="inspector-secondary" disabled={unassignedAnnotationCount === 0} onClick={openAssignmentDialog}><UiIcon icon={UserRound} />{unassignedAnnotationCount === 0 ? "任务已全部分派" : "分派剩余任务"}</button>
               {annotationAssignments.length > 0 && <div className="annotation-assignment-preview"><header><span>当前分派</span><small>{annotationAssignments.filter((assignment) => assignment.status === "进行中").length} 人 · {assignedAnnotationCount.toLocaleString()} 个样本</small></header>{annotationAssignments.filter((assignment) => assignment.status === "进行中").slice(-3).map((assignment) => <div key={assignment.userId}><i>{assignment.name.slice(0, 1)}</i><span><strong>{assignment.name}</strong><small>{assignment.team}</small></span><b>{assignment.count.toLocaleString()}</b></div>)}</div>}
             </> : isRecipeNode && selectedRecipeConfig && selectedRecipeProfile ? <>
               <div className="recipe-config-head">
-                <div><h4>数据治理节点配置</h4><small>{selectedRecipeProfile.description}</small></div>
+                <div><h4>数据治理节点配置</h4><small>{governanceNodeTemplates.find(template => template.id === selectedNode.templateId)?.description ?? selectedRecipeProfile.description}</small></div>
                 <Status tone={selectedRecipeConfigIssues.length ? "orange" : selectedRecipeConfig.validatedAt ? "green" : "blue"}>{selectedRecipeConfigIssues.length ? "待完善" : selectedRecipeConfig.validatedAt ? "已校验" : "待校验"}</Status>
               </div>
               <label>节点名称<input value={selectedNode.label} onChange={(event) => updateSelectedNodeLabel(event.target.value)} /></label>
+              {(governanceTemplateParameters[selectedNode.templateId ?? ""] ?? []).map(parameter => <label key={parameter.key}>{parameter.label}<select value={selectedRecipeConfig.parameters?.[parameter.key] ?? parameter.options[0]} onChange={event => updateSelectedRecipeConfig({ parameters: { ...selectedRecipeConfig.parameters, [parameter.key]: event.target.value } })}>{parameter.options.map(option => <option key={option}>{option}</option>)}</select></label>)}
+              {embedded ? <>
+                {selectedNode.dataType === "结构化" && selectedNode.templateId !== "field-clean" && <label>处理字段<input value={selectedRecipeConfig.keyFields} onChange={event => updateSelectedRecipeConfig({ keyFields: event.target.value })} placeholder="留空处理全部字段，多个字段用逗号分隔" /></label>}
+                {selectedNode.templateId === "null-fill" && <label>缺失值填充值<input maxLength={1024} value={selectedRecipeConfig.parameters?.defaultValue ?? ""} onChange={event => updateSelectedRecipeConfig({ parameters: { ...selectedRecipeConfig.parameters, defaultValue: event.target.value } })} placeholder="例如：未知、0" /></label>}
+                {["table-check", "media-check"].includes(selectedNode.templateId ?? "") && <label>发现问题时<select value={selectedRecipeConfig.exceptionPolicy} onChange={event => updateSelectedRecipeConfig({ exceptionPolicy: event.target.value as GovernanceNodeConfig["exceptionPolicy"] })}><option value="隔离并记录">输出问题报告</option><option>终止当前流程</option></select></label>}
+                <p className="data-notice">结果输出节点可下载文件；结构化结果输出会在原资产下保存新版本。</p>
+              </> : <>
               <label>治理类型<select value={selectedRecipeConfig.category} onChange={(event) => changeSelectedRecipeCategory(event.target.value as GovernanceRecipeCategory)}>{(Object.keys(governanceRecipeProfiles) as GovernanceRecipeCategory[]).map((category) => <option key={category}>{category}</option>)}</select></label>
               <label>治理算法<select value={selectedRecipeConfig.algorithm} onChange={(event) => updateSelectedRecipeConfig({ algorithm: event.target.value })}>{selectedRecipeProfile.algorithms.map((algorithm) => <option key={algorithm}>{algorithm}</option>)}</select></label>
               <div className="config-pair"><span><small>输出格式</small><strong>{selectedRecipeProfile.format}</strong></span><span><small>运行引擎</small><strong>{selectedRecipeProfile.engine}</strong></span></div>
@@ -3378,23 +2840,24 @@ function GovernanceWorkbench({
               <label>输出方式<select value={selectedRecipeConfig.outputMode} onChange={(event) => updateSelectedRecipeConfig({ outputMode: event.target.value as GovernanceNodeConfig["outputMode"] })}><option>生成新版本</option><option>覆盖当前版本</option><option>仅输出问题清单</option></select></label>
               <label>执行策略<select value={selectedRecipeConfig.trigger} onChange={(event) => updateSelectedRecipeConfig({ trigger: event.target.value as GovernanceNodeConfig["trigger"] })}><option>按上游变更触发</option><option>手动触发</option><option>定时触发</option></select></label>
               <div className="recipe-audit-option"><span><strong>保留处理轨迹</strong><small>记录命中规则、原始值与修复结果</small></span><button className={selectedRecipeConfig.keepAudit ? "on" : ""} aria-pressed={selectedRecipeConfig.keepAudit} onClick={() => updateSelectedRecipeConfig({ keepAudit: !selectedRecipeConfig.keepAudit })}><i /></button></div>
+              </>}
               <div className={`recipe-config-state ${selectedRecipeConfigIssues.length ? "warning" : "ready"}`}><UiIcon icon={selectedRecipeConfigIssues.length ? TriangleAlert : CircleCheck} /><span><strong>{selectedRecipeConfigIssues.length ? `尚需配置：${selectedRecipeConfigIssues.join("、")}` : "治理参数已完整"}</strong><small>{selectedRecipeConfig.validatedAt ? `最近校验 ${selectedRecipeConfig.validatedAt}` : selectedUpstream.length ? `已连接 ${selectedUpstream.length} 个上游节点` : "配置后请连接上游数据"}</small></span></div>
               <div className="node-tags"><small>节点标签</small><span>{selectedRecipeProfile.tag}</span><span>{selectedRecipeConfig.scope}</span>{selectedRecipeConfig.keepAudit && <span>可追溯</span>}</div>
             </> : <>
               <h4>{selectedProfile.typeLabel}配置</h4>
               <label>节点名称<input key={selectedNode.id} defaultValue={selectedNode.label} onChange={(event) => updateSelectedNodeLabel(event.target.value)} /></label>
-              <div className="config-pair"><span><small>数据格式</small><strong>{selectedProfile.format}</strong></span><span><small>运行引擎</small><strong>{selectedProfile.engine}</strong></span></div>
+              {!embedded && <><div className="config-pair"><span><small>数据格式</small><strong>{selectedProfile.format}</strong></span><span><small>运行引擎</small><strong>{selectedProfile.engine}</strong></span></div>
               {selectedProfile.fields.map((field) => <label key={`${selectedNode.id}-${field.label}`}>{field.label}{field.options
                 ? <select defaultValue={field.value} onChange={() => setSaved(false)}>{field.options.map((option) => <option key={option}>{option}</option>)}</select>
                 : <input defaultValue={field.value} onChange={() => setSaved(false)} />}</label>)}
-              <div className="node-tags"><small>节点标签</small>{selectedProfile.tags.map((tag) => <span key={tag}>{tag}</span>)}<button aria-label="添加标签" onClick={() => notify("已打开标签选择器")}><UiIcon icon={Plus} size={12} /></button></div>
+              <div className="node-tags"><small>节点标签</small>{selectedProfile.tags.map((tag) => <span key={tag}>{tag}</span>)}<button aria-label="添加标签" onClick={() => notify("已打开标签选择器")}><UiIcon icon={Plus} size={12} /></button></div></>}
             </>}
           </div>}
           {inspectorTab === "质量" && <div className="inspector-content quality-inspector">
             <h4>{isAnnotationNode ? "标注进度与质量" : `${selectedProfile.typeLabel}质量`}</h4>
-            {selectedMetrics.map((metric) => <div key={metric.label}><span><strong>{metric.label}</strong><b>{metric.value}</b></span><i><b style={{ width: `${metric.score}%` }} /></i></div>)}
-            {isAnnotationNode && <div className="annotation-review-queue"><header><strong>复核队列</strong><small>按风险排序</small></header><button onClick={() => notify("已打开遮挡目标复核队列")}><span>遮挡目标</span><b>168</b><Status tone="orange">高风险</Status></button><button onClick={() => notify("已打开小目标复核队列")}><span>小目标</span><b>124</b><Status tone="blue">待复核</Status></button><button onClick={() => notify("已打开类别冲突复核队列")}><span>类别冲突</span><b>94</b><Status tone="gray">一般</Status></button></div>}
-            <button className="inspector-secondary" onClick={() => notify(isAnnotationNode ? `已按 ${samplingRate}% 比例抽取标注复核样本` : `${selectedNode.label} 的质量报告已打开`)}>{isAnnotationNode ? "抽取复核样本" : "查看完整质量报告"}</button>
+            {!embedded && selectedMetrics.map((metric) => <div key={metric.label}><span><strong>{metric.label}</strong><b>{metric.value}</b></span><i><b style={{ width: `${metric.score}%` }} /></i></div>)}
+            {!embedded && isAnnotationNode && <div className="annotation-review-queue"><header><strong>复核队列</strong><small>按风险排序</small></header><button onClick={() => notify("已打开遮挡目标复核队列")}><span>遮挡目标</span><b>168</b><Status tone="orange">高风险</Status></button><button onClick={() => notify("已打开小目标复核队列")}><span>小目标</span><b>124</b><Status tone="blue">待复核</Status></button><button onClick={() => notify("已打开类别冲突复核队列")}><span>类别冲突</span><b>94</b><Status tone="gray">一般</Status></button></div>}
+            {embedded ? <p className="data-notice">{executionOutputs[selectedNode.id]?.report ? JSON.stringify(executionOutputs[selectedNode.id].report) : runStates[selectedNode.id]?.detail ?? "运行后查看真实结果"}</p> : <button className="inspector-secondary" onClick={() => notify(isAnnotationNode ? `已按 ${samplingRate}% 比例抽取标注复核样本` : `${selectedNode.label} 的质量报告已打开`)}>{isAnnotationNode ? "抽取复核样本" : "查看完整质量报告"}</button>}
           </div>}
           {inspectorTab === "血缘" && <div className="inspector-content lineage-inspector">
             <h4>上下游血缘</h4><small>当前节点参与 {selectedUpstream.length + selectedDownstream.length} 条数据链路</small>
@@ -3435,9 +2898,15 @@ function GovernanceWorkbench({
           </footer>
         </section>
       </div>}
-      {nodeDialogOpen && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭添加节点" onClick={() => setNodeDialogOpen(false)} /><form className="reuse-dialog workbench-node-dialog" onSubmit={addWorkbenchNode}><header><div><h2>添加治理节点</h2><p>节点加入画布后可继续配置并连接上下游</p></div><button type="button" aria-label="关闭添加节点" onClick={() => setNodeDialogOpen(false)}><UiIcon icon={X} /></button></header><label>节点类型<select value={nodeDraftKind} onChange={(event) => setNodeDraftKind(event.target.value as WorkbenchNode["kind"])}><option value="dataset">数据集</option><option value="recipe">治理 Recipe</option><option value="annotation">标注任务</option><option value="output">输出数据集</option></select></label><label>节点名称<input required value={nodeDraftName} onChange={(event) => setNodeDraftName(event.target.value)} placeholder="请输入节点名称" /></label><div className="workbench-node-dialog-tip"><UiIcon icon={Link2} /><span>添加后选择“连接节点”，再依次点击上游和下游节点即可建立血缘。</span></div><footer><button type="button" className="reuse-secondary" onClick={() => setNodeDialogOpen(false)}>取消</button><button className="reuse-primary"><UiIcon icon={Plus} />添加到画布</button></footer></form></div>}
+      {nodeDialogOpen && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭添加节点" onClick={() => setNodeDialogOpen(false)} /><form className="reuse-dialog workbench-node-dialog staged-node-dialog" ref={nodeDialogRef} role="dialog" aria-modal="true" aria-labelledby="node-picker-title" onSubmit={addWorkbenchNode}><header><div><h2 id="node-picker-title">添加治理节点</h2><p>按流程阶段选择节点，加入画布后配置参数</p></div><button type="button" aria-label="关闭添加节点" onClick={() => setNodeDialogOpen(false)}><UiIcon icon={X} /></button></header>
+        <nav className="node-stage-tabs" aria-label="节点阶段">{governanceStages.map((stage, index) => <button type="button" key={stage} aria-pressed={nodeDraftStage === stage} className={nodeDraftStage === stage ? "active" : ""} onClick={() => chooseNodeStage(stage)}><span>{index + 1}</span>{stage}</button>)}</nav>
+        <div className="node-picker-content"><div className="node-data-filters" aria-label="数据类型">{(["全部", "结构化", "非结构化"] as const).map(dataType => <button type="button" key={dataType} aria-pressed={nodeDraftDataType === dataType} className={nodeDraftDataType === dataType ? "active" : ""} onClick={() => chooseNodeStage(nodeDraftStage, dataType)}>{dataType}</button>)}</div>
+        <div className="node-template-grid" aria-label="可选治理节点">{availableNodeTemplates.map(template => <button type="button" key={template.id} aria-pressed={nodeDraftTemplateId === template.id} className={nodeDraftTemplateId === template.id ? "selected" : ""} onClick={() => { setNodeDraftTemplateId(template.id); setNodeDraftName(""); }}><span className="node-template-icon"><UiIcon icon={getWorkbenchNodeIcon(template.kind)} size={18} /></span><span><strong>{template.name}</strong><small>{template.description}</small><em>{template.dataType}</em></span><i>{nodeDraftTemplateId === template.id && <UiIcon icon={Check} size={15} />}</i></button>)}</div>
+        <label className="node-name-field">节点名称<input aria-label="节点名称" maxLength={120} value={nodeDraftName} onChange={event => setNodeDraftName(event.target.value)} placeholder={nodeDraftTemplate.name} /></label></div>
+        <footer><span className="node-selected-summary">{nodeDraftStage} · {nodeDraftTemplate.name}</span><button type="button" className="reuse-secondary" onClick={() => setNodeDialogOpen(false)}>取消</button><button className="reuse-primary"><UiIcon icon={Plus} />添加到画布</button></footer></form></div>}
+
       {assignmentDialogOpen && <div className="dialog-backdrop annotation-assignment-backdrop"><button className="dialog-dismiss" aria-label="关闭人员分派" onClick={() => setAssignmentDialogOpen(false)} /><section className="reuse-dialog annotation-assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="annotation-assignment-title"><header><div><span><UiIcon icon={UserPlus} size={19} /></span><div><h2 id="annotation-assignment-title">分派剩余标注任务</h2><p>{selectedNode.label} · 从平台用户中选择执行人员</p></div></div><button aria-label="关闭人员分派" onClick={() => setAssignmentDialogOpen(false)}><UiIcon icon={X} /></button></header><div className="annotation-assignment-summary"><span><small>待分派样本</small><strong>{unassignedAnnotationCount.toLocaleString()}</strong></span><span><small>已选人员</small><strong>{selectedAssignmentIds.length}</strong></span><span className={selectedAssignmentTotal > unassignedAnnotationCount ? "over" : ""}><small>本次分派</small><strong>{selectedAssignmentTotal.toLocaleString()}</strong></span></div><div className="annotation-assignment-toolbar"><label><UiIcon icon={Search} /><input value={assignmentSearch} onChange={(event) => setAssignmentSearch(event.target.value)} placeholder="搜索姓名、账号、团队或技能" /></label><button disabled={!selectedAssignmentIds.length} onClick={() => distributeAssignmentCounts(selectedAssignmentIds)}><UiIcon icon={Users} />平均分配</button></div><div className="annotation-operator-list">{filteredAnnotationOperators.map((operator) => { const selected = selectedAssignmentIds.includes(operator.id); return <div key={operator.id} className={selected ? "selected" : ""}><button className="annotation-operator-main" onClick={() => toggleAssignmentUser(operator.id)}><i>{selected && <UiIcon icon={Check} size={11} />}</i><span className="annotation-operator-avatar">{operator.name.slice(0, 1)}<b className={operator.online ? "online" : ""} /></span><span className="annotation-operator-info"><strong>{operator.name}<small>{operator.account}</small></strong><em>{operator.team}</em><small>{operator.skills.map((skill) => <b key={skill}>{skill}</b>)}</small></span><span className="annotation-operator-load"><small>进行中 / 单批容量</small><strong>{operator.activeTasks} / {operator.capacity}</strong></span></button>{selected && <label className="annotation-assignment-count"><span>分派数量</span><input type="number" min="1" max={unassignedAnnotationCount} value={assignmentCounts[operator.id] ?? 0} onChange={(event) => setAssignmentCounts((current) => ({ ...current, [operator.id]: Math.max(0, Number(event.target.value) || 0) }))} /></label>}</div>; })}{filteredAnnotationOperators.length === 0 && <div className="annotation-operator-empty"><UiIcon icon={Users} /><strong>没有匹配的用户</strong><small>请调整搜索条件后重试</small></div>}</div><div className="annotation-assignment-note"><UiIcon icon={ShieldCheck} /><span>确认后任务会进入对应用户的标注队列；分派记录保存在当前本地项目中。</span></div><footer><span className={selectedAssignmentTotal > unassignedAnnotationCount ? "error" : ""}>{selectedAssignmentTotal > unassignedAnnotationCount ? `超出 ${Math.abs(unassignedAnnotationCount - selectedAssignmentTotal).toLocaleString()} 个样本` : `分派后剩余 ${(unassignedAnnotationCount - selectedAssignmentTotal).toLocaleString()} 个样本`}</span><div><button className="reuse-secondary" onClick={() => setAssignmentDialogOpen(false)}>取消</button><button className="reuse-primary" disabled={!selectedAssignmentIds.length || selectedAssignmentTotal <= 0 || selectedAssignmentTotal > unassignedAnnotationCount} onClick={confirmAnnotationAssignments}><UiIcon icon={UserPlus} />确认分派</button></div></footer></section></div>}
-      {datasetImportOpen && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭数据集导入" onClick={() => setDatasetImportOpen(false)} /><section className="reuse-dialog dataset-import-dialog"><header><div><h2>选择导入数据集</h2><p>将已有数据资产或本地文件加入当前治理项目</p></div><button aria-label="关闭数据集导入" onClick={() => setDatasetImportOpen(false)}><UiIcon icon={X} /></button></header><nav>{(["资产库选择", "本地文件导入"] as const).map((mode) => <button key={mode} className={datasetImportMode === mode ? "active" : ""} onClick={() => setDatasetImportMode(mode)}>{mode === "资产库选择" ? <UiIcon icon={Database} /> : <UiIcon icon={FileUp} />}{mode}</button>)}</nav>{datasetImportMode === "资产库选择" ? <div className="dataset-catalog"><label><UiIcon icon={Search} /><input placeholder="搜索数据集名称、类型或来源" /></label><div className="dataset-catalog-head"><span>数据集名称</span><span>类型</span><span>规模</span><span>来源 / 更新时间</span></div>{datasetCatalog.map((item) => { const checked = selectedDatasetIds.includes(item.id); return <button key={item.id} className={checked ? "selected" : ""} onClick={() => setSelectedDatasetIds((current) => checked ? current.filter((id) => id !== item.id) : [...current, item.id])}><i>{checked && <UiIcon icon={Check} size={11} />}</i><strong>{item.name}</strong><span>{item.type}</span><span>{item.scale}</span><small>{item.source}<b>{item.updated}</b></small></button>; })}</div> : <div className="local-dataset-import"><div className="local-dataset-name"><span>数据集名称</span><input value={localDatasetName} onChange={(event) => setLocalDatasetName(event.target.value)} placeholder="例如：images（留空则按文件名自动生成）" /></div><label><input type="file" multiple accept=".csv,.json,.jsonl,.xlsx,.zip,.jpg,.jpeg,.png,.webp,.gif,.bmp,.mp3,.wav,.mp4,.pdf" onChange={(event: ChangeEvent<HTMLInputElement>) => setLocalDatasetFiles(Array.from(event.target.files ?? []))} /><span><UiIcon icon={FileUp} size={25} /><strong>点击选择或拖入真实数据文件</strong><small>可多选同一数据集中的图片，并保留原始文件名用于在线预览</small></span></label>{localDatasetFiles.length > 0 && <div className="local-file-list">{localDatasetFiles.map((file) => <span key={`${file.name}-${file.lastModified}`}><UiIcon icon={FileArchive} /><b>{file.name}</b><small>{(file.size / 1024).toFixed(1)} KB</small><button onClick={() => setLocalDatasetFiles((current) => current.filter((item) => item !== file))}><UiIcon icon={X} /></button></span>)}</div>}<p><UiIcon icon={ShieldCheck} />浏览器将直接读取所选文件；图片会传入已连接的标注节点，不再使用演示占位图。</p></div>}<footer><span>已选择 <b>{datasetImportMode === "资产库选择" ? selectedDatasetIds.length : localDatasetFiles.length}</b> 个数据集</span><div><button className="reuse-secondary" onClick={() => setDatasetImportOpen(false)}>取消</button><button className="reuse-primary" onClick={importSelectedDatasets}><UiIcon icon={FileDown} />导入到项目</button></div></footer></section></div>}
+      {datasetImportOpen && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭数据集导入" onClick={() => setDatasetImportOpen(false)} /><section className="reuse-dialog dataset-import-dialog"><header><div><h2>选择导入数据集</h2><p>将已有数据资产或本地文件加入当前治理项目</p></div><button aria-label="关闭数据集导入" onClick={() => setDatasetImportOpen(false)}><UiIcon icon={X} /></button></header><nav>{(["资产库选择", "本地文件导入"] as const).map((mode) => <button key={mode} className={datasetImportMode === mode ? "active" : ""} onClick={() => setDatasetImportMode(mode)}>{mode === "资产库选择" ? <UiIcon icon={Database} /> : <UiIcon icon={FileUp} />}{mode}</button>)}</nav>{datasetImportMode === "资产库选择" ? <div className="dataset-catalog"><label><UiIcon icon={Search} /><input placeholder="搜索数据集名称、类型或来源" /></label><div className="dataset-catalog-head"><span>数据集名称</span><span>类型</span><span>规模</span><span>来源 / 更新时间</span></div>{datasetCatalog.map((item) => { const checked = selectedDatasetIds.includes(item.id); return <button key={item.id} className={checked ? "selected" : ""} onClick={() => setSelectedDatasetIds((current) => checked ? current.filter((id) => id !== item.id) : [...current, item.id])}><i>{checked && <UiIcon icon={Check} size={11} />}</i><strong>{item.name}</strong><span>{item.type}</span><span>{item.scale}</span><small>{item.source}<b>{item.updated}</b></small></button>; })}</div> : <div className="local-dataset-import"><div className="local-dataset-name"><span>数据集名称</span><input value={localDatasetName} onChange={(event) => setLocalDatasetName(event.target.value)} placeholder="例如：images（留空则按文件名自动生成）" /></div><label><input type="file" multiple accept=".csv,.json,.jsonl,.txt,.md,.jpg,.jpeg,.png,.webp,.gif,.bmp,.mp3,.wav,.mp4,.pdf" onChange={(event: ChangeEvent<HTMLInputElement>) => setLocalDatasetFiles(Array.from(event.target.files ?? []))} /><span><UiIcon icon={FileUp} size={25} /><strong>点击选择或拖入真实数据文件</strong><small>可多选同一数据集中的图片，并保留原始文件名用于在线预览</small></span></label>{localDatasetFiles.length > 0 && <div className="local-file-list">{localDatasetFiles.map((file) => <span key={`${file.name}-${file.lastModified}`}><UiIcon icon={FileArchive} /><b>{file.name}</b><small>{(file.size / 1024).toFixed(1)} KB</small><button onClick={() => setLocalDatasetFiles((current) => current.filter((item) => item !== file))}><UiIcon icon={X} /></button></span>)}</div>}<p><UiIcon icon={ShieldCheck} />浏览器将直接读取所选文件；图片会传入已连接的标注节点，不再使用演示占位图。</p></div>}<footer><span>已选择 <b>{datasetImportMode === "资产库选择" ? selectedDatasetIds.length : localDatasetFiles.length}</b> 个数据集</span><div><button className="reuse-secondary" onClick={() => setDatasetImportOpen(false)}>取消</button><button className="reuse-primary" onClick={importSelectedDatasets}><UiIcon icon={FileDown} />导入到项目</button></div></footer></section></div>}
       {deleteTarget && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭删除确认" onClick={() => setDeleteTarget(null)} /><div className="reuse-dialog workbench-delete-dialog"><header><div><h2>删除治理节点</h2><p>{project.name}</p></div><button aria-label="关闭删除确认" onClick={() => setDeleteTarget(null)}><UiIcon icon={X} /></button></header><section><span><UiIcon icon={TriangleAlert} size={20} /></span><div><h3>确认删除“{deleteTarget.label}”</h3><p>该节点及与其相连的 {edges.filter((edge) => edge.from === deleteTarget.id || edge.to === deleteTarget.id).length} 条血缘连线将从当前画布移除，其他节点和运行记录不会受影响。</p></div></section><footer><button className="reuse-secondary" onClick={() => setDeleteTarget(null)}>取消</button><button className="reuse-danger" onClick={removeWorkbenchNode}><UiIcon icon={Trash2} />确认删除</button></footer></div></div>}
       {annotationRulesOpen && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭标注规范" onClick={() => setAnnotationRulesOpen(false)} /><section className="reuse-dialog annotation-rules-dialog"><header><div><h2>{selectedNode.label}标注规范</h2><p>{annotationType} · 规则版本 v2.4</p></div><button aria-label="关闭标注规范" onClick={() => setAnnotationRulesOpen(false)}><UiIcon icon={X} /></button></header><div className="annotation-rule-summary"><span><UiIcon icon={CircleCheck} /><b>规范检查通过</b><small>{annotationLabels.length} 个类别 · 4 项质检规则</small></span><Status tone="green">可开始标注</Status></div><div className="annotation-rule-list"><div><i>01</i><section><strong>目标边界</strong><p>标注框或多边形应紧贴真实目标可见边缘，遮挡目标只覆盖可见区域。</p></section><b>必检</b></div><div><i>02</i><section><strong>关键点一致性</strong><p>关键点名称、数量及顺序须遵循当前任务定义，不可见点应记录遮挡状态。</p></section><b>必检</b></div><div><i>03</i><section><strong>类别一致性</strong><p>只能使用当前任务配置的固定类别，禁止创建含义重复或无法解释的标签。</p></section><b>自动校验</b></div><div><i>04</i><section><strong>质量抽检</strong><p>按 {samplingRate}% 比例抽样；高风险样本进入双人复核，驳回后重新标注。</p></section><b>双人复核</b></div></div><footer><button className="reuse-secondary" onClick={() => setAnnotationRulesOpen(false)}>关闭</button><button className="reuse-primary" onClick={() => { setAnnotationRulesOpen(false); openAnnotationWorkspace(); }}><UiIcon icon={ClipboardCheck} />进入标注工作台</button></footer></section></div>}
     </section>
@@ -3628,13 +3097,7 @@ function GovernanceMarketplace({ notify }: { notify: Notify }) {
   );
 }
 
-type AssessmentConfig = {
-  dataset: string;
-  standard: string;
-  sampling: string;
-  threshold: number;
-  components: string[];
-};
+
 
 type AssessmentIssue = {
   id: string;
@@ -3647,428 +3110,21 @@ type AssessmentIssue = {
   suggestion: string;
 };
 
-type AssessmentRuleProfile = {
-  name: string;
-  code: string;
-  version: string;
-  category: string;
-  owner: string;
-  description: string;
-  scope: string;
-  logic: string;
-  threshold: string;
-  output: string[];
-  conditions: Array<{ field: string; operator: string; expected: string }>;
-};
 
-const assessmentComponents = ["图像完好性", "图像重复率合规性", "图像涉黄合规性", "图像格式一致性", "图像内容有效性"];
 
-const assessmentRuleProfiles: Record<string, AssessmentRuleProfile> = {
-  图像完好性: {
-    name: "图像完好性",
-    code: "IMG-COMP-001",
-    version: "v2.3.1",
-    category: "完整性规则",
-    owner: "数据质量标准组",
-    description: "检查文件是否可以完整解码、关键元数据是否存在，以及图像尺寸和像素数据是否满足入库要求。",
-    scope: "JPEG、PNG、WEBP；单文件最大 50 MB",
-    logic: "解码成功 AND 宽高有效 AND 像素数据完整 AND 文件头一致",
-    threshold: "完好率 ≥ 98%，单文件必须全部通过",
-    output: ["decode_status", "width", "height", "corrupt_offset"],
-    conditions: [
-      { field: "解码状态", operator: "等于", expected: "SUCCESS" },
-      { field: "图像宽度 / 高度", operator: "大于等于", expected: "256 × 256 px" },
-      { field: "损坏字节比例", operator: "小于等于", expected: "0.1%" },
-      { field: "文件头与扩展名", operator: "必须", expected: "一致" },
-    ],
-  },
-  图像重复率合规性: {
-    name: "图像重复率合规性",
-    code: "IMG-DUP-014",
-    version: "v3.1.0",
-    category: "唯一性规则",
-    owner: "训练数据治理组",
-    description: "联合感知哈希与视觉向量相似度识别完全重复、裁剪重复和轻度压缩后的近似重复样本。",
-    scope: "当前数据集与历史已发布图像库",
-    logic: "SHA256 相同 OR (pHash 距离 ≤ 6 AND CLIP 相似度 ≥ 0.95)",
-    threshold: "数据集近似重复率 ≤ 2%",
-    output: ["duplicate_group_id", "similarity", "reference_asset", "keep_suggestion"],
-    conditions: [
-      { field: "文件哈希", operator: "完全相同", expected: "判定重复" },
-      { field: "感知哈希距离", operator: "小于等于", expected: "6" },
-      { field: "视觉向量相似度", operator: "大于等于", expected: "0.95" },
-      { field: "重复组保留策略", operator: "优先", expected: "高分辨率 / 新版权" },
-    ],
-  },
-  图像涉黄合规性: {
-    name: "图像涉黄合规性",
-    code: "IMG-SAFE-006",
-    version: "v2.8.4",
-    category: "安全合规规则",
-    owner: "内容安全中心",
-    description: "通过多模型集成识别成人裸露、性暗示和未成年人高风险内容，并记录命中的安全标签。",
-    scope: "全量图像；疑似样本进入人工复核",
-    logic: "成人风险 < 0.30 AND 性暗示风险 < 0.45 AND 未成年人风险 = 0",
-    threshold: "严重违规 0 容忍，疑似内容复核率 100%",
-    output: ["safety_label", "risk_score", "model_version", "review_required"],
-    conditions: [
-      { field: "成人裸露风险", operator: "小于", expected: "0.30" },
-      { field: "性暗示风险", operator: "小于", expected: "0.45" },
-      { field: "未成年人风险", operator: "等于", expected: "0" },
-      { field: "模型置信区间", operator: "低于阈值时", expected: "转人工复核" },
-    ],
-  },
-  图像格式一致性: {
-    name: "图像格式一致性",
-    code: "IMG-FMT-003",
-    version: "v2.4.2",
-    category: "规范性规则",
-    owner: "数据生产规范组",
-    description: "统一图像编码、色彩空间、位深和方向信息，保证训练与推理链路能够稳定读取。",
-    scope: "JPEG / PNG 主数据，自动识别伪扩展名",
-    logic: "编码白名单 AND sRGB 色彩空间 AND 8 bit 位深 AND 方向已归一化",
-    threshold: "格式一致率 ≥ 99.5%",
-    output: ["mime_type", "color_space", "bit_depth", "orientation"],
-    conditions: [
-      { field: "编码格式", operator: "属于", expected: "JPEG、PNG" },
-      { field: "色彩空间", operator: "等于", expected: "sRGB" },
-      { field: "通道位深", operator: "等于", expected: "8 bit" },
-      { field: "EXIF 方向", operator: "必须", expected: "已归一化" },
-    ],
-  },
-  图像内容有效性: {
-    name: "图像内容有效性",
-    code: "IMG-VALID-009",
-    version: "v3.0.5",
-    category: "有效性规则",
-    owner: "视觉数据专家组",
-    description: "检查主体是否清晰可见、画面是否空白或严重模糊，以及内容是否符合篮球训练数据场景。",
-    scope: "篮球目标检测与关键点训练集",
-    logic: "主体置信度 ≥ 0.65 AND 遮挡率 < 65% AND 清晰度 ≥ 80",
-    threshold: "有效样本率 ≥ 95%",
-    output: ["subject_confidence", "occlusion_ratio", "blur_score", "scene_match"],
-    conditions: [
-      { field: "主体识别置信度", operator: "大于等于", expected: "0.65" },
-      { field: "主体遮挡比例", operator: "小于", expected: "65%" },
-      { field: "拉普拉斯清晰度", operator: "大于等于", expected: "80" },
-      { field: "篮球场景匹配度", operator: "大于等于", expected: "0.70" },
-    ],
-  },
-};
 
-const initialAssessmentIssues: AssessmentIssue[] = [
-  { id: "QA-0823-001", sample: "basketball_03812.jpeg", component: "图像重复率合规性", problem: "与 basketball_01866.jpeg 相似度 99.2%", severity: "中", assignee: "未分派", status: "待处理", suggestion: "保留分辨率更高的样本，移除重复文件" },
-  { id: "QA-0823-002", sample: "basketball_09218.jpeg", component: "图像内容有效性", problem: "主体遮挡面积超过 65%", severity: "高", assignee: "视觉数据治理组", status: "已分派", suggestion: "转入人工复核并补充主体可见性标签" },
-  { id: "QA-0823-003", sample: "basketball_00186.jpeg", component: "图像格式一致性", problem: "色彩空间为 CMYK，不符合 sRGB 标准", severity: "低", assignee: "数据生产一组", status: "待复核", suggestion: "转换为 JPEG / sRGB 后重新评估" },
-];
 
-type AssessmentHistoryRow = {
-  id: string;
-  task: string;
-  dataset: string;
-  category: "语句文件" | "自定义审查" | "多模态审查";
-  standard: string;
-  score: number | null;
-  issues: number;
-  closure: number;
-  status: "通过" | "未通过" | "已终止";
-  owner: string;
-  completed: string;
-  duration: string;
-  samples: string;
-  components: Array<{ name: string; score: number | null; issues: number; result: "通过" | "未通过" | "未执行" }>;
-};
 
-const assessmentHistoryRows: AssessmentHistoryRow[] = [
-  { id: "QA-HIS-20260824-018", task: "篮球版本1质量复评", dataset: "篮球高质量数据集1 v1.3", category: "多模态审查", standard: "图像质量评估标准 v2", score: 96.8, issues: 3, closure: 100, status: "通过", owner: "视觉数据治理组", completed: "2026-08-24 18:42", duration: "16 分 42 秒", samples: "12,680", components: [{ name: "图像完整性", score: 100, issues: 0, result: "通过" }, { name: "图像重复率合规性", score: 94, issues: 2, result: "通过" }, { name: "图像格式一致性", score: 98, issues: 1, result: "通过" }] },
-  { id: "QA-HIS-20260824-017", task: "金融问答训练集发布审查", dataset: "金融年报问答集 v2.1", category: "语句文件", standard: "SFT 数据质量标准 v2", score: 93.4, issues: 18, closure: 100, status: "通过", owner: "金融数据生产组", completed: "2026-08-24 16:15", duration: "28 分 09 秒", samples: "38,420", components: [{ name: "问答相关性", score: 95, issues: 6, result: "通过" }, { name: "事实一致性", score: 92, issues: 9, result: "通过" }, { name: "语言规范性", score: 94, issues: 3, result: "通过" }] },
-  { id: "QA-HIS-20260824-016", task: "图文指令对齐专项审查", dataset: "图文指令数据集 v2.4", category: "多模态审查", standard: "图文对齐质量标准 v2.2", score: 88.7, issues: 42, closure: 76, status: "未通过", owner: "多模态数据组", completed: "2026-08-24 13:26", duration: "34 分 51 秒", samples: "20,600", components: [{ name: "图文语义对齐", score: 86, issues: 28, result: "未通过" }, { name: "图像可用性", score: 94, issues: 4, result: "通过" }, { name: "指令完整性", score: 89, issues: 10, result: "未通过" }] },
-  { id: "QA-HIS-20260823-015", task: "客服对话脱敏与完整性审查", dataset: "客服对话语料 v3.0", category: "自定义审查", standard: "客户信息合规规则包", score: 97.2, issues: 5, closure: 100, status: "通过", owner: "客户数据治理组", completed: "2026-08-23 19:08", duration: "12 分 36 秒", samples: "86,510", components: [{ name: "敏感信息脱敏", score: 99, issues: 1, result: "通过" }, { name: "对话完整性", score: 97, issues: 3, result: "通过" }, { name: "角色一致性", score: 96, issues: 1, result: "通过" }] },
-  { id: "QA-HIS-20260823-014", task: "业务事件字段完整性审查", dataset: "业务事件样本集 v1.9", category: "自定义审查", standard: "字段完整性专项规则", score: 94.1, issues: 11, closure: 91, status: "通过", owner: "业务数据平台组", completed: "2026-08-23 14:30", duration: "09 分 18 秒", samples: "2.4M", components: [{ name: "必填字段完整性", score: 96, issues: 4, result: "通过" }, { name: "枚举值规范性", score: 93, issues: 5, result: "通过" }, { name: "时间字段有效性", score: 94, issues: 2, result: "通过" }] },
-  { id: "QA-HIS-20260822-013", task: "OCR 文档解析结果审查", dataset: "金融年报文档 v1.8", category: "语句文件", standard: "文档解析质量标准 v1.7", score: 89.6, issues: 27, closure: 82, status: "未通过", owner: "文档智能组", completed: "2026-08-22 21:17", duration: "41 分 03 秒", samples: "1,286", components: [{ name: "版面结构还原", score: 92, issues: 8, result: "通过" }, { name: "表格识别准确率", score: 86, issues: 15, result: "未通过" }, { name: "文本字符准确率", score: 91, issues: 4, result: "通过" }] },
-  { id: "QA-HIS-20260822-012", task: "客服音视频语料预审", dataset: "客服音视频语料 v1.7", category: "多模态审查", standard: "音视频内容质量标准 v1.5", score: null, issues: 0, closure: 0, status: "已终止", owner: "语音数据组", completed: "2026-08-22 17:52", duration: "03 分 12 秒", samples: "8,460", components: [{ name: "音频可解码性", score: 100, issues: 0, result: "通过" }, { name: "音画同步", score: null, issues: 0, result: "未执行" }, { name: "转写一致性", score: null, issues: 0, result: "未执行" }] },
-  { id: "QA-HIS-20260821-011", task: "客户知识库语言质量审查", dataset: "客服知识数据集 v3.4", category: "语句文件", standard: "多轮对话质量标准 v1.6", score: 95.5, issues: 8, closure: 100, status: "通过", owner: "知识运营组", completed: "2026-08-21 15:46", duration: "22 分 25 秒", samples: "54,280", components: [{ name: "语言通顺度", score: 97, issues: 2, result: "通过" }, { name: "答案有效性", score: 95, issues: 4, result: "通过" }, { name: "上下文一致性", score: 94, issues: 2, result: "通过" }] },
-];
 
-function AssessmentHistoryPage({ notify }: { notify: Notify }) {
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("全部状态");
-  const [categoryFilter, setCategoryFilter] = useState("全部类型");
-  const [selected, setSelected] = useState<AssessmentHistoryRow | null>(null);
-  const filtered = assessmentHistoryRows.filter((row) => (statusFilter === "全部状态" || row.status === statusFilter) && (categoryFilter === "全部类型" || row.category === categoryFilter) && `${row.task}${row.dataset}${row.id}${row.owner}`.toLowerCase().includes(query.toLowerCase()));
-  const passed = assessmentHistoryRows.filter((row) => row.status === "通过").length;
-  const scored = assessmentHistoryRows.filter((row) => row.score !== null);
-  const averageScore = scored.reduce((sum, row) => sum + (row.score ?? 0), 0) / Math.max(1, scored.length);
+const initialAssessmentIssues: AssessmentIssue[] = [];
 
-  function exportHistory(rows: AssessmentHistoryRow[], filename: string) {
-    const values = [["批次编号", "评估任务", "数据集", "任务类型", "评估标准", "质量得分", "问题数量", "闭环率", "结果", "执行人", "完成时间"], ...rows.map((row) => [row.id, row.task, row.dataset, row.category, row.standard, row.score ?? "--", row.issues, `${row.closure}%`, row.status, row.owner, row.completed])];
-    const csv = `\uFEFF${values.map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n")}`;
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    notify(`已导出 ${rows.length} 条历史评估记录`);
-  }
+function AssessmentHistoryPage() { return <section className="reuse-content-page"><DataWorkbench mode="history" /></section>; }
 
-  return <section className="assessment-history-page">
-    <header className="assessment-history-head"><div><span><UiIcon icon={ScrollText} size={19} /></span><div><h1>高质量数据评估历史</h1><p>查询已结束的评估批次，追溯质量结论、问题闭环和组件执行结果</p></div></div><div><button className="reuse-secondary" onClick={() => notify("历史评估记录已刷新")}><UiIcon icon={RefreshCw} />刷新</button><button className="reuse-primary" disabled={!filtered.length} onClick={() => exportHistory(filtered, "高质量数据评估历史.csv")}><UiIcon icon={Download} />导出历史</button></div></header>
-    <div className="assessment-history-summary"><span><small>历史批次</small><strong>20</strong><b>当前展示最近 8 条</b></span><span><small>评估通过</small><strong>{passed}</strong><b>通过率 {Math.round(passed / assessmentHistoryRows.length * 100)}%</b></span><span><small>平均质量得分</small><strong>{averageScore.toFixed(1)}</strong><b>不含已终止任务</b></span><span><small>累计问题样本</small><strong>{assessmentHistoryRows.reduce((sum, row) => sum + row.issues, 0)}</strong><b>跨 {assessmentHistoryRows.length} 个批次</b></span></div>
-    <div className="assessment-history-toolbar"><label><UiIcon icon={Search} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务、数据集、批次编号或执行人" /></label><div><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>全部状态</option><option>通过</option><option>未通过</option><option>已终止</option></select><select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option>全部类型</option><option>语句文件</option><option>自定义审查</option><option>多模态审查</option></select><span><UiIcon icon={Filter} />共 {filtered.length} 条结果</span></div></div>
-    <div className="assessment-history-table"><table><thead><tr><th>批次 / 评估任务</th><th>数据集版本</th><th>类型</th><th>评估标准</th><th>质量得分</th><th>问题 / 闭环率</th><th>完成时间</th><th>结果</th><th>操作</th></tr></thead><tbody>{filtered.map((row) => <tr key={row.id}><td><strong>{row.task}</strong><small>{row.id} · {row.owner}</small></td><td>{row.dataset}</td><td><span className="history-category">{row.category}</span></td><td>{row.standard}</td><td><b className={row.score !== null && row.score < 90 ? "low" : ""}>{row.score?.toFixed(1) ?? "--"}</b></td><td><strong>{row.issues}</strong><small>闭环 {row.closure}%</small></td><td>{row.completed}<small>耗时 {row.duration}</small></td><td><Status tone={row.status === "通过" ? "green" : row.status === "未通过" ? "orange" : "gray"}>{row.status}</Status></td><td><button className="reuse-link" onClick={() => setSelected(row)}><UiIcon icon={Eye} />查看</button></td></tr>)}</tbody></table>{!filtered.length && <div className="assessment-history-empty"><UiIcon icon={ScanSearch} size={25} /><strong>没有匹配的历史记录</strong><p>调整关键词或筛选条件后重试。</p></div>}</div>
-    <footer className="assessment-history-pagination"><span>共 20 条 · 当前展示 {filtered.length} 条</span><div><button disabled>‹</button><button className="active">1</button><button>2</button><button>3</button><button>›</button></div></footer>
-    {selected && <div className="assessment-history-drawer-backdrop"><button className="dialog-dismiss" aria-label="关闭历史详情" onClick={() => setSelected(null)} /><aside className="assessment-history-drawer"><header><div><span><UiIcon icon={ClipboardCheck} size={18} /></span><div><h2>{selected.task}</h2><p>{selected.id} · {selected.completed}</p></div></div><button aria-label="关闭历史详情" onClick={() => setSelected(null)}><UiIcon icon={X} /></button></header><div className="history-detail-result"><Status tone={selected.status === "通过" ? "green" : selected.status === "未通过" ? "orange" : "gray"}>{selected.status}</Status><strong>{selected.score?.toFixed(1) ?? "--"}</strong><span>质量得分</span><b>{selected.issues} 个问题 · 闭环率 {selected.closure}%</b></div><dl><div><dt>数据集版本</dt><dd>{selected.dataset}</dd></div><div><dt>评估标准</dt><dd>{selected.standard}</dd></div><div><dt>评估类型</dt><dd>{selected.category}</dd></div><div><dt>样本数量</dt><dd>{selected.samples}</dd></div><div><dt>执行团队</dt><dd>{selected.owner}</dd></div><div><dt>执行耗时</dt><dd>{selected.duration}</dd></div></dl><section><h3>组件执行结果</h3><table><thead><tr><th>评估组件</th><th>得分</th><th>问题</th><th>结果</th></tr></thead><tbody>{selected.components.map((component) => <tr key={component.name}><td>{component.name}</td><td>{component.score ?? "--"}</td><td>{component.issues}</td><td><Status tone={component.result === "通过" ? "green" : component.result === "未通过" ? "orange" : "gray"}>{component.result}</Status></td></tr>)}</tbody></table></section><footer><button className="reuse-secondary" onClick={() => setSelected(null)}>关闭</button><button className="reuse-primary" onClick={() => exportHistory([selected], `${selected.task}-历史评估报告.csv`)}><UiIcon icon={FileDown} />导出报告</button></footer></aside></div>}
+function AssessmentPage({ initialView }: { initialView: "评估执行" | "问题闭环" }) {
+  const [view, setView] = useState(initialView);
+  return <section className="reuse-content-page"><div className="reuse-page-tabs"><button className={view === "评估执行" ? "active" : ""} onClick={() => setView("评估执行")}>评估执行</button><button className={view === "问题闭环" ? "active" : ""} onClick={() => setView("问题闭环")}>历史问题闭环</button></div>
+    {view === "评估执行" ? <DataWorkbench mode="assessment" /> : <AssessmentIssues />}
   </section>;
-}
-
-function AssessmentPage({
-  initialView,
-  tasks,
-  issues,
-  setIssues,
-  openDialog,
-  notify,
-}: {
-  initialView: "评估执行" | "问题闭环";
-  tasks: string[];
-  issues: AssessmentIssue[];
-  setIssues: React.Dispatch<React.SetStateAction<AssessmentIssue[]>>;
-  openDialog: () => void;
-  notify: Notify;
-}) {
-  const [task, setTask] = useState(tasks[0]);
-  const [search, setSearch] = useState("");
-  const [progress, setProgress] = useState(72);
-  const progressRef = useRef(progress);
-  const [running, setRunning] = useState(false);
-  const [view, setView] = useState<"评估执行" | "问题闭环">(initialView);
-  const [configOpen, setConfigOpen] = useState(false);
-  const [config, setConfig] = useState<AssessmentConfig>({ dataset: "篮球高质量数据集1", standard: "图像质量评估标准 v2", sampling: "全量评估", threshold: 95, components: assessmentComponents });
-  const [configDraft, setConfigDraft] = useState<AssessmentConfig>(config);
-  const [issueFilter, setIssueFilter] = useState("全部状态");
-  const [selectedRuleName, setSelectedRuleName] = useState<string | null>(null);
-  const [ruleDetailTab, setRuleDetailTab] = useState<"规则定义" | "执行记录" | "问题样本">("规则定义");
-  const filteredTasks = tasks.filter((item) => item.toLowerCase().includes(search.toLowerCase()));
-  const completedCount = progress >= 100 ? config.components.length : Math.min(Math.max(0, config.components.length - 1), Math.floor(progress / Math.max(1, 100 / config.components.length)));
-  const openIssueCount = issues.filter((issue) => issue.status !== "已关闭").length;
-  const closedIssueCount = issues.length - openIssueCount;
-  const filteredIssues = issues.filter((issue) => issueFilter === "全部状态" || issue.status === issueFilter);
-  const selectedRule = selectedRuleName ? assessmentRuleProfiles[selectedRuleName] : null;
-  const selectedRuleIndex = selectedRuleName ? config.components.indexOf(selectedRuleName) : -1;
-  const selectedRuleComplete = selectedRuleIndex >= 0 && selectedRuleIndex < completedCount;
-  const selectedRuleRunning = running && selectedRuleIndex === completedCount;
-  const selectedRuleIssues = selectedRuleName ? issues.filter((issue) => issue.component === selectedRuleName) : [];
-
-  useEffect(() => {
-    progressRef.current = progress;
-  }, [progress]);
-
-  useEffect(() => {
-    if (!running) return;
-    const timer = window.setInterval(() => {
-      const next = Math.min(100, progressRef.current + 7);
-      progressRef.current = next;
-      setProgress(next);
-      if (next === 100) {
-        window.clearInterval(timer);
-        setRunning(false);
-        notify(`${task} 已完成全部质量组件`);
-      }
-    }, 360);
-    return () => window.clearInterval(timer);
-  }, [running, notify, task]);
-
-  function selectTask(item: string, index: number) {
-    setTask(item);
-    setProgress(index < 2 ? 72 : 20);
-    setRunning(false);
-    setView("评估执行");
-    setSelectedRuleName(null);
-  }
-
-  function openAssessmentRule(name: string) {
-    setSelectedRuleName(name);
-    setRuleDetailTab("规则定义");
-  }
-
-  function openAssessmentConfig() {
-    setConfigDraft({ ...config, components: [...config.components] });
-    setConfigOpen(true);
-  }
-
-  function toggleAssessmentComponent(component: string) {
-    setConfigDraft((current) => ({
-      ...current,
-      components: current.components.includes(component) ? current.components.filter((item) => item !== component) : [...current.components, component],
-    }));
-  }
-
-  function saveAssessmentConfig(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!configDraft.components.length) {
-      notify("请至少选择一个质量评估组件");
-      return;
-    }
-    setConfig({ ...configDraft, components: [...configDraft.components] });
-    setProgress(0);
-    setRunning(false);
-    setConfigOpen(false);
-    notify(`${task} 的评估配置已保存，请开始执行`);
-  }
-
-  function advanceAssessmentIssue(id: string) {
-    setIssues((current) => current.map((issue) => {
-      if (issue.id !== id) return issue;
-      if (issue.status === "待处理") return { ...issue, assignee: "数据质量治理组", status: "已分派" };
-      if (issue.status === "已分派") return { ...issue, status: "待复核" };
-      if (issue.status === "待复核") return { ...issue, status: "已关闭" };
-      return issue;
-    }));
-    const issue = issues.find((item) => item.id === id);
-    const nextAction = issue?.status === "待处理" ? "已分派整改" : issue?.status === "已分派" ? "已提交复核" : issue?.status === "待复核" ? "复核通过并关闭" : "已查看";
-    notify(`${id} ${nextAction}`);
-  }
-
-  function exportAssessmentReport() {
-    const escapeCsv = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
-    const summary = [
-      ["评估任务", task], ["数据集", config.dataset], ["评估标准", config.standard], ["抽样策略", config.sampling], ["通过阈值", `${config.threshold} 分`], ["评估进度", `${progress}%`], ["问题总数", issues.length], ["已关闭", closedIssueCount],
-    ];
-    const rows = [
-      ["高质量数据集质量评估报告"],
-      ...summary,
-      [],
-      ["问题编号", "样本", "评估组件", "问题描述", "严重度", "责任人", "状态", "整改建议"],
-      ...issues.map((issue) => [issue.id, issue.sample, issue.component, issue.problem, issue.severity, issue.assignee, issue.status, issue.suggestion]),
-    ];
-    const blob = new Blob(["\ufeff", rows.map((row) => row.map(escapeCsv).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${task}-质量评估报告.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    notify(`${task} 的质量评估报告已导出`);
-  }
-
-  return (
-    <section className="assessment-page">
-      <aside className="white-panel task-browser">
-        <div className="reuse-panel-head small">
-          <div><h2>审查任务列表</h2><p>20 个任务 · 展示 {filteredTasks.length}</p></div>
-          <button className="reuse-primary" onClick={openDialog}><UiIcon icon={Plus} />添加</button>
-        </div>
-        <label className="reuse-search full">
-          <UiIcon icon={Search} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="请输入关键字进行搜索" />
-        </label>
-        <div className="assessment-task-list">
-          {filteredTasks.map((item) => {
-            const originalIndex = tasks.indexOf(item);
-            return (
-              <button className={task === item ? "active" : ""} key={item} onClick={() => selectTask(item, originalIndex)}>
-                <span>▣</span>
-                <div><strong>{item}</strong><small>{originalIndex < 2 ? "审查进行中..." : "等待审查"}</small></div>
-                <b>›</b>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
-      <article className="white-panel assessment-scope">
-        <header>
-          <div><h2>数据集质量评估</h2><p>评估任务：<strong>{task}</strong> · {config.standard}</p></div>
-          <div className="assessment-head-actions"><Status tone={progress >= 100 ? "green" : "blue"}>{progress >= 100 ? "评估已完成" : running ? "正在执行" : progress === 0 ? "等待执行" : "评估进行中"}</Status><button className="reuse-secondary" onClick={openAssessmentConfig}><UiIcon icon={Settings2} />评估配置</button><button className="reuse-primary" disabled={progress < 100} onClick={exportAssessmentReport}><UiIcon icon={Download} />导出报告</button></div>
-        </header>
-        <nav className="assessment-view-tabs"><button className={view === "评估执行" ? "active" : ""} onClick={() => setView("评估执行")}><UiIcon icon={Play} />评估执行</button><button className={view === "问题闭环" ? "active" : ""} onClick={() => setView("问题闭环")}><UiIcon icon={ClipboardCheck} />问题闭环 <b>{openIssueCount}</b></button></nav>
-        {view === "评估执行" && <>
-        <div className="scope-summary">
-          <div><span>数据集</span><strong>1 个</strong></div>
-          <div><span>评估组件</span><strong>{config.components.length} 项</strong></div>
-          <div><span>评估样本</span><strong>{config.sampling === "全量评估" ? "12,680" : "2,536"}</strong></div>
-          <div><span>质量得分</span><strong>{progress >= 100 ? "96.8" : progress === 0 ? "--" : "进行中"}</strong></div>
-        </div>
-        <section className="assessment-item">
-          <div className={`dataset-illustration ${running ? "is-running" : ""}`}>数</div>
-          <div className="assessment-copy">
-            <h3>{config.dataset}</h3>
-            <p>{config.standard} · {config.components.length} 个质量组件 · 阈值 {config.threshold} 分</p>
-            <Progress value={progress} />
-            <small>{progress >= 100 ? `评估完成，发现 ${issues.length} 个问题，${closedIssueCount} 个已关闭` : `评估进行中，已完成 ${completedCount} / ${config.components.length} 个组件`}</small>
-          </div>
-          <button
-            className="reuse-primary"
-            disabled={running}
-            onClick={() => {
-              if (progress >= 100) setProgress(0);
-              setRunning(true);
-            }}
-          >
-            <UiIcon icon={running ? RefreshCw : Play} />{running ? "执行中..." : progress >= 100 ? "重新执行" : progress === 0 ? "开始评估" : "继续评估"}
-          </button>
-        </section>
-        <div className="reuse-table-wrap">
-          <table className="reuse-table">
-            <thead>
-              <tr><th>组件名称</th><th>数据量</th><th>问题数量</th><th>正确率</th><th>评估日期</th><th>状态</th></tr>
-            </thead>
-            <tbody>
-              {config.components.map((name, index) => {
-                const complete = index < completedCount;
-                const current = running && index === completedCount;
-                return (
-                  <tr key={name}>
-                    <td><button className="assessment-rule-link" onClick={() => openAssessmentRule(name)}><strong>{name}</strong><UiIcon icon={ChevronRight} size={12} /></button></td><td>2</td><td>{complete ? issues.filter((issue) => issue.component === name).length : 0}</td>
-                    <td>{complete ? (index === 1 ? "50%" : "100%") : "--"}</td><td>2026-08-23</td>
-                    <td><Status tone={complete ? "green" : current ? "blue" : "gray"}>{complete ? "已完成" : current ? "执行中" : "等待评估"}</Status></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="assessment-result-strip"><span><UiIcon icon={TriangleAlert} /><strong>{issues.length}</strong> 个问题样本</span><span><UiIcon icon={CircleCheck} /><strong>{closedIssueCount}</strong> 个已闭环</span><span><strong>{openIssueCount}</strong> 个待处理或复核</span><button className="reuse-link" onClick={() => setView("问题闭环")}>进入问题闭环 <UiIcon icon={ChevronRight} /></button></div>
-        </>}
-        {view === "问题闭环" && <section className="assessment-issue-workspace">
-          <div className="assessment-issue-summary"><span><small>问题总数</small><strong>{issues.length}</strong></span><span><small>高风险</small><strong>{issues.filter((issue) => issue.severity === "高" && issue.status !== "已关闭").length}</strong></span><span><small>整改处理中</small><strong>{issues.filter((issue) => issue.status === "已分派").length}</strong></span><span><small>待复核</small><strong>{issues.filter((issue) => issue.status === "待复核").length}</strong></span><span><small>闭环率</small><strong>{Math.round(closedIssueCount / Math.max(1, issues.length) * 100)}%</strong></span></div>
-          <div className="assessment-issue-toolbar"><div><h3>问题样本处置</h3><p>分派整改、提交复核并关闭问题，所有状态实时回写任务</p></div><label>状态筛选<select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}><option>全部状态</option><option>待处理</option><option>已分派</option><option>待复核</option><option>已关闭</option></select></label></div>
-          <div className="reuse-table-wrap"><table className="reuse-table compact-table assessment-issue-table"><thead><tr><th>问题编号 / 样本</th><th>评估组件</th><th>问题描述</th><th>风险</th><th>责任人</th><th>状态</th><th>整改建议</th><th>操作</th></tr></thead><tbody>{filteredIssues.map((issue) => <tr key={issue.id}><td><strong>{issue.id}</strong><small>{issue.sample}</small></td><td>{issue.component}</td><td>{issue.problem}</td><td><Status tone={issue.severity === "高" ? "orange" : issue.severity === "中" ? "blue" : "gray"}>{issue.severity}风险</Status></td><td>{issue.assignee}</td><td><Status tone={issue.status === "已关闭" ? "green" : issue.status === "待复核" ? "blue" : issue.status === "已分派" ? "orange" : "gray"}>{issue.status}</Status></td><td>{issue.suggestion}</td><td><button className="reuse-link" onClick={() => advanceAssessmentIssue(issue.id)}>{issue.status === "待处理" ? "分派整改" : issue.status === "已分派" ? "提交复核" : issue.status === "待复核" ? "复核通过" : "查看记录"}</button></td></tr>)}</tbody></table>{filteredIssues.length === 0 && <div className="table-empty">当前筛选条件下没有问题记录</div>}</div>
-        </section>}
-      </article>
-      {selectedRule && <div className="assessment-rule-backdrop">
-        <button className="dialog-dismiss" aria-label="关闭规则详情" onClick={() => setSelectedRuleName(null)} />
-        <aside className="assessment-rule-drawer">
-          <header>
-            <div><span><UiIcon icon={ScanSearch} size={18} /></span><div><strong>{selectedRule.name}</strong><small>{selectedRule.code} · {selectedRule.version}</small></div></div>
-            <button aria-label="关闭规则详情" onClick={() => setSelectedRuleName(null)}><UiIcon icon={X} /></button>
-          </header>
-          <div className="assessment-rule-state">
-            <Status tone={selectedRuleComplete ? "green" : selectedRuleRunning ? "blue" : "gray"}>{selectedRuleComplete ? "已完成" : selectedRuleRunning ? "执行中" : "等待评估"}</Status>
-            <span>本次数据量 <b>2</b></span><span>命中问题 <b>{selectedRuleComplete ? selectedRuleIssues.length : 0}</b></span><span>正确率 <b>{selectedRuleComplete ? (selectedRuleIssues.length ? "50%" : "100%") : "--"}</b></span>
-          </div>
-          <nav>{(["规则定义", "执行记录", "问题样本"] as const).map((tab) => <button key={tab} className={ruleDetailTab === tab ? "active" : ""} onClick={() => setRuleDetailTab(tab)}>{tab}{tab === "问题样本" && <b>{selectedRuleIssues.length}</b>}</button>)}</nav>
-          <section>
-            {ruleDetailTab === "规则定义" && <>
-              <p className="assessment-rule-description">{selectedRule.description}</p>
-              <dl className="assessment-rule-metadata"><div><dt>规则分类</dt><dd>{selectedRule.category}</dd></div><div><dt>责任团队</dt><dd>{selectedRule.owner}</dd></div><div><dt>适用范围</dt><dd>{selectedRule.scope}</dd></div><div><dt>通过阈值</dt><dd>{selectedRule.threshold}</dd></div></dl>
-              <h3>判定逻辑</h3><div className="assessment-rule-expression"><span>IF</span><code>{selectedRule.logic}</code></div>
-              <h3>规则条件</h3><div className="assessment-rule-conditions">{selectedRule.conditions.map((condition, index) => <div key={`${condition.field}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><span><strong>{condition.field}</strong><small>{condition.operator}</small></span><em>{condition.expected}</em></div>)}</div>
-              <h3>输出字段</h3><div className="assessment-rule-fields">{selectedRule.output.map((field) => <code key={field}>{field}</code>)}</div>
-            </>}
-            {ruleDetailTab === "执行记录" && <>
-              <div className="assessment-rule-run-summary"><span><small>执行批次</small><strong>RUN-20260823-04</strong></span><span><small>评估日期</small><strong>2026-08-23</strong></span><span><small>规则耗时</small><strong>{selectedRuleComplete ? "00:18" : "--"}</strong></span></div>
-              <h3>执行步骤</h3><div className="assessment-rule-timeline"><div className="done"><i>✓</i><span><strong>加载规则版本</strong><small>{selectedRule.version} · 参数校验通过</small></span></div><div className={selectedRuleComplete || selectedRuleRunning ? "done" : "waiting"}><i>{selectedRuleComplete || selectedRuleRunning ? "✓" : "2"}</i><span><strong>读取评估样本</strong><small>已加载 2 个图像样本</small></span></div><div className={selectedRuleComplete ? "done" : selectedRuleRunning ? "running" : "waiting"}><i>{selectedRuleComplete ? "✓" : selectedRuleRunning ? "◌" : "3"}</i><span><strong>执行规则判定</strong><small>{selectedRuleComplete ? "规则执行完成" : selectedRuleRunning ? "正在计算质量指标" : "等待前序组件完成"}</small></span></div><div className={selectedRuleComplete ? "done" : "waiting"}><i>{selectedRuleComplete ? "✓" : "4"}</i><span><strong>写入评估结果</strong><small>{selectedRuleComplete ? "结果已回写当前任务" : "尚未生成结果"}</small></span></div></div>
-            </>}
-            {ruleDetailTab === "问题样本" && <div className="assessment-rule-issues">{selectedRuleIssues.length > 0 ? selectedRuleIssues.map((issue) => <button key={issue.id} onClick={() => { setSelectedRuleName(null); setView("问题闭环"); setIssueFilter(issue.status); }}><span><strong>{issue.sample}</strong><small>{issue.id} · {issue.problem}</small></span><Status tone={issue.severity === "高" ? "orange" : issue.severity === "中" ? "blue" : "gray"}>{issue.severity}风险</Status><UiIcon icon={ChevronRight} /></button>) : <div><span><UiIcon icon={CircleCheck} size={22} /></span><strong>未发现问题样本</strong><p>当前任务尚未命中该规则，或规则仍在等待评估。</p></div>}</div>}
-          </section>
-          <footer><button className="reuse-secondary" onClick={() => { setSelectedRuleName(null); openAssessmentConfig(); }}><UiIcon icon={Settings2} />编辑评估配置</button>{selectedRuleIssues.length > 0 ? <button className="reuse-primary" onClick={() => { setSelectedRuleName(null); setView("问题闭环"); setIssueFilter("全部状态"); }}><UiIcon icon={ClipboardCheck} />查看问题样本</button> : <button className="reuse-primary" disabled={running || selectedRuleComplete} onClick={() => { setSelectedRuleName(null); setRunning(true); notify(`${selectedRule.name} 已进入评估执行队列`); }}><UiIcon icon={Play} />{selectedRuleComplete ? "规则已完成" : "执行当前任务"}</button>}</footer>
-        </aside>
-      </div>}
-      {configOpen && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="关闭评估配置" onClick={() => setConfigOpen(false)} /><form className="reuse-dialog assessment-config-dialog" onSubmit={saveAssessmentConfig}><header><div><h2>评估任务配置</h2><p>{task} · 保存后将重新执行评估</p></div><button type="button" aria-label="关闭评估配置" onClick={() => setConfigOpen(false)}><UiIcon icon={X} /></button></header><label>评估数据集<select value={configDraft.dataset} onChange={(event) => setConfigDraft((current) => ({ ...current, dataset: event.target.value }))}><option>篮球高质量数据集1</option><option>金融年报问答集 v2.1</option><option>客服知识数据集 v3.4</option></select></label><label>评估标准<select value={configDraft.standard} onChange={(event) => setConfigDraft((current) => ({ ...current, standard: event.target.value }))}><option>图像质量评估标准 v2</option><option>多模态训练数据标准 v3</option><option>SFT 数据质量标准 v2</option></select></label><label>抽样策略<select value={configDraft.sampling} onChange={(event) => setConfigDraft((current) => ({ ...current, sampling: event.target.value }))}><option>全量评估</option><option>分层抽样 20%</option><option>风险优先抽样</option></select></label><label>通过阈值<div className="assessment-threshold-field"><input type="range" min="80" max="100" value={configDraft.threshold} onChange={(event) => setConfigDraft((current) => ({ ...current, threshold: Number(event.target.value) }))} /><strong>{configDraft.threshold} 分</strong></div></label><fieldset><legend>质量评估组件 <small>已选择 {configDraft.components.length} 项</small></legend><div>{assessmentComponents.map((component) => <label key={component}><span className="visually-hidden">评估组件</span><input type="checkbox" checked={configDraft.components.includes(component)} onChange={() => toggleAssessmentComponent(component)} /><span><strong>{component}</strong><small>{component.includes("重复") ? "识别完全重复与近似重复样本" : component.includes("格式") ? "检查编码、色彩空间和文件格式" : "按标准规则检查并输出问题样本"}</small></span></label>)}</div></fieldset><footer><button type="button" className="reuse-secondary" onClick={() => setConfigOpen(false)}>取消</button><button className="reuse-primary"><UiIcon icon={Save} />保存配置</button></footer></form></div>}
-    </section>
-  );
 }
 
 function nextModelVersion(job: JobRow) {
@@ -4562,7 +3618,8 @@ function PlatformManagement({
         </article>
       </>}
 
-      {view === "audit" && <article className="white-panel admin-list-panel audit-panel">
+      {view === "audit" && activeRoleId === "role-admin" && <DatabaseAudit mode="audit" />}
+      {view === "audit" && activeRoleId !== "role-admin" && <article className="white-panel admin-list-panel audit-panel">
         <div className="admin-list-toolbar"><div className="admin-search-group"><label><UiIcon icon={Search} /><input value={auditQuery} onChange={(event) => setAuditQuery(event.target.value)} placeholder="搜索用户、操作或对象" /></label><select value={auditModule} onChange={(event) => setAuditModule(event.target.value)}><option>全部模块</option>{Array.from(new Set(auditLogs.map((log) => log.module))).map((moduleName) => <option key={moduleName}>{moduleName}</option>)}</select></div><button className="reuse-secondary" onClick={exportAuditLogs}><UiIcon icon={Download} />导出日志</button></div>
         <div className="audit-stat-strip"><span><small>操作总量</small><strong>{auditLogs.length}</strong></span><span><small>成功操作</small><strong>{auditLogs.filter((log) => log.result === "成功").length}</strong></span><span><small>失败操作</small><strong>{auditLogs.filter((log) => log.result === "失败").length}</strong></span><span><small>活跃用户</small><strong>{new Set(auditLogs.map((log) => log.user)).size}</strong></span></div>
         <div className="reuse-table-wrap"><table className="reuse-table audit-table"><thead><tr><th>操作时间</th><th>操作用户</th><th>业务模块</th><th>操作类型</th><th>操作对象</th><th>结果</th><th>来源地址</th><th>详情</th></tr></thead><tbody>{visibleAudits.map((log) => <tr key={log.id}><td>{log.time}</td><td><strong>{log.user}</strong></td><td>{log.module}</td><td>{log.action}</td><td>{log.target}</td><td><Status tone={log.result === "成功" ? "green" : "orange"}>{log.result}</Status></td><td>{log.address}</td><td><button className="reuse-link" onClick={() => setSelectedAudit(log)}><UiIcon icon={Eye} />查看</button></td></tr>)}</tbody></table></div>
@@ -4577,7 +3634,7 @@ function PlatformManagement({
 
       {view === "storage" && <>
         <div className="admin-summary-strip storage-summary-strip"><span><small>持久化状态</small><strong>{persistenceReady ? "已启用" : "初始化中"}</strong></span><span><small>保存位置</small><strong>本机数据库</strong></span><span><small>快照大小</small><strong>{(storageBytes / 1024).toFixed(1)} KB</strong></span><span><small>最近保存</small><strong>{lastSavedAt}</strong></span><Status tone={persistenceReady ? "green" : "blue"}>{persistenceReady ? "自动保存中" : "正在连接"}</Status></div>
-        <div className="storage-management-grid"><article className="white-panel storage-data-panel"><header className="decision-section-head"><div><h2>本地数据清单</h2><p>以下数据会在刷新或重新打开页面后恢复</p></div><UiIcon icon={HardDrive} /></header><div className="storage-record-list">{recordCounts.map((record) => <div key={record.name}><span><UiIcon icon={Database} /></span><div><strong>{record.name}</strong><small>{record.description}</small></div><b>{record.count}</b></div>)}</div></article><article className="white-panel storage-action-panel"><header className="decision-section-head"><div><h2>备份与恢复</h2><p>备份文件仅包含本地平台配置和演示数据</p></div><UiIcon icon={RotateCcw} /></header><button onClick={exportLocalBackup}><span><UiIcon icon={FileDown} /></span><div><strong>导出本地备份</strong><small>生成 JSON 文件，用于迁移或归档</small></div><UiIcon icon={ChevronRight} /></button><button onClick={() => backupInput.current?.click()}><span><UiIcon icon={FileUp} /></span><div><strong>导入本地备份</strong><small>校验版本后覆盖当前浏览器数据</small></div><UiIcon icon={ChevronRight} /></button><input ref={backupInput} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) importLocalBackup(file); event.target.value = ""; }} /><button className="danger" onClick={() => setResetConfirm(true)}><span><UiIcon icon={Trash2} /></span><div><strong>清除本地数据</strong><small>恢复平台预置演示数据，不影响程序文件</small></div><UiIcon icon={ChevronRight} /></button></article></div>
+        <div className="storage-management-grid">{activeRoleId === "role-admin" ? <DatabaseAudit mode="storage" /> : <article className="white-panel storage-data-panel"><header className="decision-section-head"><div><h2>本地数据清单</h2><p>以下数据会在刷新或重新打开页面后恢复</p></div><UiIcon icon={HardDrive} /></header><div className="storage-record-list">{recordCounts.map((record) => <div key={record.name}><span><UiIcon icon={Database} /></span><div><strong>{record.name}</strong><small>{record.description}</small></div><b>{record.count}</b></div>)}</div></article>}<article className="white-panel storage-action-panel"><header className="decision-section-head"><div><h2>备份与恢复</h2><p>备份文件仅包含本地平台配置和演示数据</p></div><UiIcon icon={RotateCcw} /></header><button onClick={exportLocalBackup}><span><UiIcon icon={FileDown} /></span><div><strong>导出本地备份</strong><small>生成 JSON 文件，用于迁移或归档</small></div><UiIcon icon={ChevronRight} /></button><button onClick={() => backupInput.current?.click()}><span><UiIcon icon={FileUp} /></span><div><strong>导入本地备份</strong><small>校验版本后覆盖当前浏览器数据</small></div><UiIcon icon={ChevronRight} /></button><input ref={backupInput} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) importLocalBackup(file); event.target.value = ""; }} /><button className="danger" onClick={() => setResetConfirm(true)}><span><UiIcon icon={Trash2} /></span><div><strong>清除本地数据</strong><small>恢复平台预置演示数据，不影响程序文件</small></div><UiIcon icon={ChevronRight} /></button></article></div>
         <article className="white-panel storage-policy-panel"><header><UiIcon icon={ShieldCheck} /><div><strong>本地持久化策略</strong><p>当前平台按照本地化部署要求，将业务状态写入服务端本机数据库；同一部署中的授权账号共享业务快照，数据不会自动上传到外部云端。</p></div></header><div><span>自动保存</span><strong>每次业务变更后写入数据库</strong><span>恢复策略</span><strong>登录后读取最后一次完整快照</strong><span>数据范围</span><strong>项目、任务、消息、日志、权限与风险处置</strong></div></article>
         {resetConfirm && <div className="dialog-backdrop"><button className="dialog-dismiss" aria-label="取消清除本地数据" onClick={() => setResetConfirm(false)} /><div className="reuse-dialog local-reset-dialog"><header><div><h2>确认清除本地数据</h2><p>此操作会移除本机数据库保存的共享业务状态</p></div><button aria-label="关闭确认框" onClick={() => setResetConfirm(false)}><UiIcon icon={X} /></button></header><div><span><UiIcon icon={TriangleAlert} size={22} /></span><p>清除后平台将恢复预置演示数据。建议先导出备份，以便需要时恢复。</p></div><footer><button className="reuse-secondary" onClick={() => setResetConfirm(false)}>取消</button><button className="reuse-primary danger-button" onClick={async () => { await clearLocalBackup(); setResetConfirm(false); }}>确认清除</button></footer></div></div>}
       </>}
@@ -4602,9 +3659,7 @@ function CreateDialog({
       ? "多模态审查"
       : id === "model"
         ? "大模型微调训练"
-        : id === "connection"
-          ? "MySQL"
-          : id === "project"
+        : id === "project"
             ? "普通项目"
             : "综合能力评测");
   const defaultAssessmentProfile = assessmentTaskProfiles[defaultOption as AssessmentTaskMode] ?? assessmentTaskProfiles.多模态审查;
@@ -4619,23 +3674,18 @@ function CreateDialog({
   const [evaluationMode, setEvaluationMode] = useState("双盲评测");
   const [evaluationSampleSize, setEvaluationSampleSize] = useState(2000);
   const [saving, setSaving] = useState(false);
-  const [connectionAddress, setConnectionAddress] = useState("");
-  const [connectionStrategy, setConnectionStrategy] = useState("手动触发");
-  const [connectionTest, setConnectionTest] = useState<"idle" | "testing" | "success" | "error">("idle");
 
   const titles: Record<Exclude<DialogId, null>, [string, string]> = {
     assessment: ["添加审查任务", "复用原平台数据审查流程"],
     model: ["新建模型开发任务", "任务将在可用不可见安全域运行"],
-    connection: ["新建数据连接", "连接信息仅用于当前本地演示"],
     project: ["新建治理项目", "创建项目后可进入 ETL 工作间"],
     evaluation: ["新建评测任务", "模型版本需通过评测门禁后发布"],
   };
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (id === "connection" && connectionTest !== "success") return;
     setSaving(true);
-    window.setTimeout(() => onCreated({ kind: id, name, option, model, dataset, baseline, standard: id === "assessment" ? assessmentStandard : evaluationStandard, mode: id === "assessment" ? assessmentExtra : evaluationMode, sampleSize: evaluationSampleSize, endpoint: connectionAddress, strategy: connectionStrategy }), 520);
+    window.setTimeout(() => onCreated({ kind: id, name, option, model, dataset, baseline, standard: id === "assessment" ? assessmentStandard : evaluationStandard, mode: id === "assessment" ? assessmentExtra : evaluationMode, sampleSize: evaluationSampleSize }), 520);
   }
 
   function changeAssessmentMode(mode: AssessmentTaskMode) {
@@ -4646,16 +3696,6 @@ function CreateDialog({
     setAssessmentExtra(profile.extras[0]);
   }
 
-  function testDraftConnection() {
-    if (!connectionAddress.trim()) {
-      setConnectionTest("error");
-      return;
-    }
-    setConnectionTest("testing");
-    window.setTimeout(() => {
-      setConnectionTest(connectionAddress.toLowerCase().includes("invalid") ? "error" : "success");
-    }, 700);
-  }
 
   return (
     <div className="dialog-backdrop">
@@ -4666,7 +3706,7 @@ function CreateDialog({
           <button type="button" aria-label="关闭创建窗口" onClick={onClose}><UiIcon icon={X} /></button>
         </header>
         <label>
-          {id === "connection" ? "连接名称" : id === "project" ? "项目名称" : "任务名称"}
+          {id === "project" ? "项目名称" : "任务名称"}
           <input
             required
             value={name}
@@ -4697,14 +3737,6 @@ function CreateDialog({
             <div className="dialog-security"><span>◆</span><p><strong>安全域策略已启用</strong><br />模型权重、训练数据和运行密钥不可下载。</p></div>
           </>
         )}
-        {id === "connection" && (
-          <>
-            <label>连接类型<select value={option} onChange={(event) => { setOption(event.target.value); setConnectionTest("idle"); }}><option>MySQL</option><option>PostgreSQL</option><option>SFTP</option><option>REST API</option><option>本地文件</option></select></label>
-            <label>连接地址<input required value={connectionAddress} onChange={(event) => { setConnectionAddress(event.target.value); setConnectionTest("idle"); }} placeholder={option === "本地文件" ? "例如：/data/datasets" : option === "REST API" ? "例如：https://api.example/v1" : "例如：127.0.0.1:3306"} /></label>
-            <label>同步策略<select value={connectionStrategy} onChange={(event) => setConnectionStrategy(event.target.value)}><option>手动触发</option><option>每 30 分钟</option><option>每日 02:00</option><option>准实时</option></select></label>
-            <div className={`connection-check ${connectionTest}`}><span>{connectionTest === "testing" ? "…" : connectionTest === "success" ? "✓" : connectionTest === "error" ? "!" : "○"}</span><p><strong>{connectionTest === "testing" ? "正在测试连接" : connectionTest === "success" ? "连接与权限验证通过" : connectionTest === "error" ? "连接验证失败" : "保存前需要验证连接"}</strong><br />{connectionTest === "success" ? "网络可达、身份凭据有效，并满足最小读取权限。" : connectionTest === "error" ? "请填写有效地址；地址中包含 invalid 时会模拟失败。" : "将检查网络可达性、身份凭据和最小权限。"}</p><button type="button" disabled={connectionTest === "testing"} onClick={testDraftConnection}>{connectionTest === "testing" ? "测试中..." : connectionTest === "success" ? "重新测试" : "测试连接"}</button></div>
-          </>
-        )}
         {id === "project" && (
           <>
             <label>项目类型<select value={option} onChange={(event) => setOption(event.target.value)}><option>普通项目</option><option>治理模板项目</option></select></label>
@@ -4725,7 +3757,7 @@ function CreateDialog({
         )}
         <footer>
           <button type="button" className="reuse-secondary" onClick={onClose}>取消</button>
-          <button className="reuse-primary" disabled={saving || (id === "connection" && connectionTest !== "success")}>{saving ? "创建中..." : id === "connection" ? "保存连接" : id === "evaluation" ? "创建评测任务" : "确定"}</button>
+          <button className="reuse-primary" disabled={saving}>{saving ? "创建中..." : id === "evaluation" ? "创建评测任务" : "确定"}</button>
         </footer>
       </form>
     </div>
@@ -4760,7 +3792,6 @@ export default function Home() {
   const [dialog, setDialog] = useState<DialogId>(null);
   const [dialogPreset, setDialogPreset] = useState("");
   const [toast, setToast] = useState("");
-  const [assistant, setAssistant] = useState(false);
   const [topPanel, setTopPanel] = useState<TopPanelId>(null);
   const [adminView, setAdminView] = useState<AdminView>("messages");
   const [compact, setCompact] = useState(false);
@@ -4785,6 +3816,7 @@ export default function Home() {
   const toastTimer = useRef<number | null>(null);
   const lastMutationModule = useRef<ModuleId>("home");
   const skipNextSave = useRef(false);
+  const savedSnapshotTime = useRef("");
 
   const showToast = useCallback((message: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -4803,7 +3835,7 @@ export default function Home() {
       module: moduleName,
       action: message.includes("导出") ? "导出数据" : message.includes("创建") ? "创建记录" : message.includes("运行") ? "执行任务" : message.includes("保存") ? "保存配置" : message.includes("同步") ? "同步数据" : message.includes("切换") ? "切换状态" : "执行操作",
       target: message.slice(0, 28),
-      result: message.includes("失败") || message.includes("异常") ? "失败" : "成功",
+      result: message.includes("失败") || message.includes("异常") ? "失败" as const : "成功" as const,
       detail: message,
       address: "127.0.0.1",
     }, ...current].slice(0, 300));
@@ -4812,10 +3844,11 @@ export default function Home() {
   const buildLocalSnapshot = useCallback((): LocalPlatformSnapshot => ({
     version: 2,
     savedAt: new Date().toISOString(),
-    data: { project, compact, projects, sources, cleaningTasks, reviewTasks, jobs, evaluations, messages, auditLogs, roles, users, activeRoleId, resolvedRisks, assessmentIssues },
+    data: { project, compact, projects, sources, cleaningTasks, reviewTasks, jobs, evaluations, messages, auditLogs, roles, users, activeRoleId, resolvedRisks, assessmentIssues: removeLegacyAssessmentSamples(assessmentIssues) },
   }), [activeRoleId, assessmentIssues, auditLogs, cleaningTasks, compact, evaluations, jobs, messages, project, projects, resolvedRisks, reviewTasks, roles, sources, users]);
 
   const applySnapshot = useCallback((snapshot: LocalPlatformSnapshot, roleId: string) => {
+    savedSnapshotTime.current = snapshot.savedAt;
     setProject(snapshot.data.project || "高质量数据集评估演示");
     setCompact(Boolean(snapshot.data.compact));
     setProjects(snapshot.data.projects || initialProjects);
@@ -4830,7 +3863,7 @@ export default function Home() {
     setUsers(snapshot.data.users || initialUsers);
     setActiveRoleId(roleId);
     setResolvedRisks(snapshot.data.resolvedRisks || []);
-    setAssessmentIssues(snapshot.data.assessmentIssues || initialAssessmentIssues);
+    setAssessmentIssues(removeLegacyAssessmentSamples(snapshot.data.assessmentIssues || []));
     setLastSavedAt(new Date(snapshot.savedAt).toLocaleTimeString("zh-CN", { hour12: false }));
   }, []);
 
@@ -4896,7 +3929,7 @@ export default function Home() {
       try {
         const response = await fetch("/api/platform-state", {
           method: "PUT",
-          headers: { "Content-Type": "application/json", "x-platform-request": "1", "x-platform-module": lastMutationModule.current },
+          headers: { "Content-Type": "application/json", "x-platform-request": "1", "x-platform-module": lastMutationModule.current, "x-platform-base": savedSnapshotTime.current },
           body: JSON.stringify(snapshot),
         });
         if (response.status === 401) {
@@ -4907,7 +3940,12 @@ export default function Home() {
           showToast("当前账号只有只读权限，本次修改未保存");
           return;
         }
+        if (response.status === 409) {
+          showToast("数据库存在更新冲突，请刷新页面后重试；本次修改未保存");
+          return;
+        }
         if (!response.ok) throw new Error("save-failed");
+        savedSnapshotTime.current = snapshot.savedAt;
         setLastSavedAt(new Date(snapshot.savedAt).toLocaleTimeString("zh-CN", { hour12: false }));
       } catch {
         showToast("本地持久化保存失败，请检查服务状态");
@@ -4968,8 +4006,9 @@ export default function Home() {
     if (!authUser) return;
     const currentRole = roles.find((role) => role.id === activeRoleId) ?? roles[0];
     const readOnly = currentRole?.permissions[active] === "只读";
-    const root = document.querySelector<HTMLElement>(".reuse-main");
-    if (!root) return;
+    const rootElement = document.querySelector<HTMLElement>(".reuse-main");
+    if (!rootElement) return;
+    const root: HTMLElement = rootElement;
     const writePattern = /新建|添加|创建|保存|运行|同步|测试连接|立即同步|处置|分派|提交|关闭问题|启用|停用|删除|清除|导入|重评|重新评测|安装|发布|回滚|复制|重命名|生成|执行|校验配置|选择文件|上传|配置|加入清洗/;
     const safePattern = /查看|详情|导出|刷新|搜索|筛选|返回|取消|关闭菜单|关闭.*(?:框|详情|配置|抽屉)|换一批|定位|缩放|布局|血缘|质量$/;
 
@@ -5051,6 +4090,7 @@ export default function Home() {
 
   function openModule(id: ModuleId, label?: string) {
     const moduleItem = modules.find((item) => item.id === id)!;
+    if (id === "inventory" && label && !moduleItem.children.includes(label)) label = "数据库管理";
     const currentRole = roles.find((role) => role.id === activeRoleId) ?? roles[0];
     if (id !== "home" && currentRole?.permissions[id] === "无权限") {
       setMenuOpen(null);
@@ -5133,24 +4173,6 @@ export default function Home() {
         ...current,
       ]);
     }
-    if (payload.kind === "connection") {
-      const connectionType = payload.option === "MySQL" ? "MySQL 8.0" : payload.option === "PostgreSQL" ? "PostgreSQL 16" : payload.option;
-      setSources((current) => [
-        {
-          name: payload.name,
-          type: connectionType,
-          summary: "等待首次同步",
-          scale: "--",
-          strategy: payload.strategy || "手动触发",
-          updated: "尚未同步",
-          endpoint: payload.endpoint || "--",
-          status: "正常",
-          progress: 100,
-          syncResult: "连接验证通过，等待执行首次同步",
-        },
-        ...current,
-      ]);
-    }
     if (payload.kind === "project") {
       setProjects((current) => [
         { name: payload.name, overview: "0 Datasets  0 Recipes", created: today, updated: today, isEmpty: true, workspace: { nodes: [], edges: [] } },
@@ -5179,7 +4201,7 @@ export default function Home() {
       detail: "新记录已加入平台任务列表，可继续配置并执行。",
       category: payload.kind === "model" || payload.kind === "evaluation" ? "模型" : payload.kind === "project" ? "治理" : "质量",
       level: "普通",
-      module: payload.kind === "model" ? "modelDev" : payload.kind === "evaluation" ? "modelEval" : payload.kind === "project" ? "governance" : payload.kind === "connection" ? "inventory" : "assessment",
+      module: payload.kind === "model" ? "modelDev" : payload.kind === "evaluation" ? "modelEval" : payload.kind === "project" ? "governance" : "assessment",
     });
     notify(`${payload.name} 已创建并加入列表`);
   }
@@ -5218,41 +4240,11 @@ export default function Home() {
     setEvaluations((current) => current.map((item) => item.name === name ? { ...item, ...patch } : item));
   }, [activeRoleId, roles, showToast]);
 
-  function updateSource(name: string, patch: Partial<SourceRow>) {
-    if (!requireWriteAccess("inventory")) return;
-    setSources((current) => current.map((source) => source.name === name ? { ...source, ...patch } : source));
-  }
 
-  const createCleaningTask = useCallback((task: CleaningTaskDraft) => {
-    const role = roles.find((item) => item.id === activeRoleId) ?? roles[0];
-    if (role?.permissions.inventory !== "管理") {
-      showToast(`${role?.name || "当前账号"}在智能数据盘点中只有只读权限`);
-      return "";
-    }
-    const id = `clean-${Date.now()}`;
-    const sourceVersion: CleaningVersionRow = {
-      id: `${id}-source`,
-      version: task.sourceVersion,
-      parent: "--",
-      created: "刚刚",
-      operator: "高质量数据评估演示",
-      records: task.recordCount,
-      issues: task.issueCount,
-      quality: 93.7,
-      change: "探查结果快照",
-    };
-    setCleaningTasks((current) => [{ ...task, id, status: "待执行", progress: 0, outputVersion: "--", activeVersion: task.sourceVersion, versions: [sourceVersion], created: "刚刚" }, ...current]);
-    return id;
-  }, [activeRoleId, roles, showToast]);
 
-  const updateCleaningTask = useCallback((id: string, patch: Partial<CleaningTaskRow>) => {
-    const role = roles.find((item) => item.id === activeRoleId) ?? roles[0];
-    if (role?.permissions.inventory !== "管理") {
-      showToast(`${role?.name || "当前账号"}在智能数据盘点中只有只读权限`);
-      return;
-    }
-    setCleaningTasks((current) => current.map((task) => task.id === id ? { ...task, ...patch } : task));
-  }, [activeRoleId, roles, showToast]);
+
+
+
 
   function markMessageRead(id: string) {
     setMessages((current) => current.map((message) => message.id === id ? { ...message, read: true } : message));
@@ -5318,7 +4310,7 @@ export default function Home() {
       setUsers(snapshot.data.users);
       setActiveRoleId(authUser?.roleId || snapshot.data.activeRoleId);
       setResolvedRisks(snapshot.data.resolvedRisks);
-      setAssessmentIssues(snapshot.data.assessmentIssues);
+      setAssessmentIssues(removeLegacyAssessmentSamples(snapshot.data.assessmentIssues || []));
       setLastSavedAt("刚刚恢复");
       notify("本地备份已校验并恢复");
     } catch {
@@ -5334,6 +4326,7 @@ export default function Home() {
       return;
     }
     window.localStorage.removeItem(PLATFORM_STORAGE_KEY);
+    savedSnapshotTime.current = "";
     setProject("高质量数据集评估演示");
     setCompact(false);
     setProjects(initialProjects);
@@ -5390,8 +4383,7 @@ export default function Home() {
     <div className={`reuse-app ${compact ? "compact" : ""}`}>
       <aside className="icon-rail">
         <div className="rail-logo">
-          <span>质</span>
-          <div><strong>QUALITY HUB</strong><small>高质量数据平台</small></div>
+          <div><strong>高质量数据平台</strong></div>
         </div>
         <nav aria-label="平台模块">
           <p className="rail-section-label">工作台</p>
@@ -5511,8 +4503,8 @@ export default function Home() {
       </div>
 
       <main className="reuse-main">
-        {active === "home" && <HomeDashboard sources={sources} cleaningTasks={cleaningTasks} reviewTaskCount={reviewTasks.length} jobs={jobs} evaluations={evaluations} notify={notify} openModule={openModule} resolvedRisks={resolvedRisks} setResolvedRisks={setResolvedRisks} />}
-        {active === "inventory" && <InventoryPage key={tabs.find((tab) => tab.id === "inventory")?.label || "数据库管理"} initialSection={tabs.find((tab) => tab.id === "inventory")?.label || "数据库管理"} sources={sources} cleaningTasks={cleaningTasks} openDialog={() => openCreate("connection")} updateSource={updateSource} createCleaningTask={createCleaningTask} updateCleaningTask={updateCleaningTask} notify={notify} />}
+        {active === "home" && <HomeDashboard notify={notify} openModule={openModule} />}
+        {active === "inventory" && <InventoryPage key={tabs.find((tab) => tab.id === "inventory")?.label || "数据库管理"} initialSection={tabs.find((tab) => tab.id === "inventory")?.label || "数据库管理"} onSectionChange={(label) => setTabs(current => current.map(tab => tab.id === "inventory" ? { ...tab, label } : tab))} notify={notify} />}
         {active === "governance" && governanceView === "workspace" && workspaceProject && (
           <GovernanceWorkbench
             project={workspaceProject}
@@ -5538,35 +4530,12 @@ export default function Home() {
           />
         )}
         {active === "governance" && governanceView === "projects" && (
-          <GovernancePage
-            projects={projects}
-            openDialog={() => openCreate("project")}
-            notify={notify}
-            enterWorkspace={(row) => {
-              setWorkspaceProject(row);
-              setGovernanceView("workspace");
-              setTabs((current) => current.map((tab) => tab.id === "governance" ? { ...tab, label: "高质量数据治理工作间" } : tab));
-              notify(`已进入 ${row.name} 的高质量数据治理工作间`);
-            }}
-            copyProject={(row) => {
-              const copy = { ...row, name: `${row.name}-副本`, created: "2026-08-23", updated: "2026-08-23" };
-              setProjects((current) => [copy, ...current]);
-              notify(`${row.name} 已复制`);
-            }}
-            deleteProject={(row) => {
-              setProjects((current) => current.filter((item) => !(item.name === row.name && item.created === row.created && item.updated === row.updated)));
-              if (workspaceProject?.name === row.name && workspaceProject.created === row.created) {
-                setWorkspaceProject(null);
-                setGovernanceView("projects");
-              }
-              notify(`${row.name} 已删除`);
-            }}
-          />
+          <GovernancePage notify={notify} />
         )}
         {active === "governance" && governanceView === "algorithms" && <GovernanceAlgorithms notify={notify} />}
         {active === "governance" && governanceView === "marketplace" && <GovernanceMarketplace notify={notify} />}
-        {active === "assessment" && tabs.find((tab) => tab.id === "assessment")?.label === "高质量数据评估历史" && <AssessmentHistoryPage notify={notify} />}
-        {active === "assessment" && tabs.find((tab) => tab.id === "assessment")?.label !== "高质量数据评估历史" && <AssessmentPage key={tabs.find((tab) => tab.id === "assessment")?.label || "高质量数据评估"} initialView="评估执行" tasks={reviewTasks} issues={assessmentIssues} setIssues={setAssessmentIssues} openDialog={() => openCreate("assessment")} notify={notify} />}
+        {active === "assessment" && tabs.find((tab) => tab.id === "assessment")?.label === "高质量数据评估历史" && <AssessmentHistoryPage />}
+        {active === "assessment" && tabs.find((tab) => tab.id === "assessment")?.label !== "高质量数据评估历史" && <AssessmentPage key={tabs.find((tab) => tab.id === "assessment")?.label || "高质量数据评估"} initialView="评估执行" />}
         {active === "modelDev" && (
           <ModelDevelopment
             jobs={jobs}
@@ -5613,17 +4582,6 @@ export default function Home() {
           />
         )}
       </main>
-
-      <button className="reuse-assistant-button" onClick={() => setAssistant(!assistant)} aria-label="打开质量助手"><UiIcon icon={Sparkles} size={21} /></button>
-      {assistant && (
-        <aside className="reuse-assistant">
-          <header><strong>质量助手</strong><button aria-label="关闭质量助手" onClick={() => setAssistant(false)}><UiIcon icon={X} size={16} /></button></header>
-          <p>当前项目包含 12 个数据集、20 个治理 Recipe 和 {jobs.length} 个模型开发任务。</p>
-          <div className="assistant-suggestion">建议先处理 1 个等待评估的模型任务，再生成项目报告。</div>
-          <button onClick={() => openModule("assessment")}>查看数据评估</button>
-          <button onClick={() => openModule("modelDev")}>进入模型开发</button>
-        </aside>
-      )}
 
       {dialog && (
         <CreateDialog
